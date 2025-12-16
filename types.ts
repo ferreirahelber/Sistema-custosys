@@ -9,17 +9,22 @@ export enum Unit {
 export interface Employee {
   id: string;
   name: string;
-  salary: number; // Salário + Encargos
+  salary: number;
   hours_monthly: number;
 }
 
 export interface Settings {
   employees: Employee[];
-  labor_monthly_cost: number; // Total calculado
-  work_hours_monthly: number; // Total calculado
-  fixed_overhead_rate: number; // 0.1 for 10%
-  // Computed helpers
+  labor_monthly_cost: number;
+  work_hours_monthly: number;
+  fixed_overhead_rate: number;
   cost_per_minute: number;
+}
+
+// NOVA INTERFACE PARA CONVERSÕES
+export interface MeasureConversion {
+  name: string; // ex: 'Xícara', 'Colher de Sopa'
+  value: number; // ex: 120 (quanto vale em g/ml)
 }
 
 export interface Ingredient {
@@ -28,14 +33,20 @@ export interface Ingredient {
   package_price: number;
   package_amount: number;
   package_unit: Unit;
-  unit_cost_base: number; // Cost per base unit (g, ml, or un)
-  base_unit: 'g' | 'ml' | 'un'; // Normalized unit type
+  unit_cost_base: number;
+  base_unit: 'g' | 'ml' | 'un';
+  // NOVO CAMPO
+  conversions?: MeasureConversion[];
+  current_stock?: number; // Quantidade atual em base_unit (g/ml/un)
 }
 
 export interface RecipeItem {
   id: string;
   ingredient_id: string;
-  quantity_used: number; // In base units (g, ml, un)
+  quantity_used: number; // Valor calculado em unidade base (g/ml) para custo
+  // NOVOS CAMPOS PARA EXIBIÇÃO
+  quantity_input?: number; // O que o usuário digitou (ex: 2)
+  unit_input?: string; // A unidade que o usuário escolheu (ex: 'Xícara')
 }
 
 export interface Recipe {
@@ -45,7 +56,6 @@ export interface Recipe {
   preparation_time_minutes: number;
   items: RecipeItem[];
   
-  // Computed Financials
   total_cost_material: number;
   total_cost_labor: number;
   total_cost_overhead: number;
@@ -54,7 +64,7 @@ export interface Recipe {
 }
 
 export interface SimulationParams {
-  tax_rate: number; // %
-  card_fee: number; // %
-  desired_margin: number; // %
+  tax_rate: number;
+  card_fee: number;
+  desired_margin: number;
 }

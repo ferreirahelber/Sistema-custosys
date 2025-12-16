@@ -1,7 +1,7 @@
-import { Settings, Ingredient, Recipe } from '../types';
+import { Settings, Ingredient, Recipe, RecipeItem } from '../types';
 
 const KEYS = {
-  SETTINGS: 'custosys_settings_v2', // Changed key to force refresh structure if needed
+  SETTINGS: 'custosys_settings_v2',
   INGREDIENTS: 'custosys_ingredients',
   RECIPES: 'custosys_recipes',
 };
@@ -18,9 +18,7 @@ export const StorageService = {
   getSettings: (): Settings => {
     const data = localStorage.getItem(KEYS.SETTINGS);
     if (!data) return defaultSettings;
-    
     const parsed = JSON.parse(data);
-    // Backward compatibility check
     if (!parsed.employees) {
       return { ...defaultSettings, ...parsed, employees: [] };
     }
@@ -28,7 +26,6 @@ export const StorageService = {
   },
   
   saveSettings: (settings: Settings) => {
-    // Recalculate totals based on employees if present
     let totalCost = settings.labor_monthly_cost;
     let totalHours = settings.work_hours_monthly;
 
@@ -55,6 +52,7 @@ export const StorageService = {
     const data = localStorage.getItem(KEYS.INGREDIENTS);
     return data ? JSON.parse(data) : [];
   },
+  
   saveIngredient: (ingredient: Ingredient) => {
     const current = StorageService.getIngredients();
     const existingIndex = current.findIndex(i => i.id === ingredient.id);
@@ -66,6 +64,7 @@ export const StorageService = {
     localStorage.setItem(KEYS.INGREDIENTS, JSON.stringify(current));
     return current;
   },
+  
   deleteIngredient: (id: string) => {
     const current = StorageService.getIngredients();
     const updated = current.filter(i => i.id !== id);
@@ -73,10 +72,30 @@ export const StorageService = {
     return updated;
   },
 
+  // NOVA FUNÇÃO: Dar baixa no estoque
+  processProductionBatch: (items: RecipeItem[], multiplier: number = 1) => {
+    const ingredients = StorageService.getIngredients();
+    
+    // Atualiza o estoque de cada ingrediente usado
+    const updatedIngredients = ingredients.map(ing => {
+        const item = items.find(i => i.ingredient_id === ing.id);
+        if (item) {
+            const currentStock = ing.current_stock || 0;
+            const amountToDeduct = item.quantity_used * multiplier;
+            return { ...ing, current_stock: Math.max(0, currentStock - amountToDeduct) };
+        }
+        return ing;
+    });
+
+    localStorage.setItem(KEYS.INGREDIENTS, JSON.stringify(updatedIngredients));
+    return updatedIngredients;
+  },
+
   getRecipes: (): Recipe[] => {
     const data = localStorage.getItem(KEYS.RECIPES);
     return data ? JSON.parse(data) : [];
   },
+  
   saveRecipe: (recipe: Recipe) => {
     const current = StorageService.getRecipes();
     const existingIndex = current.findIndex(r => r.id === recipe.id);
@@ -88,6 +107,7 @@ export const StorageService = {
     localStorage.setItem(KEYS.RECIPES, JSON.stringify(current));
     return current;
   },
+  
   deleteRecipe: (id: string) => {
     const current = StorageService.getRecipes();
     const updated = current.filter(r => r.id !== id);

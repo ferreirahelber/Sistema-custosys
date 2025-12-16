@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Ingredient, Recipe, RecipeItem, Settings } from '../types';
 import { StorageService } from '../services/storage';
 import { calculateRecipeFinancials } from '../utils/calculations';
-import { ChefHat, Clock, Layers, Plus, Trash2, PieChart, AlertTriangle } from 'lucide-react';
+import { ChefHat, Clock, Layers, Plus, Trash2, PieChart, AlertTriangle, BoxSelect, CheckCircle, Printer, Edit } from 'lucide-react';
+import { RecipePrintView } from './RecipePrintView';
 
 export const RecipeForm: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'new' | 'list'>('list');
@@ -10,33 +11,83 @@ export const RecipeForm: React.FC = () => {
   const [settings, setSettings] = useState<Settings>(StorageService.getSettings());
   const [recipes, setRecipes] = useState<Recipe[]>(StorageService.getRecipes());
   
+  // Impressão
+  const [printingRecipe, setPrintingRecipe] = useState<Recipe | null>(null);
+
+  // Edição
+  const [editingId, setEditingId] = useState<string | null>(null);
+
   // Form State
   const [name, setName] = useState('');
   const [yieldUnits, setYieldUnits] = useState(1);
   const [prepTime, setPrepTime] = useState(60);
   const [recipeItems, setRecipeItems] = useState<RecipeItem[]>([]);
   
-  // Temporary state for adding an item
   const [selectedIngId, setSelectedIngId] = useState('');
+  const [selectedUnit, setSelectedUnit] = useState('');
   const [itemQuantity, setItemQuantity] = useState('');
 
-  // Reload data whenever component mounts or tab changes
+  const [productionMsg, setProductionMsg] = useState('');
+
   useEffect(() => {
     setIngredients(StorageService.getIngredients());
     setSettings(StorageService.getSettings());
     setRecipes(StorageService.getRecipes());
   }, [activeTab]);
 
+  const selectedIngredientDetails = ingredients.find(i => i.id === selectedIngId);
+
+  useEffect(() => {
+    if (selectedIngredientDetails) {
+        setSelectedUnit(selectedIngredientDetails.base_unit);
+    }
+  }, [selectedIngId]);
+
+  // --- LÓGICA DE EDIÇÃO ---
+  const handleEditRecipe = (recipe: Recipe) => {
+      setEditingId(recipe.id);
+      setName(recipe.name);
+      setYieldUnits(recipe.yield_units);
+      setPrepTime(recipe.preparation_time_minutes);
+      setRecipeItems(recipe.items);
+      setActiveTab('new'); // Leva para a aba de formulário
+  };
+
+  const cancelEdit = () => {
+      setEditingId(null);
+      setName('');
+      setYieldUnits(1);
+      setPrepTime(60);
+      setRecipeItems([]);
+      setActiveTab('list');
+  };
+  // ------------------------
+
   const addItem = () => {
-    if (!selectedIngId || !itemQuantity) return;
+    if (!selectedIngId || !itemQuantity || !selectedUnit) return;
+    
+    const qtyInput = parseFloat(itemQuantity);
+    let qtyBase = qtyInput;
+
+    if (selectedIngredientDetails && selectedUnit !== selectedIngredientDetails.base_unit) {
+        const conversion = selectedIngredientDetails.conversions?.find(c => c.name === selectedUnit);
+        if (conversion) {
+            qtyBase = qtyInput * conversion.value;
+        }
+    }
+
     const newItem: RecipeItem = {
       id: Date.now().toString(),
       ingredient_id: selectedIngId,
-      quantity_used: parseFloat(itemQuantity)
+      quantity_used: qtyBase,
+      quantity_input: qtyInput,
+      unit_input: selectedUnit
     };
+
     setRecipeItems([...recipeItems, newItem]);
     setSelectedIngId('');
     setItemQuantity('');
+    setSelectedUnit('');
   };
 
   const removeItem = (id: string) => {
@@ -47,10 +98,25 @@ export const RecipeForm: React.FC = () => {
     if(window.confirm("Excluir esta receita permanentemente?")) {
         const updated = StorageService.deleteRecipe(id);
         setRecipes(updated);
+        // Se estiver editando a receita que foi excluída, cancela a edição
+        if (editingId === id) {
+            cancelEdit();
+        }
     }
   };
 
-  // Real-time calculations
+  const handleProduce = (recipe: Recipe) => {
+      const batches = prompt(`Quantos lotes de "${recipe.name}" você vai produzir?`, "1");
+      if (batches) {
+          const qty = parseFloat(batches);
+          if (qty > 0) {
+              StorageService.processProductionBatch(recipe.items, qty);
+              setProductionMsg(`Sucesso! Estoque atualizado para ${qty} lote(s) de ${recipe.name}.`);
+              setTimeout(() => setProductionMsg(''), 4000);
+          }
+      }
+  };
+
   const financials = calculateRecipeFinancials(
     recipeItems, 
     ingredients, 
@@ -64,7 +130,7 @@ export const RecipeForm: React.FC = () => {
     if (!name || recipeItems.length === 0) return;
 
     const newRecipe: Recipe = {
-      id: Date.now().toString(),
+      id: editingId || Date.now().toString(), // Mantém ID se editando, cria novo se não
       name,
       yield_units: yieldUnits,
       preparation_time_minutes: prepTime,
@@ -78,24 +144,30 @@ export const RecipeForm: React.FC = () => {
 
     const updated = StorageService.saveRecipe(newRecipe);
     setRecipes(updated);
-    // Reset
+    
+    // Limpeza após salvar
+    setEditingId(null);
     setName('');
     setRecipeItems([]);
     setYieldUnits(1);
     setActiveTab('list');
   };
 
-  const selectedIngredientDetails = ingredients.find(i => i.id === selectedIngId);
-
-  // Check if settings are missing (which causes 0 labor/overhead costs)
   const isMissingSettings = settings.cost_per_minute === 0;
 
   return (
     <div className="space-y-6">
-      {/* Tab Navigation */}
+      {/* Modal de Impressão */}
+      {printingRecipe && (
+          <RecipePrintView 
+            recipe={printingRecipe} 
+            onClose={() => setPrintingRecipe(null)} 
+          />
+      )}
+
       <div className="flex gap-4 border-b">
         <button 
-          onClick={() => setActiveTab('list')}
+          onClick={() => { setActiveTab('list'); cancelEdit(); }}
           className={`pb-3 px-2 font-medium transition ${activeTab === 'list' ? 'text-amber-600 border-b-2 border-amber-600' : 'text-slate-500'}`}
         >
           Minhas Receitas
@@ -104,19 +176,34 @@ export const RecipeForm: React.FC = () => {
           onClick={() => setActiveTab('new')}
           className={`pb-3 px-2 font-medium transition ${activeTab === 'new' ? 'text-amber-600 border-b-2 border-amber-600' : 'text-slate-500'}`}
         >
-          Nova Receita
+          {editingId ? 'Editando Receita' : 'Nova Receita'}
         </button>
       </div>
+
+      {productionMsg && (
+          <div className="bg-green-100 border border-green-300 text-green-800 px-4 py-3 rounded-lg flex items-center gap-2 animate-pulse">
+              <CheckCircle size={20} /> {productionMsg}
+          </div>
+      )}
 
       {activeTab === 'new' && (
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
           
-          {/* Main Form */}
           <div className="xl:col-span-2 space-y-6">
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-              <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
-                <ChefHat className="text-amber-600" /> Detalhes da Receita
-              </h2>
+              <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                    <ChefHat className="text-amber-600" /> {editingId ? 'Editar Receita' : 'Detalhes da Receita'}
+                  </h2>
+                  {editingId && (
+                      <button 
+                        onClick={cancelEdit}
+                        className="text-sm text-red-500 hover:text-red-700 underline"
+                      >
+                          Cancelar Edição
+                      </button>
+                  )}
+              </div>
               
               <div className="space-y-4">
                 <div>
@@ -156,11 +243,9 @@ export const RecipeForm: React.FC = () => {
               </div>
             </div>
 
-            {/* Ingredients Section */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
                <h3 className="text-lg font-bold text-slate-800 mb-4">Composição (Ingredientes)</h3>
                
-               {/* Add Item Row - Explicit styling to fix visibility issues */}
                <div className="flex flex-col md:flex-row gap-3 items-end mb-6 bg-slate-50 p-4 rounded-lg">
                   <div className="flex-1 w-full">
                     <label className="text-xs font-semibold text-slate-500 uppercase">Ingrediente</label>
@@ -172,14 +257,41 @@ export const RecipeForm: React.FC = () => {
                       <option value="" className="text-slate-400">Selecione...</option>
                       {ingredients.map(i => (
                         <option key={i.id} value={i.id} className="text-slate-800">
-                           {i.name} ({i.base_unit})
+                           {i.name}
                         </option>
                       ))}
                     </select>
                   </div>
+
+                  <div className="w-full md:w-40">
+                    <label className="text-xs font-semibold text-slate-500 uppercase">
+                      Medida
+                    </label>
+                    <select
+                      value={selectedUnit}
+                      onChange={e => setSelectedUnit(e.target.value)}
+                      disabled={!selectedIngId}
+                      className="w-full mt-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none bg-white text-slate-800 disabled:bg-slate-100"
+                    >
+                        {selectedIngredientDetails ? (
+                            <>
+                                <option value={selectedIngredientDetails.base_unit}>
+                                    {selectedIngredientDetails.base_unit === 'g' ? 'Gramas (g)' : 
+                                     selectedIngredientDetails.base_unit === 'ml' ? 'Mililitros (ml)' : 'Unidade (un)'}
+                                </option>
+                                {selectedIngredientDetails.conversions?.map((c, idx) => (
+                                    <option key={idx} value={c.name}>{c.name}</option>
+                                ))}
+                            </>
+                        ) : (
+                            <option value="">-</option>
+                        )}
+                    </select>
+                  </div>
+
                   <div className="w-full md:w-32">
                     <label className="text-xs font-semibold text-slate-500 uppercase">
-                      Qtd ({selectedIngredientDetails?.base_unit || 'un'})
+                      Quantidade
                     </label>
                     <input
                       type="number"
@@ -194,20 +306,28 @@ export const RecipeForm: React.FC = () => {
                     disabled={!selectedIngId || !itemQuantity}
                     className="w-full md:w-auto px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
                   >
-                    <Plus size={18} /> Add
+                    <Plus size={18} />
                   </button>
                </div>
 
-               {/* List of Items */}
                <div className="space-y-2">
                  {recipeItems.map((item, idx) => {
                    const ing = ingredients.find(i => i.id === item.ingredient_id);
                    const cost = (ing?.unit_cost_base || 0) * item.quantity_used;
+                   
+                   const displayQty = item.quantity_input || item.quantity_used;
+                   const displayUnit = item.unit_input || ing?.base_unit;
+
                    return (
                      <div key={item.id} className="flex justify-between items-center p-3 border-b last:border-0 hover:bg-slate-50 transition">
                        <div>
                          <div className="font-medium text-slate-800">{ing?.name}</div>
-                         <div className="text-xs text-slate-500">{item.quantity_used} {ing?.base_unit}</div>
+                         <div className="text-xs text-slate-500">
+                            {displayQty} {displayUnit} 
+                            {displayUnit !== ing?.base_unit && (
+                                <span className="ml-1 text-slate-400">({item.quantity_used} {ing?.base_unit})</span>
+                            )}
+                         </div>
                        </div>
                        <div className="flex items-center gap-4">
                          <div className="text-sm font-semibold text-slate-600">R$ {cost.toFixed(2)}</div>
@@ -225,11 +345,10 @@ export const RecipeForm: React.FC = () => {
             </div>
           </div>
 
-          {/* Sidebar Financials Preview */}
           <div className="space-y-6">
             <div className="bg-slate-800 text-white p-6 rounded-xl shadow-lg sticky top-6">
               <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                <PieChart size={20} className="text-amber-400"/> Custos do Lote
+                <PieChart size={20} className="text-amber-400"/> {editingId ? 'Custos (Editando)' : 'Custos do Lote'}
               </h3>
               
               <div className="space-y-3 text-sm">
@@ -272,7 +391,7 @@ export const RecipeForm: React.FC = () => {
                 disabled={recipeItems.length === 0 || !name}
                 className="w-full mt-6 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Salvar Receita
+                {editingId ? 'Salvar Alterações' : 'Salvar Receita'}
               </button>
             </div>
           </div>
@@ -295,12 +414,36 @@ export const RecipeForm: React.FC = () => {
               <div key={recipe.id} className="bg-white p-5 rounded-xl shadow-sm border border-slate-100 hover:shadow-md transition group relative">
                  <div className="flex justify-between items-start mb-3">
                    <h3 className="font-bold text-slate-800 text-lg leading-tight">{recipe.name}</h3>
-                   <button 
-                     onClick={() => handleDeleteRecipe(recipe.id)}
-                     className="text-slate-300 hover:text-red-500 transition"
-                   >
-                     <Trash2 size={18} />
-                   </button>
+                   <div className="flex gap-1">
+                     <button 
+                        onClick={() => handleEditRecipe(recipe)}
+                        className="text-slate-400 hover:text-amber-600 transition p-1"
+                        title="Editar Receita"
+                     >
+                        <Edit size={18} />
+                     </button>
+                     <button 
+                        onClick={() => setPrintingRecipe(recipe)}
+                        className="text-slate-400 hover:text-blue-600 transition p-1"
+                        title="Imprimir Ficha Técnica"
+                     >
+                        <Printer size={18} />
+                     </button>
+                     <button 
+                        onClick={() => handleProduce(recipe)}
+                        className="text-slate-400 hover:text-green-600 transition p-1"
+                        title="Produzir Lote (Baixar Estoque)"
+                     >
+                        <BoxSelect size={18} />
+                     </button>
+                     <button 
+                        onClick={() => handleDeleteRecipe(recipe.id)}
+                        className="text-slate-300 hover:text-red-500 transition p-1"
+                        title="Excluir"
+                     >
+                        <Trash2 size={18} />
+                     </button>
+                   </div>
                  </div>
                  
                  <div className="flex gap-4 text-xs text-slate-500 mb-4">

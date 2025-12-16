@@ -97,3 +97,18 @@ export const calculateSellingPrice = (
 
   return unitCost / (1 - totalDeductions);
 };
+
+export const calculateMargin = (
+  unitCost: number,
+  sellingPrice: number,
+  taxRate: number,
+  cardFee: number
+): number => {
+  if (sellingPrice <= 0) return -100; 
+  // Formula: Margem = 100% - (Custo/Preço) - Impostos - Taxas
+  const deductionRate = (taxRate + cardFee) / 100;
+  const costRate = unitCost / sellingPrice;
+  const marginRate = 1 - costRate - deductionRate;
+  
+  return marginRate * 100;
+};
