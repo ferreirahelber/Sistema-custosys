@@ -1,28 +1,45 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Settings, Employee } from '../types';
-import { StorageService } from '../services/storage';
-import { Save, Info, Plus, Trash2, Users, Clock, DollarSign } from 'lucide-react';
+import { SettingsService } from '../services/settingsService';
+import { Save, Info, Plus, Trash2, Users, Clock, DollarSign, Loader2 } from 'lucide-react';
 
 interface Props {
   onSave: () => void;
 }
 
 export const SettingsForm: React.FC<Props> = ({ onSave }) => {
-  const [settings, setSettings] = useState<Settings>(StorageService.getSettings());
-  const [saved, setSaved] = useState(false);
-  
-  // New employee state
+  // 1. Estados
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [successMsg, setSuccessMsg] = useState(false);
+
+  // Estados do novo funcionário
   const [newEmpName, setNewEmpName] = useState('');
   const [newEmpSalary, setNewEmpSalary] = useState('');
   const [newEmpHours, setNewEmpHours] = useState('');
 
+  // 2. Carregar dados ao abrir a tela
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+    const data = await SettingsService.get();
+    setSettings(data);
+    setLoading(false);
+  };
+
+  // 3. Funções de manipulação
   const handleGlobalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!settings) return;
     const { name, value } = e.target;
-    setSettings(prev => ({ ...prev, [name]: parseFloat(value) || 0 }));
+    setSettings({ ...settings, [name]: parseFloat(value) || 0 });
   };
 
   const addEmployee = () => {
-    if (!newEmpName || !newEmpSalary || !newEmpHours) return;
+    if (!settings || !newEmpName || !newEmpSalary || !newEmpHours) return;
     
     const newEmployee: Employee = {
       id: Date.now().toString(),
@@ -32,68 +49,81 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
     };
 
     const updatedEmployees = [...(settings.employees || []), newEmployee];
+    recalculateTotals(updatedEmployees, settings);
     
-    // Auto update totals immediately for preview
-    const totalCost = updatedEmployees.reduce((acc, e) => acc + e.salary, 0);
-    const totalHours = updatedEmployees.reduce((acc, e) => acc + e.hours_monthly, 0);
-
-    // Calculate generic minute cost
-    const minutes = totalHours * 60;
-    const costPerMinute = minutes > 0 ? totalCost / minutes : 0;
-
-    setSettings(prev => ({
-      ...prev,
-      employees: updatedEmployees,
-      labor_monthly_cost: totalCost,
-      work_hours_monthly: totalHours,
-      cost_per_minute: costPerMinute
-    }));
-
+    // Limpa campos
     setNewEmpName('');
     setNewEmpSalary('');
     setNewEmpHours('');
   };
 
   const removeEmployee = (id: string) => {
+    if (!settings) return;
     const updatedEmployees = settings.employees.filter(e => e.id !== id);
-    
-    const totalCost = updatedEmployees.reduce((acc, e) => acc + e.salary, 0);
-    const totalHours = updatedEmployees.reduce((acc, e) => acc + e.hours_monthly, 0);
+    recalculateTotals(updatedEmployees, settings);
+  };
+
+  // Função auxiliar para recalcular totais e atualizar o estado
+  const recalculateTotals = (employees: Employee[], currentSettings: Settings) => {
+    const totalCost = employees.reduce((acc, e) => acc + e.salary, 0);
+    const totalHours = employees.reduce((acc, e) => acc + e.hours_monthly, 0);
     const minutes = totalHours * 60;
     const costPerMinute = minutes > 0 ? totalCost / minutes : 0;
 
-    setSettings(prev => ({
-      ...prev,
-      employees: updatedEmployees,
+    setSettings({
+      ...currentSettings,
+      employees: employees,
       labor_monthly_cost: totalCost,
       work_hours_monthly: totalHours,
       cost_per_minute: costPerMinute
-    }));
+    });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    StorageService.saveSettings(settings);
-    setSettings(StorageService.getSettings());
-    setSaved(true);
-    setTimeout(() => {
-        setSaved(false);
-        onSave();
-    }, 1000);
+    if (!settings) return;
+
+    setSaving(true);
+    console.log("Salvando no Supabase:", settings);
+
+    const success = await SettingsService.save(settings);
+    
+    setSaving(false);
+
+    if (success) {
+      setSuccessMsg(true);
+      setTimeout(() => setSuccessMsg(false), 2000);
+      // Removido onSave() para não sair da tela
+    } else {
+        alert("Erro ao salvar. Verifique se você está logado.");
+    }
   };
 
+  // --- TRAVA DE SEGURANÇA (AQUI ESTAVA O ERRO) ---
+  // Se estiver carregando ou settings for nulo, mostra o spinner e NÃO renderiza o resto
+  if (loading || !settings) {
+    return (
+        <div className="flex flex-col justify-center items-center h-64 text-slate-500">
+            <Loader2 className="animate-spin mb-2" size={32} />
+            <p>Carregando suas configurações...</p>
+        </div>
+    );
+  }
+
+  // --- RENDERIZAÇÃO DO FORMULÁRIO (Só chega aqui se settings existir) ---
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       
-      {/* Employee Section */}
+      {/* Seção de Colaboradores */}
       <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
         <div className="mb-4 border-b pb-4">
             <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                 <Users className="text-amber-600" /> Colaboradores / Mão de Obra
             </h2>
-            <p className="text-sm text-slate-500">Adicione todas as pessoas que trabalham na produção (inclusive você).</p>
+            <p className="text-sm text-slate-500">Adicione quem trabalha na produção.</p>
         </div>
 
+        {/* Inputs novo colaborador */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end mb-6 bg-slate-50 p-4 rounded-lg border border-slate-200">
             <div className="md:col-span-2">
                 <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Nome</label>
@@ -101,17 +131,17 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
                     value={newEmpName}
                     onChange={e => setNewEmpName(e.target.value)}
                     placeholder="Ex: Confeiteira Chefe"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-amber-500 bg-white text-slate-900 font-medium placeholder:text-slate-400"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-amber-500 bg-white"
                 />
             </div>
             <div>
-                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Salário Total (R$)</label>
+                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Salário (R$)</label>
                 <input 
                     type="number"
                     value={newEmpSalary}
                     onChange={e => setNewEmpSalary(e.target.value)}
                     placeholder="3000.00"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-amber-500 bg-white text-slate-900 placeholder:text-slate-400"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-amber-500 bg-white"
                 />
             </div>
             <div>
@@ -120,8 +150,8 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
                     type="number"
                     value={newEmpHours}
                     onChange={e => setNewEmpHours(e.target.value)}
-                    placeholder="160"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-amber-500 bg-white text-slate-900 placeholder:text-slate-400"
+                    placeholder="220"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-amber-500 bg-white"
                 />
             </div>
             <button 
@@ -132,7 +162,7 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
             </button>
         </div>
 
-        {/* Employee List */}
+        {/* Tabela de Colaboradores */}
         {settings.employees && settings.employees.length > 0 ? (
             <div className="overflow-hidden rounded-lg border border-slate-200 mb-6 shadow-sm">
                 <table className="w-full text-left text-sm">
@@ -160,7 +190,7 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
                     </tbody>
                     <tfoot className="bg-slate-50 font-bold text-slate-800 border-t border-slate-200">
                         <tr>
-                            <td className="p-3">TOTAL DA EQUIPE</td>
+                            <td className="p-3">TOTAIS</td>
                             <td className="p-3">R$ {settings.labor_monthly_cost.toFixed(2)}</td>
                             <td className="p-3">{settings.work_hours_monthly}h</td>
                             <td></td>
@@ -170,54 +200,26 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
             </div>
         ) : (
             <p className="text-center text-slate-500 py-6 italic border-2 border-dashed border-slate-200 rounded-lg mb-6 bg-slate-50">
-                Nenhum colaborador adicionado. Preencha os campos acima e clique em "+".
+                Nenhum colaborador adicionado.
             </p>
         )}
       </div>
 
-      {/* Global Settings & Save */}
+      {/* Configurações Globais */}
       <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
         <form onSubmit={handleSubmit} className="space-y-6">
             
-            {/* Feedback Card - Detailed Operational Cost */}
             <div className="bg-amber-50 p-5 rounded-lg border border-amber-200">
                 <div className="flex items-center gap-2 mb-4 text-amber-800 border-b border-amber-200 pb-2">
                     <Info className="w-5 h-5" />
-                    <h3 className="font-bold text-lg">Custo Operacional (Mão de Obra)</h3>
+                    <h3 className="font-bold text-lg">Custo Operacional</h3>
                 </div>
                 
-                <div className="space-y-3">
-                    {/* Individual Minute Cost */}
-                    <div className="space-y-1">
-                        <p className="text-xs font-bold text-amber-700 uppercase tracking-wide mb-2">Custo do Minuto por Colaborador</p>
-                        {settings.employees && settings.employees.length > 0 ? (
-                            settings.employees.map(emp => {
-                                const minuteCost = emp.hours_monthly > 0 ? emp.salary / (emp.hours_monthly * 60) : 0;
-                                return (
-                                    <div key={emp.id} className="flex justify-between text-sm text-slate-700 border-b border-amber-100 last:border-0 py-1">
-                                        <span className="font-medium">{emp.name}</span>
-                                        <span className="font-mono text-amber-900">R$ {minuteCost.toFixed(4)} /min</span>
-                                    </div>
-                                );
-                            })
-                        ) : (
-                            <span className="text-sm text-slate-400 italic">Nenhum colaborador...</span>
-                        )}
-                    </div>
-
-                    {/* Totals */}
-                    <div className="bg-white/60 p-3 rounded mt-4">
-                        <div className="flex justify-between items-center text-slate-700 mb-1">
-                            <span className="flex items-center gap-1 font-medium"><Clock size={14}/> Soma de Tempo (Horas)</span>
-                            <span className="font-bold">{settings.work_hours_monthly}h /mês</span>
-                        </div>
-                        <div className="flex justify-between items-center text-amber-800 text-lg border-t border-amber-200 pt-2 mt-2">
-                            <span className="flex items-center gap-1 font-bold"><DollarSign size={18}/> Custo Minuto da Doceria</span>
-                            <span className="font-bold text-xl">R$ {settings.cost_per_minute.toFixed(4)}</span>
-                        </div>
-                        <p className="text-xs text-center text-slate-500 mt-1">Valor utilizado para calcular o custo de produção nas receitas.</p>
-                    </div>
+                <div className="flex justify-between items-center text-amber-800 text-lg pt-2 mt-2">
+                    <span className="flex items-center gap-1 font-bold"><DollarSign size={18}/> Custo Minuto</span>
+                    <span className="font-bold text-xl">R$ {settings.cost_per_minute.toFixed(4)}</span>
                 </div>
+                <p className="text-xs text-center text-slate-500 mt-1">Este valor será usado automaticamente nas novas receitas.</p>
             </div>
 
             <div className="space-y-2 mt-6">
@@ -232,23 +234,24 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
                     value={settings.fixed_overhead_rate || ''}
                     onChange={handleGlobalChange}
                     placeholder="Ex: 10"
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition pr-8 bg-white text-slate-900"
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 bg-white"
                     required
                     />
                     <span className="absolute right-3 top-2 text-slate-400">%</span>
                 </div>
-                <p className="text-xs text-slate-500">Estimativa de Gás, Energia, Água e Detergente sobre o custo do material.</p>
+                <p className="text-xs text-slate-500">Estimativa de Gás, Energia, Água.</p>
             </div>
 
             <div className="pt-4">
                 <button
                     type="submit"
+                    disabled={saving}
                     className={`w-full flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-medium text-white transition-all ${
-                    saved ? 'bg-green-600' : 'bg-amber-600 hover:bg-amber-700'
-                    }`}
+                    successMsg ? 'bg-green-600' : 'bg-amber-600 hover:bg-amber-700'
+                    } ${saving ? 'opacity-70 cursor-not-allowed' : ''}`}
                 >
-                    <Save size={18} />
-                    {saved ? 'Configurações Salvas!' : 'Salvar Todas Configurações'}
+                    {saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+                    {saving ? 'Salvando...' : successMsg ? 'Salvo no Banco de Dados!' : 'Salvar Configurações'}
                 </button>
             </div>
         </form>

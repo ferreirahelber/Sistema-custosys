@@ -1,53 +1,53 @@
 import React, { useState, useEffect } from 'react';
 import { Ingredient, Unit, MeasureConversion } from '../types';
 import { calculateBaseCost } from '../utils/calculations';
-import { StorageService } from '../services/storage';
-import { Plus, Trash2, Package, Edit2, Scale, AlertCircle } from 'lucide-react';
+import { IngredientService } from '../services/ingredientService';
+import { Plus, Trash2, Package, Scale, AlertCircle, Loader2 } from 'lucide-react';
 
 export const IngredientForm: React.FC = () => {
+  // --- ESTADOS ---
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   
+  // Estado do Formulário Principal
   const [formData, setFormData] = useState({
     name: '',
     price: '',
     amount: '',
     unit: Unit.G,
-    current_stock: '' // Novo campo
+    current_stock: ''
   });
 
+  // Estado das Conversões (Medidas Caseiras)
   const [conversions, setConversions] = useState<MeasureConversion[]>([]);
   const [newConvName, setNewConvName] = useState('Xícara (chá)');
   const [newConvValue, setNewConvValue] = useState('');
 
   const commonMeasures = ['Xícara (chá)', 'Colher (sopa)', 'Colher (chá)', 'Copo Americano', 'Pitada'];
 
+  // --- CARREGAMENTO INICIAL ---
   useEffect(() => {
-    setIngredients(StorageService.getIngredients());
+    loadIngredients();
   }, []);
 
+  const loadIngredients = async () => {
+    try {
+      setLoading(true);
+      const data = await IngredientService.getAll();
+      setIngredients(data);
+    } catch (error) {
+      console.error('Erro ao carregar:', error);
+      alert('Erro ao carregar ingredientes. Verifique o console.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- HANDLERS ---
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleEdit = (ing: Ingredient) => {
-    setEditingId(ing.id);
-    setFormData({
-      name: ing.name,
-      price: ing.package_price.toString(),
-      amount: ing.package_amount.toString(),
-      unit: ing.package_unit,
-      current_stock: ing.current_stock ? ing.current_stock.toString() : ''
-    });
-    setConversions(ing.conversions || []);
-  };
-
-  const cancelEdit = () => {
-    setEditingId(null);
-    setFormData({ name: '', price: '', amount: '', unit: Unit.G, current_stock: '' });
-    setConversions([]);
-    setNewConvValue('');
   };
 
   const addConversion = () => {
@@ -61,39 +61,61 @@ export const IngredientForm: React.FC = () => {
     setConversions(conversions.filter((_, i) => i !== idx));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     const price = parseFloat(formData.price);
     const amount = parseFloat(formData.amount);
     const stock = parseFloat(formData.current_stock) || 0;
 
     if (!formData.name || isNaN(price) || isNaN(amount)) return;
 
-    const { baseCost, baseUnit } = calculateBaseCost(price, amount, formData.unit);
+    try {
+      setSaving(true);
+      const { baseCost, baseUnit } = calculateBaseCost(price, amount, formData.unit);
 
-    const newIngredient: Ingredient = {
-      id: editingId || Date.now().toString(),
-      name: formData.name,
-      package_price: price,
-      package_amount: amount,
-      package_unit: formData.unit,
-      unit_cost_base: baseCost,
-      base_unit: baseUnit,
-      conversions: conversions,
-      current_stock: stock
-    };
+      // Objeto pronto para o Supabase
+      const newIngredient = {
+        name: formData.name,
+        package_price: price,
+        package_amount: amount,
+        package_unit: formData.unit,
+        unit_cost_base: baseCost,
+        base_unit: baseUnit,
+        current_stock: stock,
+        conversions: conversions 
+      };
 
-    const updated = StorageService.saveIngredient(newIngredient);
-    setIngredients(updated);
-    cancelEdit();
+      await IngredientService.create(newIngredient);
+      
+      await loadIngredients();
+      clearForm();
+      alert('Ingrediente salvo com sucesso!');
+
+    } catch (error: any) {
+      console.error('ERRO REAL:', error);
+      // AQUI ESTÁ O CÓDIGO QUE VAI TE MOSTRAR O ERRO REAL
+      alert(`O erro real foi: ${error.message || error.error_description || JSON.stringify(error)}`);
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (window.confirm('Tem certeza que deseja excluir este ingrediente?')) {
-      const updated = StorageService.deleteIngredient(id);
-      setIngredients(updated);
-      if (editingId === id) cancelEdit();
+      try {
+        await IngredientService.delete(id);
+        setIngredients(ingredients.filter(i => i.id !== id));
+      } catch (error) {
+        alert('Erro ao excluir.');
+      }
     }
+  };
+
+  const clearForm = () => {
+    setFormData({ name: '', price: '', amount: '', unit: Unit.G, current_stock: '' });
+    setConversions([]);
+    setNewConvValue('');
   };
 
   const previewCost = () => {
@@ -106,54 +128,49 @@ export const IngredientForm: React.FC = () => {
 
   const currentBaseUnit = calculateBaseCost(0, 1, formData.unit).baseUnit;
 
+  // --- RENDERIZAÇÃO ---
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      {/* Form Section */}
+      
+      {/* COLUNA DA ESQUERDA: FORMULÁRIO */}
       <div className="lg:col-span-1 space-y-6 sticky top-6 h-fit">
         
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
           <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
             <Package className="w-5 h-5 text-amber-600" />
-            {editingId ? 'Editar Ingrediente' : 'Novo Ingrediente'}
+            Novo Ingrediente
           </h3>
+          
           <form id="ing-form" onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Nome do Item</label>
               <input
-                type="text"
                 name="name"
                 value={formData.name}
                 onChange={handleInputChange}
-                placeholder="Ex: Leite Condensado"
                 className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
+                placeholder="Ex: Farinha de Trigo"
                 required
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Preço Pago (R$)</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Preço (R$)</label>
                 <input
-                  type="number"
-                  step="0.01"
-                  name="price"
-                  value={formData.price}
-                  onChange={handleInputChange}
-                  placeholder="0.00"
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
-                  required
+                  type="number" step="0.01" name="price"
+                  value={formData.price} onChange={handleInputChange}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  placeholder="0.00" required
                 />
               </div>
               <div>
-                 <label className="block text-sm font-medium text-slate-700 mb-1">Qtd. Embalagem</label>
+                 <label className="block text-sm font-medium text-slate-700 mb-1">Qtd Embalagem</label>
                  <input
-                  type="number"
-                  name="amount"
-                  value={formData.amount}
-                  onChange={handleInputChange}
-                  placeholder="395"
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
-                  required
+                  type="number" name="amount"
+                  value={formData.amount} onChange={handleInputChange}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  placeholder="1000" required
                 />
               </div>
             </div>
@@ -165,32 +182,26 @@ export const IngredientForm: React.FC = () => {
                         name="unit"
                         value={formData.unit}
                         onChange={handleInputChange}
-                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none bg-white text-slate-800"
+                        className="w-full px-3 py-2 border rounded-lg bg-white"
                     >
                         {Object.values(Unit).map(u => (
-                        <option key={u} value={u} className="text-slate-800 bg-white">
-                            {u.toUpperCase()}
-                        </option>
+                            <option key={u} value={u}>{u.toUpperCase()}</option>
                         ))}
                     </select>
                 </div>
                 <div>
-                     <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Estoque Atual <span className="text-xs text-slate-400">({currentBaseUnit})</span>
-                     </label>
+                     <label className="block text-sm font-medium text-slate-700 mb-1">Estoque Atual</label>
                      <input
-                      type="number"
-                      name="current_stock"
-                      value={formData.current_stock}
-                      onChange={handleInputChange}
+                      type="number" name="current_stock"
+                      value={formData.current_stock} onChange={handleInputChange}
+                      className="w-full px-3 py-2 border rounded-lg border-green-200 bg-green-50/30"
                       placeholder="0"
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 border-green-200 bg-green-50/30 outline-none"
                     />
                 </div>
             </div>
 
             <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 text-center">
-              <span className="text-xs text-slate-500 uppercase tracking-wide">Custo Base Calculado</span>
+              <span className="text-xs text-slate-500 uppercase tracking-wide">Custo Base</span>
               <div className="text-lg font-bold text-amber-600">
                 {previewCost() || '---'}
               </div>
@@ -198,21 +209,17 @@ export const IngredientForm: React.FC = () => {
           </form>
         </div>
 
-        {/* Card Medidas Caseiras */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
            <h4 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
-             <Scale className="w-4 h-4 text-amber-600" /> Medidas Caseiras (Opcional)
+             <Scale className="w-4 h-4 text-amber-600" /> Medidas Caseiras
            </h4>
-           <p className="text-xs text-slate-500 mb-4">
-             Cadastre equivalências para facilitar o uso nas receitas (Ex: 1 Xícara = 120g).
-           </p>
            
            <div className="flex gap-2 mb-3">
               <div className="flex-1">
                 <select 
                   value={newConvName}
                   onChange={e => setNewConvName(e.target.value)}
-                  className="w-full px-2 py-2 text-sm border rounded-lg outline-none bg-white"
+                  className="w-full px-2 py-2 text-sm border rounded-lg bg-white"
                 >
                   {commonMeasures.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
@@ -223,14 +230,14 @@ export const IngredientForm: React.FC = () => {
                   value={newConvValue}
                   onChange={e => setNewConvValue(e.target.value)}
                   placeholder="0"
-                  className="w-full px-2 py-2 text-sm border rounded-lg outline-none"
+                  className="w-full px-2 py-2 text-sm border rounded-lg"
                  />
                  <span className="absolute right-1 top-2 text-xs text-slate-400">{currentBaseUnit}</span>
               </div>
               <button 
                 type="button" 
                 onClick={addConversion}
-                className="px-3 bg-slate-200 hover:bg-slate-300 rounded-lg text-slate-600 transition"
+                className="px-3 bg-slate-200 hover:bg-slate-300 rounded-lg text-slate-600"
               >
                 <Plus size={16} />
               </button>
@@ -253,84 +260,77 @@ export const IngredientForm: React.FC = () => {
            )}
         </div>
 
-        <div className="flex gap-2">
-            {editingId && (
-                <button
-                    type="button"
-                    onClick={cancelEdit}
-                    className="w-1/3 bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium py-2 rounded-lg transition"
-                >
-                    Cancelar
-                </button>
-            )}
-            <button
-                type="submit"
-                form="ing-form"
-                className={`flex-1 ${editingId ? 'bg-amber-600 hover:bg-amber-700' : 'bg-green-600 hover:bg-green-700'} text-white font-medium py-2 rounded-lg transition flex items-center justify-center gap-2`}
-            >
-                {editingId ? <Edit2 size={18}/> : <Plus size={18} />} 
-                {editingId ? 'Salvar Alteração' : 'Adicionar Ingrediente'}
-            </button>
-        </div>
+        <button
+            type="submit"
+            form="ing-form"
+            disabled={saving}
+            className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2.5 rounded-lg transition flex items-center justify-center gap-2 disabled:opacity-50"
+        >
+            {saving ? <Loader2 className="animate-spin" /> : <Plus size={18} />} 
+            Salvar Ingrediente
+        </button>
       </div>
 
-      {/* List Section */}
+      {/* COLUNA DA DIREITA: LISTAGEM */}
       <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
-        <div className="p-4 border-b bg-slate-50">
-          <h3 className="font-semibold text-slate-700">Estoque Cadastrado</h3>
+        <div className="p-4 border-b bg-slate-50 flex justify-between items-center">
+          <h3 className="font-semibold text-slate-700">Base de Ingredientes (Supabase)</h3>
+          {loading && <Loader2 size={16} className="animate-spin text-slate-400" />}
         </div>
+        
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead className="bg-slate-50 text-slate-600 text-xs uppercase">
               <tr>
                 <th className="px-6 py-3 font-semibold">Nome</th>
-                <th className="px-6 py-3 font-semibold">Embalagem</th>
-                <th className="px-6 py-3 font-semibold">Preço</th>
+                <th className="px-6 py-3 font-semibold">Preço/Emb.</th>
+                <th className="px-6 py-3 font-semibold">Custo Base</th>
                 <th className="px-6 py-3 font-semibold">Estoque</th>
                 <th className="px-6 py-3 font-semibold text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {ingredients.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-slate-400">
-                    Nenhum ingrediente cadastrado ainda.
+              {ingredients.map(ing => (
+                <tr key={ing.id} className="hover:bg-slate-50 transition">
+                  <td className="px-6 py-4">
+                    <div className="font-medium text-slate-800">{ing.name}</div>
+                    {ing.conversions && Array.isArray(ing.conversions) && ing.conversions.length > 0 && (
+                        <div className="flex gap-1 mt-1 flex-wrap">
+                            {ing.conversions.map((c: any, i: number) => (
+                                <span key={i} className="text-[10px] bg-amber-50 text-amber-700 px-1 rounded border border-amber-100">
+                                    1{c.name}={c.value}{ing.base_unit}
+                                </span>
+                            ))}
+                        </div>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-slate-600 text-sm">
+                    R$ {ing.package_price.toFixed(2)} <span className="text-xs">({ing.package_amount}{ing.package_unit})</span>
+                  </td>
+                  <td className="px-6 py-4 text-amber-600 font-semibold">
+                    R$ {ing.unit_cost_base.toFixed(2)} <span className="text-xs text-slate-400">/{ing.base_unit}</span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2">
+                        <span className={`font-bold ${(!ing.current_stock || ing.current_stock < 100) ? 'text-red-500' : 'text-green-600'}`}>
+                            {ing.current_stock || 0} {ing.base_unit}
+                        </span>
+                        {(!ing.current_stock || ing.current_stock < 100) && <AlertCircle size={14} className="text-red-400"/>}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <button onClick={() => handleDelete(ing.id)} className="text-red-400 hover:text-red-600 transition">
+                      <Trash2 size={18} />
+                    </button>
                   </td>
                 </tr>
-              ) : (
-                ingredients.map(ing => (
-                  <tr key={ing.id} className="hover:bg-slate-50 transition">
-                    <td className="px-6 py-4">
-                        <div className="font-medium text-slate-800">{ing.name}</div>
-                        {ing.conversions && ing.conversions.length > 0 && (
-                            <div className="text-xs text-amber-600 mt-1 flex flex-wrap gap-2">
-                                {ing.conversions.map((c, i) => (
-                                    <span key={i} className="bg-amber-50 px-1 rounded border border-amber-100">
-                                        1 {c.name}={c.value}{ing.base_unit}
-                                    </span>
-                                ))}
-                            </div>
-                        )}
+              ))}
+              {!loading && ingredients.length === 0 && (
+                 <tr>
+                    <td colSpan={5} className="px-6 py-8 text-center text-slate-400">
+                       Nenhum ingrediente cadastrado.
                     </td>
-                    <td className="px-6 py-4 text-slate-600 text-sm">{ing.package_amount} {ing.package_unit}</td>
-                    <td className="px-6 py-4 text-slate-600 text-sm">R$ {ing.package_price.toFixed(2)}</td>
-                    <td className="px-6 py-4">
-                        {/* Indicador visual de estoque */}
-                        <div className="flex items-center gap-2">
-                            <span className={`font-bold ${!ing.current_stock || ing.current_stock < 100 ? 'text-red-500' : 'text-green-600'}`}>
-                                {ing.current_stock || 0} {ing.base_unit}
-                            </span>
-                            {(!ing.current_stock || ing.current_stock < 100) && (
-                                <AlertCircle size={14} className="text-red-400" title="Estoque Baixo" />
-                            )}
-                        </div>
-                    </td>
-                    <td className="px-6 py-4 text-right flex justify-end gap-2">
-                      <button onClick={() => handleEdit(ing)} className="text-amber-500 hover:text-amber-700 transition"><Edit2 size={18} /></button>
-                      <button onClick={() => handleDelete(ing.id)} className="text-red-400 hover:text-red-600 transition"><Trash2 size={18} /></button>
-                    </td>
-                  </tr>
-                ))
+                 </tr>
               )}
             </tbody>
           </table>
