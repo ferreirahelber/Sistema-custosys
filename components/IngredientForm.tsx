@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Ingredient, Unit, MeasureConversion } from '../types';
 import { calculateBaseCost } from '../utils/calculations';
 import { IngredientService } from '../services/ingredientService';
-import { Plus, Trash2, Package, Scale, AlertCircle, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Package, Scale, AlertCircle, Loader2, Edit, Save, X, Box, Calculator, AlertTriangle } from 'lucide-react';
 
 export const IngredientForm: React.FC = () => {
   // --- ESTADOS ---
@@ -10,23 +10,29 @@ export const IngredientForm: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   
-  // Estado do Formulário Principal
+  // Controle de Edição
+  const [editingId, setEditingId] = useState<string | null>(null);
+  
+  // Controle do Modo de Entrada de Estoque
+  const [stockEntryMode, setStockEntryMode] = useState<'package' | 'unit'>('package');
+
+  // Estado do Formulário
   const [formData, setFormData] = useState({
     name: '',
     price: '',
     amount: '',
     unit: Unit.G,
-    current_stock: ''
+    current_stock: '',
+    min_stock: '' 
   });
 
-  // Estado das Conversões (Medidas Caseiras)
+  // Estado das Conversões
   const [conversions, setConversions] = useState<MeasureConversion[]>([]);
   const [newConvName, setNewConvName] = useState('Xícara (chá)');
   const [newConvValue, setNewConvValue] = useState('');
 
   const commonMeasures = ['Xícara (chá)', 'Colher (sopa)', 'Colher (chá)', 'Copo Americano', 'Pitada'];
 
-  // --- CARREGAMENTO INICIAL ---
   useEffect(() => {
     loadIngredients();
   }, []);
@@ -38,10 +44,30 @@ export const IngredientForm: React.FC = () => {
       setIngredients(data);
     } catch (error) {
       console.error('Erro ao carregar:', error);
-      alert('Erro ao carregar ingredientes. Verifique o console.');
     } finally {
       setLoading(false);
     }
+  };
+
+  // --- HELPERS ---
+  const getMultiplier = (unit: string) => {
+    const cleanUnit = unit.toLowerCase(); 
+    return (cleanUnit === 'kg' || cleanUnit === 'l') ? 1000 : 1;
+  };
+
+  const formatStockDisplay = (stock: number, baseUnit: string) => {
+    if (!stock) return '0';
+    if (baseUnit === 'g' && stock >= 1000) return `${parseFloat((stock / 1000).toFixed(3))} kg`;
+    if (baseUnit === 'ml' && stock >= 1000) return `${parseFloat((stock / 1000).toFixed(3))} L`;
+    return `${parseFloat(stock.toFixed(3))} ${baseUnit}`;
+  };
+
+  const calculatePackageCount = (stockTotal: number, packageAmount: number, unit: string) => {
+      if (!stockTotal || !packageAmount) return 0;
+      const multiplier = getMultiplier(unit);
+      const onePackageSizeBase = packageAmount * multiplier;
+      const count = stockTotal / onePackageSizeBase;
+      return Number.isInteger(count) ? count : count.toFixed(2);
   };
 
   // --- HANDLERS ---
@@ -61,12 +87,67 @@ export const IngredientForm: React.FC = () => {
     setConversions(conversions.filter((_, i) => i !== idx));
   };
 
+  // --- EDITAR ---
+  const handleEdit = (ing: Ingredient) => {
+    setEditingId(ing.id);
+    
+    const multiplier = getMultiplier(ing.package_unit);
+    const packageSizeInBaseUnit = ing.package_amount * multiplier;
+    
+    let displayStock = '';
+    
+    if (ing.current_stock && packageSizeInBaseUnit > 0) {
+        const stockInPackages = ing.current_stock / packageSizeInBaseUnit;
+        if (Math.abs(Math.round(stockInPackages) - stockInPackages) < 0.001) {
+            setStockEntryMode('package');
+            displayStock = Math.round(stockInPackages).toString();
+        } else {
+            setStockEntryMode('unit');
+            const displayMultiplier = getMultiplier(ing.package_unit); 
+            displayStock = (ing.current_stock / displayMultiplier).toString();
+        }
+    }
+
+    const minStockDisplay = ing.min_stock 
+        ? (ing.min_stock / getMultiplier(ing.package_unit)).toString() 
+        : '10';
+
+    setFormData({
+        name: ing.name,
+        price: ing.package_price.toString(),
+        amount: ing.package_amount.toString(),
+        unit: ing.package_unit,
+        current_stock: displayStock,
+        min_stock: minStockDisplay 
+    });
+    setConversions(ing.conversions || []);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    clearForm();
+  };
+
+  // --- SALVAR ---
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     const price = parseFloat(formData.price);
-    const amount = parseFloat(formData.amount);
-    const stock = parseFloat(formData.current_stock) || 0;
+    const amount = parseFloat(formData.amount); 
+    const stockInput = parseFloat(formData.current_stock) || 0;
+    
+    const minStockInput = parseFloat(formData.min_stock);
+    const multiplier = getMultiplier(formData.unit);
+    
+    const minStockBase = isNaN(minStockInput) ? 10 : minStockInput * multiplier;
+    
+    let stockBase = 0;
+    if (stockEntryMode === 'package') {
+        stockBase = stockInput * amount * multiplier;
+    } else {
+        stockBase = stockInput * multiplier;
+    }
 
     if (!formData.name || isNaN(price) || isNaN(amount)) return;
 
@@ -74,38 +155,43 @@ export const IngredientForm: React.FC = () => {
       setSaving(true);
       const { baseCost, baseUnit } = calculateBaseCost(price, amount, formData.unit);
 
-      // Objeto pronto para o Supabase
-      const newIngredient = {
+      const ingredientData = {
         name: formData.name,
         package_price: price,
         package_amount: amount,
         package_unit: formData.unit,
         unit_cost_base: baseCost,
         base_unit: baseUnit,
-        current_stock: stock,
+        current_stock: stockBase, 
+        min_stock: minStockBase,
         conversions: conversions 
       };
 
-      await IngredientService.create(newIngredient);
+      if (editingId) {
+        await IngredientService.update(editingId, ingredientData);
+        alert('Ingrediente atualizado!');
+      } else {
+        await IngredientService.create(ingredientData);
+        alert('Ingrediente salvo!');
+      }
       
       await loadIngredients();
-      clearForm();
-      alert('Ingrediente salvo com sucesso!');
+      cancelEdit();
 
     } catch (error: any) {
-      console.error('ERRO REAL:', error);
-      // AQUI ESTÁ O CÓDIGO QUE VAI TE MOSTRAR O ERRO REAL
-      alert(`O erro real foi: ${error.message || error.error_description || JSON.stringify(error)}`);
+      console.error('ERRO:', error);
+      alert(`Erro: ${error.message}`);
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm('Tem certeza que deseja excluir este ingrediente?')) {
+    if (window.confirm('Excluir ingrediente?')) {
       try {
         await IngredientService.delete(id);
         setIngredients(ingredients.filter(i => i.id !== id));
+        if (editingId === id) cancelEdit();
       } catch (error) {
         alert('Erro ao excluir.');
       }
@@ -113,9 +199,11 @@ export const IngredientForm: React.FC = () => {
   };
 
   const clearForm = () => {
-    setFormData({ name: '', price: '', amount: '', unit: Unit.G, current_stock: '' });
+    setFormData({ name: '', price: '', amount: '', unit: Unit.G, current_stock: '', min_stock: '' });
     setConversions([]);
     setNewConvValue('');
+    setEditingId(null);
+    setStockEntryMode('package'); 
   };
 
   const previewCost = () => {
@@ -128,18 +216,23 @@ export const IngredientForm: React.FC = () => {
 
   const currentBaseUnit = calculateBaseCost(0, 1, formData.unit).baseUnit;
 
-  // --- RENDERIZAÇÃO ---
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
       
-      {/* COLUNA DA ESQUERDA: FORMULÁRIO */}
+      {/* FORMULÁRIO */}
       <div className="lg:col-span-1 space-y-6 sticky top-6 h-fit">
-        
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-          <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-            <Package className="w-5 h-5 text-amber-600" />
-            Novo Ingrediente
-          </h3>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <Package className="w-5 h-5 text-amber-600" />
+                {editingId ? 'Editar Ingrediente' : 'Novo Ingrediente'}
+            </h3>
+            {editingId && (
+                <button onClick={cancelEdit} className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1 font-medium">
+                    <X size={14} /> Cancelar
+                </button>
+            )}
+          </div>
           
           <form id="ing-form" onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -149,7 +242,7 @@ export const IngredientForm: React.FC = () => {
                 value={formData.name}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
-                placeholder="Ex: Farinha de Trigo"
+                placeholder="Ex: Embalagem Bombom"
                 required
               />
             </div>
@@ -170,13 +263,13 @@ export const IngredientForm: React.FC = () => {
                   type="number" name="amount"
                   value={formData.amount} onChange={handleInputChange}
                   className="w-full px-3 py-2 border rounded-lg"
-                  placeholder="1000" required
+                  placeholder="Ex: 100" required
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-                <div>
+                <div className="col-span-2">
                     <label className="block text-sm font-medium text-slate-700 mb-1">Unidade</label>
                     <select
                         name="unit"
@@ -189,19 +282,58 @@ export const IngredientForm: React.FC = () => {
                         ))}
                     </select>
                 </div>
-                <div>
-                     <label className="block text-sm font-medium text-slate-700 mb-1">Estoque Atual</label>
-                     <input
-                      type="number" name="current_stock"
-                      value={formData.current_stock} onChange={handleInputChange}
-                      className="w-full px-3 py-2 border rounded-lg border-green-200 bg-green-50/30"
-                      placeholder="0"
-                    />
-                </div>
             </div>
 
-            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 text-center">
-              <span className="text-xs text-slate-500 uppercase tracking-wide">Custo Base</span>
+            {/* --- BLOCO DE ESTOQUE --- */}
+            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-4">
+                
+                {/* 1. SELETOR DE MODO */}
+                <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
+                        <Calculator size={16} className="text-amber-600"/>
+                        Lançamento de Estoque
+                    </label>
+                    <div className="flex gap-2 mb-2">
+                        <button type="button" onClick={() => setStockEntryMode('package')}
+                            className={`flex-1 py-1.5 text-xs font-medium rounded border transition ${stockEntryMode === 'package' ? 'bg-amber-100 border-amber-300 text-amber-800' : 'bg-white border-slate-200 text-slate-500'}`}>
+                            📦 Por Pacote
+                        </button>
+                        <button type="button" onClick={() => setStockEntryMode('unit')}
+                            className={`flex-1 py-1.5 text-xs font-medium rounded border transition ${stockEntryMode === 'unit' ? 'bg-amber-100 border-amber-300 text-amber-800' : 'bg-white border-slate-200 text-slate-500'}`}>
+                            🔢 Qtd Solta
+                        </button>
+                    </div>
+                    <input
+                      type="number" name="current_stock"
+                      value={formData.current_stock} onChange={handleInputChange}
+                      className="w-full px-3 py-2 border rounded-lg bg-white focus:ring-2 focus:ring-amber-500 outline-none"
+                      placeholder={stockEntryMode === 'package' ? "Ex: 1 (1 pacote)" : "Ex: 100 (100 un)"}
+                    />
+                </div>
+
+                {/* 2. ESTOQUE MÍNIMO */}
+                <div className="pt-2 border-t border-slate-200">
+                    <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1">
+                        <AlertTriangle size={12} /> Alerta de Estoque Mínimo
+                    </label>
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="number" name="min_stock"
+                            value={formData.min_stock} onChange={handleInputChange}
+                            className="w-24 px-3 py-1.5 text-sm border rounded-lg bg-white focus:ring-2 focus:ring-amber-500 outline-none"
+                            placeholder="10"
+                        />
+                        <span className="text-xs text-slate-500">{formData.unit}</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1">
+                        Avise quando tiver menos que isso.
+                    </p>
+                </div>
+
+            </div>
+
+            <div className="text-center pt-2">
+              <span className="text-xs text-slate-500 uppercase tracking-wide">Custo Unitário Base</span>
               <div className="text-lg font-bold text-amber-600">
                 {previewCost() || '---'}
               </div>
@@ -209,40 +341,23 @@ export const IngredientForm: React.FC = () => {
           </form>
         </div>
 
+        {/* MEDIDAS CASEIRAS */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
            <h4 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
              <Scale className="w-4 h-4 text-amber-600" /> Medidas Caseiras
            </h4>
-           
            <div className="flex gap-2 mb-3">
               <div className="flex-1">
-                <select 
-                  value={newConvName}
-                  onChange={e => setNewConvName(e.target.value)}
-                  className="w-full px-2 py-2 text-sm border rounded-lg bg-white"
-                >
+                <select value={newConvName} onChange={e => setNewConvName(e.target.value)} className="w-full px-2 py-2 text-sm border rounded-lg bg-white">
                   {commonMeasures.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
               <div className="w-20 relative">
-                 <input 
-                  type="number"
-                  value={newConvValue}
-                  onChange={e => setNewConvValue(e.target.value)}
-                  placeholder="0"
-                  className="w-full px-2 py-2 text-sm border rounded-lg"
-                 />
+                 <input type="number" value={newConvValue} onChange={e => setNewConvValue(e.target.value)} placeholder="0" className="w-full px-2 py-2 text-sm border rounded-lg"/>
                  <span className="absolute right-1 top-2 text-xs text-slate-400">{currentBaseUnit}</span>
               </div>
-              <button 
-                type="button" 
-                onClick={addConversion}
-                className="px-3 bg-slate-200 hover:bg-slate-300 rounded-lg text-slate-600"
-              >
-                <Plus size={16} />
-              </button>
+              <button type="button" onClick={addConversion} className="px-3 bg-slate-200 hover:bg-slate-300 rounded-lg text-slate-600"><Plus size={16} /></button>
            </div>
-
            {conversions.length > 0 && (
              <div className="space-y-2 bg-slate-50 p-2 rounded-lg border border-slate-100">
                 {conversions.map((conv, idx) => (
@@ -250,9 +365,7 @@ export const IngredientForm: React.FC = () => {
                     <span className="text-slate-700">1 {conv.name}</span>
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-amber-700">{conv.value} {currentBaseUnit}</span>
-                      <button onClick={() => removeConversion(idx)} className="text-slate-400 hover:text-red-500">
-                        <Trash2 size={14} />
-                      </button>
+                      <button onClick={() => removeConversion(idx)} className="text-slate-400 hover:text-red-500"><Trash2 size={14} /></button>
                     </div>
                   </div>
                 ))}
@@ -260,21 +373,16 @@ export const IngredientForm: React.FC = () => {
            )}
         </div>
 
-        <button
-            type="submit"
-            form="ing-form"
-            disabled={saving}
-            className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2.5 rounded-lg transition flex items-center justify-center gap-2 disabled:opacity-50"
-        >
-            {saving ? <Loader2 className="animate-spin" /> : <Plus size={18} />} 
-            Salvar Ingrediente
+        <button type="submit" form="ing-form" disabled={saving} className={`w-full font-medium py-2.5 rounded-lg transition flex items-center justify-center gap-2 disabled:opacity-50 text-white ${editingId ? 'bg-blue-600 hover:bg-blue-700' : 'bg-green-600 hover:bg-green-700'}`}>
+            {saving ? <Loader2 className="animate-spin" /> : editingId ? <Save size={18}/> : <Plus size={18} />} 
+            {editingId ? 'Atualizar Item' : 'Salvar Item'}
         </button>
       </div>
 
-      {/* COLUNA DA DIREITA: LISTAGEM */}
+      {/* LISTAGEM */}
       <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
         <div className="p-4 border-b bg-slate-50 flex justify-between items-center">
-          <h3 className="font-semibold text-slate-700">Base de Ingredientes (Supabase)</h3>
+          <h3 className="font-semibold text-slate-700">Base de Ingredientes & Produtos</h3>
           {loading && <Loader2 size={16} className="animate-spin text-slate-400" />}
         </div>
         
@@ -282,19 +390,24 @@ export const IngredientForm: React.FC = () => {
           <table className="w-full text-left">
             <thead className="bg-slate-50 text-slate-600 text-xs uppercase">
               <tr>
-                <th className="px-6 py-3 font-semibold">Nome</th>
-                <th className="px-6 py-3 font-semibold">Preço/Emb.</th>
-                <th className="px-6 py-3 font-semibold">Custo Base</th>
-                <th className="px-6 py-3 font-semibold">Estoque</th>
-                <th className="px-6 py-3 font-semibold text-right">Ações</th>
+                <th className="px-4 py-3 font-semibold">Nome</th>
+                <th className="px-4 py-3 font-semibold">Preço/Emb.</th>
+                <th className="px-4 py-3 font-semibold">Custo Unit.</th>
+                <th className="px-4 py-3 font-semibold">Qtd Emb.</th>
+                <th className="px-4 py-3 font-semibold">Total</th>
+                <th className="px-4 py-3 font-semibold text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {ingredients.map(ing => (
-                <tr key={ing.id} className="hover:bg-slate-50 transition">
-                  <td className="px-6 py-4">
+              {ingredients.map(ing => {
+                const minStock = ing.min_stock || 10;
+                const isLowStock = (ing.current_stock || 0) < minStock;
+
+                return (
+                <tr key={ing.id} className={`hover:bg-slate-50 transition ${editingId === ing.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''}`}>
+                  <td className="px-4 py-4">
                     <div className="font-medium text-slate-800">{ing.name}</div>
-                    {ing.conversions && Array.isArray(ing.conversions) && ing.conversions.length > 0 && (
+                    {ing.conversions && ing.conversions.length > 0 && (
                         <div className="flex gap-1 mt-1 flex-wrap">
                             {ing.conversions.map((c: any, i: number) => (
                                 <span key={i} className="text-[10px] bg-amber-50 text-amber-700 px-1 rounded border border-amber-100">
@@ -304,33 +417,56 @@ export const IngredientForm: React.FC = () => {
                         </div>
                     )}
                   </td>
-                  <td className="px-6 py-4 text-slate-600 text-sm">
-                    R$ {ing.package_price.toFixed(2)} <span className="text-xs">({ing.package_amount}{ing.package_unit})</span>
+                  
+                  <td className="px-4 py-4 text-slate-600 text-sm whitespace-nowrap">
+                    R$ {ing.package_price.toFixed(2)} 
+                    <span className="text-xs ml-1">({ing.package_amount}{ing.package_unit})</span>
                   </td>
-                  <td className="px-6 py-4 text-amber-600 font-semibold">
-                    R$ {ing.unit_cost_base.toFixed(2)} <span className="text-xs text-slate-400">/{ing.base_unit}</span>
+
+                  <td className="px-4 py-4 text-amber-600 font-semibold whitespace-nowrap">
+                    R$ {ing.unit_cost_base.toFixed(2)} 
+                    <span className="text-xs text-slate-400">/{ing.base_unit}</span>
                   </td>
-                  <td className="px-6 py-4">
+                  
+                  <td className="px-4 py-4">
+                     <div className="flex items-center gap-1 text-slate-700 font-medium">
+                        <Box size={14} className="text-slate-400"/>
+                        {calculatePackageCount(ing.current_stock, ing.package_amount, ing.package_unit)}
+                        <span className="text-xs text-slate-400 font-normal">emb</span>
+                     </div>
+                  </td>
+
+                  {/* AQUI ESTÁ A CORREÇÃO: whitespace-nowrap */}
+                  <td className="px-4 py-4 whitespace-nowrap">
                     <div className="flex items-center gap-2">
-                        <span className={`font-bold ${(!ing.current_stock || ing.current_stock < 100) ? 'text-red-500' : 'text-green-600'}`}>
-                            {ing.current_stock || 0} {ing.base_unit}
+                        <span className={`font-bold ${isLowStock ? 'text-red-500' : 'text-green-600'}`}>
+                            {formatStockDisplay(ing.current_stock, ing.base_unit)}
                         </span>
-                        {(!ing.current_stock || ing.current_stock < 100) && <AlertCircle size={14} className="text-red-400"/>}
+                        {isLowStock && (
+                            <div className="group relative">
+                                <AlertCircle size={14} className="text-red-400 cursor-help"/>
+                                <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block bg-slate-800 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap">
+                                    Mínimo: {formatStockDisplay(minStock, ing.base_unit)}
+                                </span>
+                            </div>
+                        )}
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-right">
-                    <button onClick={() => handleDelete(ing.id)} className="text-red-400 hover:text-red-600 transition">
-                      <Trash2 size={18} />
-                    </button>
+                  
+                  <td className="px-4 py-4 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                        <button onClick={() => handleEdit(ing)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition" title="Editar">
+                          <Edit size={18} />
+                        </button>
+                        <button onClick={() => handleDelete(ing.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 transition rounded">
+                          <Trash2 size={18} />
+                        </button>
+                    </div>
                   </td>
                 </tr>
-              ))}
+              )})}
               {!loading && ingredients.length === 0 && (
-                 <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-slate-400">
-                       Nenhum ingrediente cadastrado.
-                    </td>
-                 </tr>
+                 <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-400">Nenhum ingrediente cadastrado.</td></tr>
               )}
             </tbody>
           </table>

@@ -38,6 +38,7 @@ export interface Ingredient {
   // NOVO CAMPO
   conversions?: MeasureConversion[];
   current_stock?: number; // Quantidade atual em base_unit (g/ml/un)
+  min_stock?: number; // Quantidade mínima desejada em base_unit (g/ml/un)
 }
 
 export interface RecipeItem {
