@@ -51,24 +51,30 @@ export const calculateRecipeFinancials = (
   yieldUnits: number,
   settings: Settings
 ): Partial<Recipe> => {
-  // 1. Material Cost
+  // 1. Custo dos Materiais (Ingredientes)
   const total_cost_material = items.reduce((acc, item) => {
+    // Tenta pegar o preço do ingrediente atualizado (da lista geral)
+    // Se não achar, tenta usar o que já está no item (item.price) como fallback
     const ingredient = ingredients.find(i => i.id === item.ingredient_id);
-    if (!ingredient) return acc;
-    return acc + (item.quantity_used * ingredient.unit_cost_base);
+    const costBase = ingredient ? ingredient.unit_cost_base : (item as any).price || 0;
+    
+    // quantity_used já deve estar na unidade base (g/ml/un)
+    const qty = item.quantity_used || 0;
+    
+    return acc + (qty * costBase);
   }, 0);
 
-  // 2. Labor Cost
-  const total_cost_labor = prepTimeMinutes * settings.cost_per_minute;
+  // 2. Custo da Mão de Obra
+  const total_cost_labor = (prepTimeMinutes || 0) * (settings.cost_per_minute || 0);
 
-  // 3. Overhead Cost (Hidden costs like gas, energy - % of Material Cost is a common approximation, 
-  // though some use % of Labor. Based on prompt: "Settings.fixed_overhead_rate")
-  // Note: The prompt implies overhead is a rate. Often overhead is applied to labor or prime cost.
-  // We will apply it to the Material Cost as requested in "Função 2: Pilar 3".
-  const total_cost_overhead = total_cost_material * (settings.fixed_overhead_rate / 100);
+  // 3. Custos Fixos (Overhead)
+  // MELHORIA: Aplicamos a taxa sobre o "Custo Primário" (Material + Mão de Obra)
+  // Isso reflete melhor a realidade do que aplicar apenas sobre o material.
+  const prime_cost = total_cost_material + total_cost_labor;
+  const total_cost_overhead = prime_cost * ((settings.fixed_overhead_rate || 0) / 100);
 
+  // 4. Totais
   const total_cost_final = total_cost_material + total_cost_labor + total_cost_overhead;
-  
   const unit_cost = yieldUnits > 0 ? total_cost_final / yieldUnits : 0;
 
   return {

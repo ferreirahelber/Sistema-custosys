@@ -105,11 +105,14 @@ export const RecipeForm: React.FC = () => {
   };
 
   const handleEditRecipe = (recipe: Recipe) => {
-    setEditingId(recipe.id);
+    setEditingId(recipe.id || null);
     setName(recipe.name);
-    setYieldUnits(recipe.yield_units);
-    setPrepTime(recipe.preparation_time_minutes);
-    setRecipeItems(recipe.items || []);
+    setYieldUnits(recipe.yield_units || 1);
+    setPrepTime(recipe.preparation_time_minutes || 0);
+    
+    // AQUI: Agora recipe.items tem "name", "price" etc, graças ao novo Service
+    setRecipeItems(recipe.items || []); 
+    
     setActiveTab('new');
   };
 

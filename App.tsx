@@ -6,17 +6,16 @@ import { IngredientForm } from './components/IngredientForm';
 import { RecipeForm } from './components/RecipeForm';
 import { CostingView } from './components/CostingView';
 import { Dashboard } from './components/Dashboard';
-// Importamos o serviço novo do Supabase
-import { SettingsService } from './services/settingsService'; 
+import { SettingsService } from './services/settingsService';
 import { Settings as SettingsIcon, ChefHat, Package, LayoutDashboard, DollarSign, Loader2 } from 'lucide-react';
-import './index.css'; // Importante para o estilo!
+import './index.css';
 
 export default function App() {
   const { session, loading, signOut } = useAuth();
 
   const [view, setView] = useState<
     'dashboard' | 'settings' | 'ingredients' | 'recipes' | 'costs'
-  >('dashboard'); // Começa no dashboard por padrão
+  >('dashboard');
 
   const [isConfigured, setIsConfigured] = useState(false);
   const [checkingConfig, setCheckingConfig] = useState(true);
@@ -24,27 +23,30 @@ export default function App() {
   // Verifica configuração no Supabase ao carregar
   useEffect(() => {
     const checkSettings = async () => {
+      // Só verifica configuração se o usuário estiver logado
       if (session) {
         try {
           const settings = await SettingsService.get();
-          // Se tiver salário configurado, considera como configurado
           if (settings.labor_monthly_cost > 0) {
             setIsConfigured(true);
           } else {
-             // Se não tiver, manda para tela de configs
              setView('settings');
           }
         } catch (error) {
           console.error("Erro ao verificar configs", error);
         } finally {
-          setCheckingConfig(false);
+          setCheckingConfig(false); // Para o carregamento
         }
+      } else if (!loading) {
+        // CORREÇÃO: Se não tem sessão e o Auth terminou de carregar, para o spinner também
+        setCheckingConfig(false);
       }
     };
     
     checkSettings();
-  }, [session]);
+  }, [session, loading]);
 
+  // Spinner de Carregamento
   if (loading || checkingConfig) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -53,6 +55,7 @@ export default function App() {
     );
   }
 
+  // Se não estiver logado, mostra Login
   if (!session) {
     return <Login />;
   }
