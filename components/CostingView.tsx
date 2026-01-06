@@ -1,20 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { supabase } from '../services/supabase';
 import { RecipeService } from '../services/recipeService';
-import { SettingsService } from '../services/settingsService';
 import { IngredientService } from '../services/ingredientService';
+import { Recipe, Ingredient, Settings } from '../types';
 import { calculateRecipeFinancials } from '../utils/calculations';
 import { PricingSimulator } from './PricingSimulator';
-import { Recipe, Settings, Ingredient } from '../types';
-import { Loader2, DollarSign, TrendingUp, AlertTriangle } from 'lucide-react';
+import { DollarSign, Loader2 } from 'lucide-react';
 
 export const CostingView: React.FC = () => {
+  // --- ESTADOS ---
   const [loading, setLoading] = useState(true);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
-  const [settings, setSettings] = useState<Settings | null>(null);
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
+  const [settings, setSettings] = useState<Settings | null>(null);
   
+  // Guarda o ID da receita selecionada no Dropdown
   const [selectedRecipeId, setSelectedRecipeId] = useState<string>('');
 
+  // --- CARREGAMENTO INICIAL ---
   useEffect(() => {
     loadData();
   }, []);
@@ -22,65 +25,72 @@ export const CostingView: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      // Busca Receitas, Configurações e Ingredientes do Supabase
-      const [allRecipes, mySettings, allIngredients] = await Promise.all([
-        RecipeService.getAll(),
-        SettingsService.get(),
-        IngredientService.getAll()
-      ]);
-      
-      setRecipes(allRecipes);
-      setSettings(mySettings);
-      setIngredients(allIngredients);
+      // Busca dados do banco
+      const { data: settingsData } = await supabase.from('settings').select('*').single();
+      const ingredientsData = await IngredientService.getAll();
+      const recipesData = await RecipeService.getAll();
+
+      // Configura estados com fallback seguro
+      setSettings(settingsData || { cost_per_minute: 0.5, fixed_overhead_rate: 10 });
+      setIngredients(ingredientsData || []);
+      setRecipes(recipesData || []);
     } catch (error) {
-      console.error("Erro ao carregar dados de custos:", error);
+      console.error("Erro ao carregar dados:", error);
     } finally {
       setLoading(false);
     }
   };
 
+  // --- O CÉREBRO DA TELA (Cálculo em Tempo Real) ---
+  const calculatedRecipe = useMemo(() => {
+    // Se não tiver nada selecionado ou faltando dados, retorna nulo
+    if (!selectedRecipeId || !settings || recipes.length === 0) return null;
+
+    const recipe = recipes.find(r => r.id === selectedRecipeId);
+    if (!recipe) return null;
+
+    // 1. Recalcula os custos financeiros baseados nos ingredientes atuais
+    const financials = calculateRecipeFinancials(
+      recipe.items || [],
+      ingredients,
+      recipe.preparation_time_minutes || 0,
+      recipe.yield_units || 1,
+      settings
+    );
+
+    // 2. Retorna um novo objeto Receita com os custos atualizados
+    // Esse objeto é o que alimenta TANTO a esquerda QUANTO a direita
+    return {
+      ...recipe,
+      total_cost_material: financials.total_cost_material || 0,
+      total_cost_labor: financials.total_cost_labor || 0,
+      total_cost_overhead: financials.total_cost_overhead || 0,
+      total_cost_final: financials.total_cost_final || 0,
+      unit_cost: financials.unit_cost || 0
+    };
+  }, [selectedRecipeId, recipes, ingredients, settings]);
+
+  const formatMoney = (val: number) => `R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <Loader2 className="animate-spin text-amber-600 w-8 h-8" />
+      <div className="flex items-center justify-center h-64 text-slate-500 gap-2">
+        <Loader2 className="animate-spin" /> Carregando simulador...
       </div>
     );
   }
-
-  // Se não tiver configurações, pede para configurar
-  if (!settings || settings.labor_monthly_cost === 0) {
-    return (
-      <div className="bg-amber-50 p-6 rounded-xl border border-amber-100 text-center">
-        <AlertTriangle className="mx-auto text-amber-500 mb-2" size={32} />
-        <h3 className="text-lg font-bold text-amber-900">Configuração Necessária</h3>
-        <p className="text-amber-700">Para simular preços, você precisa primeiro definir seus custos fixos e mão de obra na aba Configurações.</p>
-      </div>
-    );
-  }
-
-  const selectedRecipe = recipes.find(r => r.id === selectedRecipeId);
-
-  // Recalcula os custos financeiros com os dados mais recentes
-  const financials = selectedRecipe 
-    ? calculateRecipeFinancials(
-        selectedRecipe.items || [], 
-        ingredients, 
-        selectedRecipe.preparation_time_minutes, 
-        selectedRecipe.yield_units, 
-        settings
-      )
-    : null;
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      
-      {/* SELEÇÃO DE RECEITA */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+    <div className="space-y-6">
+      {/* O título principal é exibido pelo layout em `App.tsx` — removido para evitar duplicação */}
+
+      {/* 1. SELETOR DE RECEITA */}
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
         <label className="block text-sm font-bold text-slate-700 mb-2">Selecione uma Receita para Simular</label>
-        <select 
-          value={selectedRecipeId} 
+        <select
+          value={selectedRecipeId}
           onChange={(e) => setSelectedRecipeId(e.target.value)}
-          className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none text-slate-700 font-medium"
+          className="w-full p-3 border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-amber-500 outline-none text-slate-700 font-medium"
         >
           <option value="">-- Escolha uma receita --</option>
           {recipes.map(r => (
@@ -89,67 +99,58 @@ export const CostingView: React.FC = () => {
         </select>
       </div>
 
-      {selectedRecipe && financials && settings ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          
-          {/* RESUMO DE CUSTOS ATUAIS */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 space-y-4">
-            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-              <DollarSign className="text-green-600" size={20}/> Estrutura de Custos
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        
+        {/* 2. COLUNA ESQUERDA: ESTRUTURA DE CUSTOS (VISUALIZAÇÃO) */}
+        {calculatedRecipe ? (
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+            <h3 className="font-bold text-green-700 mb-4 flex items-center gap-2">
+              <DollarSign size={20}/> Estrutura de Custos
             </h3>
             
-            <div className="space-y-3">
-              <div className="flex justify-between p-3 bg-slate-50 rounded-lg">
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between p-3 bg-slate-50 rounded-lg items-center">
                 <span className="text-slate-600">Materiais (Ingredientes)</span>
-                <span className="font-bold text-slate-800">R$ {financials.total_cost_material.toFixed(2)}</span>
+                <span className="font-bold text-slate-800">{formatMoney(calculatedRecipe.total_cost_material)}</span>
               </div>
-              <div className="flex justify-between p-3 bg-slate-50 rounded-lg">
+              <div className="flex justify-between p-3 bg-slate-50 rounded-lg items-center">
                 <span className="text-slate-600">Mão de Obra</span>
-                <span className="font-bold text-slate-800">R$ {financials.total_cost_labor.toFixed(2)}</span>
+                <span className="font-bold text-slate-800">{formatMoney(calculatedRecipe.total_cost_labor)}</span>
               </div>
-              <div className="flex justify-between p-3 bg-slate-50 rounded-lg">
+              <div className="flex justify-between p-3 bg-slate-50 rounded-lg items-center">
                 <span className="text-slate-600">Custos Fixos (Overhead)</span>
-                <span className="font-bold text-slate-800">R$ {financials.total_cost_overhead.toFixed(2)}</span>
+                <span className="font-bold text-slate-800">{formatMoney(calculatedRecipe.total_cost_overhead)}</span>
               </div>
-              <div className="flex justify-between p-4 bg-slate-800 text-white rounded-lg mt-2">
+              
+              <div className="flex justify-between p-4 bg-slate-800 text-white rounded-lg mt-4 items-center">
                 <span className="font-medium">Custo Total de Produção</span>
-                <span className="font-bold text-lg">R$ {financials.total_cost_final.toFixed(2)}</span>
+                <span className="font-bold text-lg">{formatMoney(calculatedRecipe.total_cost_final)}</span>
               </div>
-              <div className="text-center text-sm text-slate-500 pt-2">
-                Custo Unitário: <strong className="text-slate-800">R$ {financials.unit_cost.toFixed(2)}</strong> (Rende {selectedRecipe.yield_units})
+
+              <div className="text-center pt-2 text-slate-500 text-xs">
+                 Custo Unitário: <span className="font-bold text-slate-700">{formatMoney(calculatedRecipe.unit_cost)}</span> (Rende {calculatedRecipe.yield_units})
               </div>
             </div>
           </div>
-
-          {/* SIMULADOR DE PREÇO DE VENDA */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-             <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
-              <TrendingUp className="text-blue-600" size={20}/> Simulador de Venda
-            </h3>
-            
-            {/* Aqui carregamos o componente simulador, passando os dados reais */}
-            <PricingSimulator 
-              unitCost={financials.unit_cost} 
-              settings={settings}
-            />
+        ) : (
+          /* Placeholder quando não tem seleção */
+          <div className="h-full min-h-[300px] flex items-center justify-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50 text-slate-400 text-sm">
+             Selecione uma receita acima.
           </div>
+        )}
 
+        {/* 3. COLUNA DIREITA: SIMULADOR DE VENDA (COMPONENTE FILHO) */}
+        <div>
+           <div className="flex items-center gap-2 mb-2 font-bold text-blue-900">
+              <span className="text-blue-600">↗</span>
+              <span className="ml-1 text-lg md:text-xl">Simulador de Venda</span>
+           </div>
+           
+           {/* AQUI ESTAVA FALTANDO A LIGAÇÃO: Passamos o objeto calculatedRecipe */}
+           <PricingSimulator recipe={calculatedRecipe} showHeader={false} />
         </div>
-      ) : (
-        selectedRecipeId && (
-          <div className="text-center py-12 text-slate-400">
-             Calculando dados da receita...
-          </div>
-        )
-      )}
 
-      {!selectedRecipeId && (
-        <div className="text-center py-12 bg-white rounded-xl border border-dashed border-slate-200 text-slate-400">
-          <DollarSign size={48} className="mx-auto mb-4 opacity-20" />
-          <p>Selecione uma receita acima para ver a análise de custos e definir seu preço de venda.</p>
-        </div>
-      )}
-
+      </div>
     </div>
   );
 };
