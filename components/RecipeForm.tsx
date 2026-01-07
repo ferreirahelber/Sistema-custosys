@@ -3,9 +3,9 @@ import { Ingredient, Recipe, RecipeItem, Settings } from '../types';
 import { IngredientService } from '../services/ingredientService';
 import { RecipeService } from '../services/recipeService';
 import { calculateRecipeFinancials } from '../utils/calculations';
-import { ChefHat, Clock, Layers, Plus, Trash2, PieChart, Printer, Edit, Loader2 } from 'lucide-react';
 import { RecipePrintView } from './RecipePrintView';
 import { SettingsService } from '../services/settingsService';
+import { ChefHat, Clock, Layers, Plus, Trash2, PieChart, Printer, Edit, Loader2, BookOpen } from 'lucide-react';
 
 export const RecipeForm: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'new' | 'list'>('list');
@@ -104,15 +104,18 @@ export const RecipeForm: React.FC = () => {
     setRecipeItems(recipeItems.filter(i => i.id !== id));
   };
 
+  const [prepMethod, setPrepMethod] = useState('');
+
   const handleEditRecipe = (recipe: Recipe) => {
     setEditingId(recipe.id || null);
     setName(recipe.name);
     setYieldUnits(recipe.yield_units || 1);
     setPrepTime(recipe.preparation_time_minutes || 0);
-    
+    setPrepMethod(recipe.preparation_method || ''); // <--- Carregar o modo de preparo
+
     // AQUI: Agora recipe.items tem "name", "price" etc, graças ao novo Service
-    setRecipeItems(recipe.items || []); 
-    
+    setRecipeItems(recipe.items || []);
+
     setActiveTab('new');
   };
 
@@ -121,6 +124,7 @@ export const RecipeForm: React.FC = () => {
     setName('');
     setRecipeItems([]);
     setYieldUnits(1);
+    setPrepMethod(''); // <--- Limpar o modo de preparo
     setActiveTab('list');
   };
 
@@ -147,6 +151,7 @@ export const RecipeForm: React.FC = () => {
         name,
         yield_units: yieldUnits,
         preparation_time_minutes: prepTime,
+        preparation_method: prepMethod, // <--- Enviar para salvar
         items: recipeItems,
         total_cost_material: financials.total_cost_material || 0,
         total_cost_labor: financials.total_cost_labor || 0,
@@ -169,7 +174,7 @@ export const RecipeForm: React.FC = () => {
   // --- RENDER ---
   return (
     <div className="space-y-6">
-      {printingRecipe && <RecipePrintView recipe={printingRecipe} onClose={() => setPrintingRecipe(null)} />}
+      {printingRecipe && <RecipePrintView recipe={printingRecipe} ingredients={ingredients} onClose={() => setPrintingRecipe(null)} />}
 
       <div className="flex gap-4 border-b">
         <button onClick={() => { setActiveTab('list'); cancelEdit(); }} className={`pb-3 px-2 font-medium transition ${activeTab === 'list' ? 'text-amber-600 border-b-2 border-amber-600' : 'text-slate-500'}`}>Minhas Receitas</button>
@@ -227,7 +232,7 @@ export const RecipeForm: React.FC = () => {
               </div>
             </div>
 
-            {/* SEÇÃO DE INGREDIENTES */}
+          {/* SEÇÃO DE INGREDIENTES */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
               <h3 className="text-lg font-bold text-slate-800 mb-4">Ingredientes</h3>
 
@@ -262,7 +267,6 @@ export const RecipeForm: React.FC = () => {
               <div className="space-y-2">
                 {recipeItems.map(item => {
                   const ing = ingredients.find(i => i.id === item.ingredient_id);
-                  // --- CORREÇÃO: CÁLCULO DO CUSTO DO ITEM ---
                   const cost = (ing?.unit_cost_base || 0) * item.quantity_used;
 
                   return (
@@ -271,14 +275,12 @@ export const RecipeForm: React.FC = () => {
                         <div className="font-bold text-slate-800">{ing?.name}</div>
                         <div className="text-xs text-slate-500">
                           {item.quantity_input} {item.unit_input}
-                          {/* Mostra a conversão se for diferente da base */}
                           {item.unit_input !== ing?.base_unit &&
                             <span className="ml-1 text-slate-400">({item.quantity_used.toFixed(0)}{ing?.base_unit})</span>
                           }
                         </div>
                       </div>
                       <div className="flex items-center gap-4">
-                        {/* Exibe o Custo Calculado em R$ */}
                         <div className="text-sm font-semibold text-slate-600">
                           R$ {cost.toFixed(2)}
                         </div>
@@ -294,6 +296,20 @@ export const RecipeForm: React.FC = () => {
                 )}
               </div>
             </div>
+
+            {/* === AGORA SIM: MODO DE PREPARO (FORA DA DIV ANTERIOR) === */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+              <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <BookOpen size={20} className="text-amber-600" /> Modo de Preparo
+              </h3>
+              <textarea
+                value={prepMethod}
+                onChange={e => setPrepMethod(e.target.value)}
+                placeholder="Descreva o passo a passo da receita aqui..."
+                className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none h-40 resize-y text-slate-700 leading-relaxed"
+              />
+            </div>
+
           </div>
 
           <div className="space-y-6">

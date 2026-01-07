@@ -1,31 +1,26 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Recipe } from '../types';
+import { Recipe, Ingredient } from '../types'; // Importe Ingredient
 import { Printer, X, ChefHat, DollarSign, Clock, Layers } from 'lucide-react';
 
 interface Props {
   recipe: Recipe;
+  ingredients: Ingredient[]; // <--- NOVO PROP: Recebe a lista de ingredientes
   onClose: () => void;
 }
 
-export const RecipePrintView: React.FC<Props> = ({ recipe, onClose }) => {
+export const RecipePrintView: React.FC<Props> = ({ recipe, ingredients, onClose }) => {
   const [mode, setMode] = useState<'operational' | 'financial'>('operational');
 
-  // Busca o nome do ingrediente direto do banco local para garantir que apareça
+  // Agora busca na lista passada via props, não mais no localStorage
   const getIngredientName = (id: string) => {
-    try {
-        const ings = JSON.parse(localStorage.getItem('custosys_ingredients') || '[]');
-        const found = ings.find((i: any) => i.id === id);
-        return found ? found.name : 'Ingrediente não encontrado';
-    } catch (e) {
-        return 'Erro ao ler nome';
-    }
+    const found = ingredients.find(i => i.id === id);
+    return found ? found.name : 'Ingrediente excluído';
   };
 
   const content = (
     <div className="print-portal fixed inset-0 z-[9999] bg-slate-900/60 flex items-center justify-center overflow-y-auto backdrop-blur-sm print:bg-white print:fixed print:inset-0 print:z-[10000]">
       
-      {/* MÁGICA DO CSS: Esconde o sistema e mostra só a folha na impressão */}
       <style>
         {`
           @media print {
@@ -42,7 +37,6 @@ export const RecipePrintView: React.FC<Props> = ({ recipe, onClose }) => {
                 align-items: flex-start;
                 justify-content: center;
             }
-            /* Remove margens padrão do navegador para caber na A4 */
             @page { margin: 0; size: auto; }
           }
         `}
@@ -127,9 +121,9 @@ export const RecipePrintView: React.FC<Props> = ({ recipe, onClose }) => {
                     {recipe.items.map((item, idx) => {
                          const displayQty = item.quantity_input || item.quantity_used;
                          const displayUnit = item.unit_input || 'un';
-                         // Busca o ingrediente original para pegar o custo se necessário
-                         const ings = JSON.parse(localStorage.getItem('custosys_ingredients') || '[]');
-                         const baseIng = ings.find((i: any) => i.id === item.ingredient_id);
+                         
+                         // Busca o ingrediente na lista passada via props
+                         const baseIng = ingredients.find(i => i.id === item.ingredient_id);
                          const cost = baseIng ? (item.quantity_used * baseIng.unit_cost_base) : 0;
 
                          return (
@@ -157,9 +151,16 @@ export const RecipePrintView: React.FC<Props> = ({ recipe, onClose }) => {
             <h3 className="text-sm font-bold uppercase tracking-wider border-b border-slate-300 pb-2 mb-4 text-slate-500">
                 Instruções de Preparo
             </h3>
-            <div className="border-2 border-dashed border-slate-200 rounded-lg min-h-[150px] p-6 text-slate-400 italic text-center flex items-center justify-center print:border-slate-300">
-                <p>Espaço reservado para o modo de preparo.</p>
-            </div>
+            
+            {recipe.preparation_method ? (
+                <div className="text-slate-700 text-sm leading-relaxed whitespace-pre-wrap text-justify">
+                    {recipe.preparation_method}
+                </div>
+            ) : (
+                <div className="border-2 border-dashed border-slate-200 rounded-lg min-h-[100px] p-6 text-slate-400 italic text-center flex items-center justify-center print:border-slate-300">
+                    <p>Nenhuma instrução cadastrada.</p>
+                </div>
+            )}
         </div>
 
         {/* Rodapé Financeiro (Só Gerencial) */}
@@ -197,6 +198,5 @@ export const RecipePrintView: React.FC<Props> = ({ recipe, onClose }) => {
     </div>
   );
 
-  // Usa Portal para renderizar fora do #root, resolvendo o problema de sobreposição na impressão
   return createPortal(content, document.body);
 };

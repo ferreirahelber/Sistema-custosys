@@ -68,6 +68,7 @@ export const RecipeService = {
         name: cleanData.name,
         yield_units: cleanData.yield_units,
         preparation_time_minutes: cleanData.preparation_time_minutes,
+        preparation_method: cleanData.preparation_method,
         
         // Salvamos os custos (Certifique-se que essas colunas existem na tabela recipes)
         total_cost_material: Number(recipe.total_cost_material) || 0,

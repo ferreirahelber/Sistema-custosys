@@ -55,6 +55,7 @@ export interface Recipe {
   name: string;
   yield_units: number;
   preparation_time_minutes: number;
+  preparation_method?: string;
   items: RecipeItem[];
   
   total_cost_material: number;
