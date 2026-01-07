@@ -1,7 +1,12 @@
 import { Unit, Ingredient, Settings, Recipe, RecipeItem } from '../types';
+import Decimal from 'decimal.js';
+
+// Configura o Decimal.js para precisão financeira (opcional, mas recomendado)
+// Decimal.set({ precision: 20 });
 
 /**
- * Normalizes units to their base form (kg->g, l->ml) and calculates cost per base unit.
+ * Normaliza unidades para a base (kg->g, l->ml) e calcula o custo por unidade base.
+ * Corrige problemas de divisão de ponto flutuante.
  */
 export const calculateBaseCost = (
   price: number,
@@ -34,15 +39,30 @@ export const calculateBaseCost = (
       break;
   }
 
-  const totalBaseUnits = amount * multiplier;
-  // Protect against division by zero
-  const baseCost = totalBaseUnits > 0 ? price / totalBaseUnits : 0;
+  // CÁLCULO PRECISO:
+  // totalBaseUnits = amount * multiplier
+  const amountDec = new Decimal(amount || 0);
+  const totalBaseUnits = amountDec.times(multiplier);
 
-  return { baseCost, baseUnit };
+  // baseCost = price / totalBaseUnits
+  const priceDec = new Decimal(price || 0);
+  
+  // Proteção contra divisão por zero usando Decimal
+  const baseCost = totalBaseUnits.isGreaterThan(0) 
+    ? priceDec.dividedBy(totalBaseUnits) 
+    : new Decimal(0);
+
+  // Retornamos .toNumber() para manter compatibilidade com o resto do sistema (Typescript)
+  // mas o valor já foi calculado com a precisão correta.
+  return { 
+    baseCost: baseCost.toNumber(), 
+    baseUnit 
+  };
 };
 
 /**
- * Calculates the full financial breakdown of a recipe.
+ * Calcula o detalhamento financeiro completo da receita.
+ * Substitui somas simples por somas decimais para evitar erros de centavos.
  */
 export const calculateRecipeFinancials = (
   items: RecipeItem[],
@@ -51,70 +71,103 @@ export const calculateRecipeFinancials = (
   yieldUnits: number,
   settings: Settings
 ): Partial<Recipe> => {
+  
   // 1. Custo dos Materiais (Ingredientes)
-  const total_cost_material = items.reduce((acc, item) => {
-    // Tenta pegar o preço do ingrediente atualizado (da lista geral)
-    // Se não achar, tenta usar o que já está no item (item.price) como fallback
+  // Usamos Decimal(0) como acumulador inicial
+  const total_cost_material_dec = items.reduce((acc, item) => {
     const ingredient = ingredients.find(i => i.id === item.ingredient_id);
     const costBase = ingredient ? ingredient.unit_cost_base : (item as any).price || 0;
-    
-    // quantity_used já deve estar na unidade base (g/ml/un)
     const qty = item.quantity_used || 0;
     
-    return acc + (qty * costBase);
-  }, 0);
+    // acc + (qty * costBase)
+    const costStep = new Decimal(qty).times(costBase);
+    return acc.plus(costStep);
+  }, new Decimal(0));
 
   // 2. Custo da Mão de Obra
-  const total_cost_labor = (prepTimeMinutes || 0) * (settings.cost_per_minute || 0);
+  // (prepTime * costPerMinute)
+  const prepTimeDec = new Decimal(prepTimeMinutes || 0);
+  const costPerMinuteDec = new Decimal(settings.cost_per_minute || 0);
+  const total_cost_labor_dec = prepTimeDec.times(costPerMinuteDec);
 
   // 3. Custos Fixos (Overhead)
-  // MELHORIA: Aplicamos a taxa sobre o "Custo Primário" (Material + Mão de Obra)
-  // Isso reflete melhor a realidade do que aplicar apenas sobre o material.
-  const prime_cost = total_cost_material + total_cost_labor;
-  const total_cost_overhead = prime_cost * ((settings.fixed_overhead_rate || 0) / 100);
+  // prime_cost = material + labor
+  const prime_cost_dec = total_cost_material_dec.plus(total_cost_labor_dec);
+  
+  // total_cost_overhead = prime_cost * (rate / 100)
+  const overheadRateDec = new Decimal(settings.fixed_overhead_rate || 0);
+  const total_cost_overhead_dec = prime_cost_dec.times(overheadRateDec.dividedBy(100));
 
   // 4. Totais
-  const total_cost_final = total_cost_material + total_cost_labor + total_cost_overhead;
-  const unit_cost = yieldUnits > 0 ? total_cost_final / yieldUnits : 0;
+  const total_cost_final_dec = prime_cost_dec.plus(total_cost_overhead_dec);
+  
+  // unit_cost = total / yield
+  const yieldDec = new Decimal(yieldUnits || 1);
+  const unit_cost_dec = yieldDec.isGreaterThan(0) 
+    ? total_cost_final_dec.dividedBy(yieldDec) 
+    : new Decimal(0);
 
   return {
-    total_cost_material,
-    total_cost_labor,
-    total_cost_overhead,
-    total_cost_final,
-    unit_cost
+    total_cost_material: total_cost_material_dec.toNumber(),
+    total_cost_labor: total_cost_labor_dec.toNumber(),
+    total_cost_overhead: total_cost_overhead_dec.toNumber(),
+    total_cost_final: total_cost_final_dec.toNumber(),
+    unit_cost: unit_cost_dec.toNumber()
   };
 };
 
 /**
- * Calculates the suggested selling price based on margin.
- * Formula: Price = Cost / (1 - (Tax + Fee + Margin))
+ * Calcula o preço de venda sugerido.
+ * Fórmula: Preço = Custo / (1 - (Imposto + Taxa + Margem))
  */
 export const calculateSellingPrice = (
   unitCost: number,
-  taxRate: number, // percentage 0-100
-  cardFee: number, // percentage 0-100
-  desiredMargin: number // percentage 0-100
+  taxRate: number, // % 0-100
+  cardFee: number, // % 0-100
+  desiredMargin: number // % 0-100
 ): number => {
-  const totalDeductions = (taxRate + cardFee + desiredMargin) / 100;
+  // totalDeductions = (tax + fee + margin) / 100
+  const taxDec = new Decimal(taxRate || 0);
+  const feeDec = new Decimal(cardFee || 0);
+  const marginDec = new Decimal(desiredMargin || 0);
   
-  // Prevent division by zero or negative prices if margins are unrealistic
-  if (totalDeductions >= 1) return 0; 
+  const totalDeductionsDec = taxDec.plus(feeDec).plus(marginDec).dividedBy(100);
 
-  return unitCost / (1 - totalDeductions);
+  // Se deduções >= 1 (100%), o preço seria infinito
+  if (totalDeductionsDec.greaterThanOrEqualTo(1)) return 0;
+
+  // Preço = Custo / (1 - deduções)
+  const costDec = new Decimal(unitCost || 0);
+  const divisor = new Decimal(1).minus(totalDeductionsDec);
+  
+  return costDec.dividedBy(divisor).toNumber();
 };
 
+/**
+ * Calcula a margem real de lucro.
+ */
 export const calculateMargin = (
   unitCost: number,
   sellingPrice: number,
   taxRate: number,
   cardFee: number
 ): number => {
-  if (sellingPrice <= 0) return -100; 
-  // Formula: Margem = 100% - (Custo/Preço) - Impostos - Taxas
-  const deductionRate = (taxRate + cardFee) / 100;
-  const costRate = unitCost / sellingPrice;
-  const marginRate = 1 - costRate - deductionRate;
+  const priceDec = new Decimal(sellingPrice || 0);
+  if (priceDec.lessThanOrEqualTo(0)) return -100;
+
+  const costDec = new Decimal(unitCost || 0);
+  const taxDec = new Decimal(taxRate || 0);
+  const feeDec = new Decimal(cardFee || 0);
+
+  // deductionRate = (tax + fee) / 100
+  const deductionRate = taxDec.plus(feeDec).dividedBy(100);
   
-  return marginRate * 100;
+  // costRate = cost / price
+  const costRate = costDec.dividedBy(priceDec);
+  
+  // Margem = 1 - costRate - deductionRate
+  const marginRate = new Decimal(1).minus(costRate).minus(deductionRate);
+  
+  // Retorna em porcentagem (x100)
+  return marginRate.times(100).toNumber();
 };
