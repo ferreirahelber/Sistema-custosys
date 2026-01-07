@@ -3,9 +3,10 @@ import { Ingredient, Recipe, RecipeItem, Settings } from '../types';
 import { IngredientService } from '../services/ingredientService';
 import { RecipeService } from '../services/recipeService';
 import { calculateRecipeFinancials } from '../utils/calculations';
+import { ChefHat, Clock, Layers, Plus, Trash2, PieChart, Printer, Edit, Loader2, BookOpen } from 'lucide-react';
 import { RecipePrintView } from './RecipePrintView';
 import { SettingsService } from '../services/settingsService';
-import { ChefHat, Clock, Layers, Plus, Trash2, PieChart, Printer, Edit, Loader2, BookOpen } from 'lucide-react';
+import { toast } from 'sonner'; // <--- BIBLIOTECA DE ALERTAS
 
 export const RecipeForm: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'new' | 'list'>('list');
@@ -15,7 +16,8 @@ export const RecipeForm: React.FC = () => {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  // Começa com valores padrão seguros até o Supabase carregar
+  
+  // Configurações
   const [settings, setSettings] = useState<Settings>({
     employees: [],
     labor_monthly_cost: 0,
@@ -32,13 +34,15 @@ export const RecipeForm: React.FC = () => {
   const [name, setName] = useState('');
   const [yieldUnits, setYieldUnits] = useState(1);
   const [prepTime, setPrepTime] = useState(60);
+  const [prepMethod, setPrepMethod] = useState('');
   const [recipeItems, setRecipeItems] = useState<RecipeItem[]>([]);
 
+  // Inputs temporários para adição de item
   const [selectedIngId, setSelectedIngId] = useState('');
   const [selectedUnit, setSelectedUnit] = useState('');
   const [itemQuantity, setItemQuantity] = useState('');
 
-  // --- CARREGAR DADOS DO SUPABASE ---
+  // --- CARREGAR DADOS ---
   useEffect(() => {
     loadData();
   }, [activeTab]);
@@ -46,7 +50,6 @@ export const RecipeForm: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      // Busca TUDO junto: Ingredientes, Receitas e Configurações
       const [allIngredients, allRecipes, mySettings] = await Promise.all([
         IngredientService.getAll(),
         RecipeService.getAll(),
@@ -55,10 +58,10 @@ export const RecipeForm: React.FC = () => {
 
       setIngredients(allIngredients);
       setRecipes(allRecipes);
-      setSettings(mySettings); // Atualiza o estado com as configs da nuvem
-
+      setSettings(mySettings); 
     } catch (error) {
       console.error("Erro ao carregar dados:", error);
+      toast.error("Erro ao carregar dados do sistema.");
     } finally {
       setLoading(false);
     }
@@ -79,6 +82,7 @@ export const RecipeForm: React.FC = () => {
     const qtyInput = parseFloat(itemQuantity);
     let qtyBase = qtyInput;
 
+    // Conversão de unidade se necessário
     if (selectedIngredientDetails && selectedUnit !== selectedIngredientDetails.base_unit) {
       const conversion = selectedIngredientDetails.conversions?.find((c: any) => c.name === selectedUnit);
       if (conversion) {
@@ -104,18 +108,13 @@ export const RecipeForm: React.FC = () => {
     setRecipeItems(recipeItems.filter(i => i.id !== id));
   };
 
-  const [prepMethod, setPrepMethod] = useState('');
-
   const handleEditRecipe = (recipe: Recipe) => {
     setEditingId(recipe.id || null);
     setName(recipe.name);
     setYieldUnits(recipe.yield_units || 1);
     setPrepTime(recipe.preparation_time_minutes || 0);
-    setPrepMethod(recipe.preparation_method || ''); // <--- Carregar o modo de preparo
-
-    // AQUI: Agora recipe.items tem "name", "price" etc, graças ao novo Service
-    setRecipeItems(recipe.items || []);
-
+    setPrepMethod(recipe.preparation_method || '');
+    setRecipeItems(recipe.items || []); 
     setActiveTab('new');
   };
 
@@ -124,25 +123,51 @@ export const RecipeForm: React.FC = () => {
     setName('');
     setRecipeItems([]);
     setYieldUnits(1);
-    setPrepMethod(''); // <--- Limpar o modo de preparo
+    setPrepMethod('');
     setActiveTab('list');
   };
 
-  const handleDeleteRecipe = async (id: string) => {
-    if (window.confirm("Excluir receita?")) {
-      try {
-        await RecipeService.delete(id);
-        setRecipes(recipes.filter(r => r.id !== id));
-        if (editingId === id) cancelEdit();
-      } catch (e) { alert('Erro ao excluir'); }
-    }
+  // --- NOVA EXCLUSÃO COM ALERTA VERMELHO ---
+  const handleDeleteRecipe = (recipe: Recipe) => {
+    // toast.error cria o alerta vermelho
+    toast.error(`Excluir a receita "${recipe.name}"?`, {
+      description: "Esta ação apagará a receita permanentemente.",
+      action: {
+        label: "SIM, EXCLUIR",
+        onClick: async () => {
+          try {
+            await RecipeService.delete(recipe.id);
+            setRecipes((prev) => prev.filter(r => r.id !== recipe.id));
+            
+            // Se estava editando a receita que foi excluída, limpa o form
+            if (editingId === recipe.id) cancelEdit();
+            
+            toast.success("Receita excluída com sucesso!");
+          } catch (e) { 
+            toast.error('Não foi possível excluir a receita.'); 
+          }
+        },
+      },
+      cancel: {
+        label: "Cancelar",
+      },
+      duration: 5000, // Duração maior para dar tempo de ler
+    });
   };
 
+  // Cálculos em tempo real para o formulário
   const financials = calculateRecipeFinancials(recipeItems, ingredients, prepTime, yieldUnits, settings);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || recipeItems.length === 0) return;
+    if (!name) {
+        toast.warning("Por favor, dê um nome para a receita.");
+        return;
+    }
+    if (recipeItems.length === 0) {
+        toast.warning("Adicione pelo menos um ingrediente.");
+        return;
+    }
 
     try {
       setSaving(true);
@@ -151,8 +176,9 @@ export const RecipeForm: React.FC = () => {
         name,
         yield_units: yieldUnits,
         preparation_time_minutes: prepTime,
-        preparation_method: prepMethod, // <--- Enviar para salvar
+        preparation_method: prepMethod,
         items: recipeItems,
+        // Salva o "snapshot" dos custos atuais
         total_cost_material: financials.total_cost_material || 0,
         total_cost_labor: financials.total_cost_labor || 0,
         total_cost_overhead: financials.total_cost_overhead || 0,
@@ -161,11 +187,11 @@ export const RecipeForm: React.FC = () => {
       };
 
       await RecipeService.save(recipeData);
-      await loadData();
+      await loadData(); // Recarrega a lista
       cancelEdit();
-      alert("Receita salva com sucesso!");
+      toast.success("Receita salva com sucesso!");
     } catch (error: any) {
-      alert(`Erro ao salvar: ${error.message}`);
+      toast.error(`Erro ao salvar: ${error.message}`);
     } finally {
       setSaving(false);
     }
@@ -174,18 +200,21 @@ export const RecipeForm: React.FC = () => {
   // --- RENDER ---
   return (
     <div className="space-y-6">
+      {/* Modal de Impressão */}
       {printingRecipe && <RecipePrintView recipe={printingRecipe} ingredients={ingredients} onClose={() => setPrintingRecipe(null)} />}
 
+      {/* Abas de Navegação */}
       <div className="flex gap-4 border-b">
         <button onClick={() => { setActiveTab('list'); cancelEdit(); }} className={`pb-3 px-2 font-medium transition ${activeTab === 'list' ? 'text-amber-600 border-b-2 border-amber-600' : 'text-slate-500'}`}>Minhas Receitas</button>
         <button onClick={() => setActiveTab('new')} className={`pb-3 px-2 font-medium transition ${activeTab === 'new' ? 'text-amber-600 border-b-2 border-amber-600' : 'text-slate-500'}`}>{editingId ? 'Editando' : 'Nova Receita'}</button>
       </div>
 
+      {/* ABA: NOVA RECEITA / EDIÇÃO */}
       {activeTab === 'new' && (
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
           <div className="xl:col-span-2 space-y-6">
 
-            {/* SEÇÃO DE DETALHES */}
+            {/* CARD 1: DETALHES BÁSICOS */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
@@ -232,10 +261,11 @@ export const RecipeForm: React.FC = () => {
               </div>
             </div>
 
-          {/* SEÇÃO DE INGREDIENTES */}
+            {/* CARD 2: INGREDIENTES */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
               <h3 className="text-lg font-bold text-slate-800 mb-4">Ingredientes</h3>
 
+              {/* Linha de Adição */}
               <div className="flex flex-col md:flex-row gap-3 items-end mb-6 bg-slate-50 p-4 rounded-lg">
                 <div className="flex-1 w-full">
                   <label className="text-xs font-bold text-slate-500">Ingrediente</label>
@@ -264,6 +294,7 @@ export const RecipeForm: React.FC = () => {
                 <button onClick={addItem} disabled={!selectedIngId} className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50"><Plus size={20} /></button>
               </div>
 
+              {/* Lista de Itens */}
               <div className="space-y-2">
                 {recipeItems.map(item => {
                   const ing = ingredients.find(i => i.id === item.ingredient_id);
@@ -281,23 +312,17 @@ export const RecipeForm: React.FC = () => {
                         </div>
                       </div>
                       <div className="flex items-center gap-4">
-                        <div className="text-sm font-semibold text-slate-600">
-                          R$ {cost.toFixed(2)}
-                        </div>
-                        <button onClick={() => removeItem(item.id)} className="text-red-400 hover:text-red-600 transition">
-                          <Trash2 size={16} />
-                        </button>
+                        <div className="text-sm font-semibold text-slate-600">R$ {cost.toFixed(2)}</div>
+                        <button onClick={() => removeItem(item.id)} className="text-red-400 hover:text-red-600 transition"><Trash2 size={16} /></button>
                       </div>
                     </div>
                   )
                 })}
-                {recipeItems.length === 0 && (
-                  <div className="text-center py-6 text-slate-400 text-sm">Nenhum ingrediente adicionado.</div>
-                )}
+                {recipeItems.length === 0 && <div className="text-center py-6 text-slate-400 text-sm">Nenhum ingrediente adicionado.</div>}
               </div>
             </div>
 
-            {/* === AGORA SIM: MODO DE PREPARO (FORA DA DIV ANTERIOR) === */}
+            {/* CARD 3: MODO DE PREPARO */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
               <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
                 <BookOpen size={20} className="text-amber-600" /> Modo de Preparo
@@ -312,6 +337,7 @@ export const RecipeForm: React.FC = () => {
 
           </div>
 
+          {/* COLUNA DIREITA: RESUMO DE CUSTOS */}
           <div className="space-y-6">
             <div className="bg-slate-800 text-white p-6 rounded-xl shadow-lg sticky top-6">
               <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><PieChart size={20} className="text-amber-400" /> Custos</h3>
@@ -331,23 +357,17 @@ export const RecipeForm: React.FC = () => {
         </div>
       )}
 
+      {/* ABA: LISTA DE RECEITAS */}
       {activeTab === 'list' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {loading ? (
-            <div className="col-span-full text-center py-12">
-              <Loader2 className="animate-spin w-8 h-8 mx-auto text-slate-400" />
-            </div>
+            <div className="col-span-full text-center py-12"><Loader2 className="animate-spin w-8 h-8 mx-auto text-slate-400" /></div>
           ) : recipes.length === 0 ? (
             <div className="col-span-full text-center py-12 bg-white rounded-xl border border-dashed border-slate-300">
               <ChefHat className="w-12 h-12 text-slate-300 mx-auto mb-3" />
               <h3 className="text-lg font-medium text-slate-900">Nenhuma receita encontrada</h3>
               <p className="text-slate-500 mb-6">Comece criando sua primeira ficha técnica.</p>
-              <button
-                onClick={() => setActiveTab('new')}
-                className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition"
-              >
-                Cadastrar Nova Receita
-              </button>
+              <button onClick={() => setActiveTab('new')} className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition">Cadastrar Nova Receita</button>
             </div>
           ) : (
             recipes.map(r => (
@@ -357,7 +377,8 @@ export const RecipeForm: React.FC = () => {
                   <div className="flex gap-2">
                     <button onClick={() => handleEditRecipe(r)} className="text-slate-400 hover:text-amber-600"><Edit size={18} /></button>
                     <button onClick={() => setPrintingRecipe(r)} className="text-slate-400 hover:text-blue-600"><Printer size={18} /></button>
-                    <button onClick={() => handleDeleteRecipe(r.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={18} /></button>
+                    {/* Botão de Excluir Chama a Nova Função */}
+                    <button onClick={() => handleDeleteRecipe(r)} className="text-slate-400 hover:text-red-500"><Trash2 size={18} /></button>
                   </div>
                 </div>
                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 mt-2">

@@ -8,6 +8,7 @@ import { CostingView } from './components/CostingView';
 import { Dashboard } from './components/Dashboard';
 import { SettingsService } from './services/settingsService';
 import { Settings as SettingsIcon, ChefHat, Package, LayoutDashboard, DollarSign, Loader2 } from 'lucide-react';
+import { Toaster } from 'sonner'; // <--- IMPORTANTE: Importe o Toaster
 import './index.css';
 
 export default function App() {
@@ -23,22 +24,21 @@ export default function App() {
   // Verifica configuração no Supabase ao carregar
   useEffect(() => {
     const checkSettings = async () => {
-      // Só verifica configuração se o usuário estiver logado
       if (session) {
         try {
           const settings = await SettingsService.get();
           if (settings.labor_monthly_cost > 0) {
             setIsConfigured(true);
           } else {
-             setView('settings');
+             // Se não tiver config, mas o usuário forçar outra view, permitimos (UX melhor)
+             // mas mantemos o aviso no menu
           }
         } catch (error) {
           console.error("Erro ao verificar configs", error);
         } finally {
-          setCheckingConfig(false); // Para o carregamento
+          setCheckingConfig(false);
         }
       } else if (!loading) {
-        // CORREÇÃO: Se não tem sessão e o Auth terminou de carregar, para o spinner também
         setCheckingConfig(false);
       }
     };
@@ -46,7 +46,6 @@ export default function App() {
     checkSettings();
   }, [session, loading]);
 
-  // Spinner de Carregamento
   if (loading || checkingConfig) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -55,7 +54,6 @@ export default function App() {
     );
   }
 
-  // Se não estiver logado, mostra Login
   if (!session) {
     return <Login />;
   }
@@ -65,15 +63,7 @@ export default function App() {
     setView('dashboard');
   };
 
-  const NavItem = ({
-    id,
-    label,
-    icon: Icon
-  }: {
-    id: typeof view;
-    label: string;
-    icon: any;
-  }) => (
+  const NavItem = ({ id, label, icon: Icon }: { id: typeof view; label: string; icon: any }) => (
     <button
       onClick={() => setView(id)}
       className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full text-left transition-all ${view === id
@@ -88,6 +78,9 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-slate-50 font-sans">
+      {/* Componente de Notificações (Fica invisível até ser chamado) */}
+      <Toaster position="top-right" richColors expand={true} />
+
       {/* Sidebar */}
       <aside className="w-full md:w-64 bg-white border-r border-slate-200 p-6 flex flex-col h-screen sticky top-0 z-20">
         <div className="flex items-center gap-2 mb-8 px-2">
@@ -123,12 +116,8 @@ export default function App() {
           >
             Sair
           </button>
-
-          <p className="text-xs text-slate-400 text-center">
-            Versão 2.0.0 • Cloud
-          </p>
+          <p className="text-xs text-slate-400 text-center">Versão 2.1.0 • Cloud</p>
         </div>
-
       </aside>
 
       {/* Main */}

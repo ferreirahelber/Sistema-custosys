@@ -1,54 +1,35 @@
 # Sistema Custosys
 
-Sistema web para **gestão de custos, receitas e precificação** voltado a pequenos negócios (docerias, confeitaria, alimentação artesanal, etc.).
+Sistema web profissional para **gestão de custos, receitas e precificação** voltado a pequenos negócios (docerias, confeitarias, alimentação artesanal, etc.).
 
-O objetivo do projeto é facilitar o controle de ingredientes, receitas, cálculo de custos e simulação de preços de venda.
+O objetivo do projeto é facilitar o controle de estoque de ingredientes, criação de fichas técnicas, cálculo automático de custos e simulação de preços de venda com foco em precisão financeira.
 
 ---
 
 ## 🧰 Tecnologias Utilizadas
 
-* **React**
-* **TypeScript**
-* **Vite**
-* **LocalStorage** (persistência local)
-* **Node.js** (ambiente de desenvolvimento)
+O projeto utiliza uma stack moderna e robusta:
+
+* **Frontend:** React 19, TypeScript, Vite
+* **Estilização:** Tailwind CSS, Lucide React
+* **Backend / Banco de Dados:** Supabase (PostgreSQL + Auth)
+* **Gerenciamento de Estado:** React Context API + Hooks
 
 ---
 
 ## 📁 Estrutura do Projeto
 
-```
-Sistema-custosys/
-├─ components/        # Componentes de UI e telas
-├─ services/          # Serviços (ex: storage)
-├─ utils/             # Funções utilitárias e regras de negócio
-├─ .gitignore
-├─ .env.example
-├─ App.tsx
-├─ index.html
-├─ index.tsx
-├─ package.json
-├─ tsconfig.json
-├─ vite.config.ts
-└─ README.md
-```
+Sistema-custosys/ ├─ components/ # Componentes de UI e telas do sistema ├─ contexts/ # Contextos globais (AuthContext, etc) ├─ services/ # Camada de comunicação com o Supabase ├─ utils/ # Regras de negócio e cálculos matemáticos ├─ database/ # Scripts SQL para criação do banco e políticas de segurança ├─ .env.example # Modelo das variáveis de ambiente └─ App.tsx # Componente raiz e roteamento
+
 
 ---
 
 ## ⚙️ Requisitos
 
-Antes de começar, você precisa ter instalado:
+Antes de começar, certifique-se de ter instalado:
 
-* **Node.js** (versão 18 ou superior recomendada)
-* **npm** (ou yarn/pnpm)
-
-Verifique com:
-
-```bash
-node -v
-npm -v
-```
+* **Node.js** (versão 18 ou superior)
+* **npm** ou **yarn**
 
 ---
 
@@ -57,105 +38,84 @@ npm -v
 ### 1️⃣ Clonar o repositório
 
 ```bash
-git clone https://github.com/ferreirahelber/Sistema-custosys.git
+git clone [https://github.com/ferreirahelber/Sistema-custosys.git](https://github.com/ferreirahelber/Sistema-custosys.git)
 cd Sistema-custosys
-```
+2️⃣ Instalar as dependências
+Bash
 
----
-
-### 2️⃣ Instalar as dependências
-
-```bash
 npm install
-```
+3️⃣ Configurar o Supabase (Banco de Dados)
+O sistema necessita de um backend Supabase para funcionar:
 
-> Isso irá criar a pasta `node_modules` localmente (ela **não** é versionada no GitHub).
+Crie uma conta e um novo projeto em Supabase.com.
 
----
+No painel do Supabase, vá até SQL Editor.
 
-### 3️⃣ Configurar variáveis de ambiente
+Copie o conteúdo do arquivo database/schema.sql deste projeto e execute-o no SQL Editor.
 
-Crie o arquivo `.env.local` a partir do exemplo:
+Isso criará as tabelas necessárias (recipes, ingredients, user_settings, etc).
 
-```bash
+Isso também configurará as políticas de segurança (Row Level Security - RLS).
+
+Vá em Project Settings > API e copie:
+
+Project URL
+
+anon public key
+
+4️⃣ Configurar variáveis de ambiente
+Na raiz do projeto, crie um arquivo chamado .env.local (baseado no .env.example):
+
+Bash
+
 cp .env.example .env.local
-```
+Abra o arquivo .env.local e preencha com as credenciais obtidas no passo anterior:
 
-Edite o `.env.local` conforme necessário.
+Snippet de código
 
-Exemplo:
-
-```env
 VITE_APP_NAME=Sistema Custosys
-VITE_STORAGE_KEY=custosys-storage
-```
+VITE_SUPABASE_URL=SUA_URL_DO_SUPABASE_AQUI
+VITE_SUPABASE_ANON_KEY=SUA_CHAVE_ANON_PUBLICA_AQUI
+5️⃣ Rodar o projeto
+Inicie o servidor de desenvolvimento:
 
-⚠️ O arquivo `.env.local` **não deve ser commitado**.
+Bash
 
----
-
-### 4️⃣ Rodar o projeto
-
-```bash
 npm run dev
-```
+Acesse a aplicação em: http://localhost:5173 (ou na porta indicada no terminal).
 
-A aplicação estará disponível em:
+💾 Segurança e Persistência
+Diferente de versões anteriores (que usavam LocalStorage), esta versão persiste todos os dados na nuvem via Supabase.
 
-```
-http://localhost:5173
-```
+Autenticação: Gerenciada via Supabase Auth (E-mail/Senha).
 
----
+Segurança (RLS): Todas as tabelas possuem Row Level Security ativado. Um usuário só consegue ler, editar e excluir seus próprios dados. As regras de acesso são validadas diretamente no banco de dados.
 
-## 💾 Persistência de Dados
+📌 Funcionalidades
+✅ Ativas:
 
-Os dados do sistema (ingredientes, receitas, configurações) são armazenados no **localStorage do navegador**.
+Autenticação: Login seguro de usuários.
 
-* Os dados persistem ao recarregar a página
-* Se o usuário limpar o cache do navegador, os dados serão perdidos
+Ingredientes: Cadastro, edição e exclusão com conversão automática de medidas (kg/g/L/ml).
 
-> Em versões futuras, o sistema poderá utilizar um banco de dados (ex: Supabase).
+Receitas (Fichas Técnicas): Criação de receitas detalhadas com cálculo automático de custos.
 
----
+Precificação: Simulador de preço de venda (markup) considerando impostos, taxas de cartão e margem de lucro desejada.
 
-## 🧪 Scripts Disponíveis
+Configurações: Definição de custo de mão de obra e custos fixos para rateio automático.
 
-```bash
-npm run dev      # Ambiente de desenvolvimento
-npm run build    # Build de produção
-npm run preview  # Preview do build
-```
+Impressão: Modos de visualização "Cozinha" (operacional) e "Gerencial" (com custos).
 
----
+🚧 Em Desenvolvimento (Roadmap):
 
-## 🔒 Segurança
+Refatoração para alta precisão decimal (correção de flutuação financeira).
 
-* `node_modules/` não é versionado
-* Arquivos `.env*` não são versionados
-* Use `.env.example` como referência para configuração
+Testes Automatizados (Unitários e E2E).
 
----
+Sistema de notificações (Toasts) para melhor experiência do usuário.
 
-## 📌 Status do Projeto
+👤 Autor
+Desenvolvido por Helber Ferreira
 
-🚧 **MVP em evolução**
-
-Funcional para uso local e testes. Melhorias planejadas:
-
-* Persistência em banco de dados
-* Autenticação de usuários
-* Histórico financeiro
-* Dashboard avançado
-
----
-
-## 👤 Autor
-
-Desenvolvido por **Helber Ferreira**
-
----
-
-## 📄 Licença
-
-
+📄 Licença
+MIT
