@@ -17,12 +17,16 @@ export const RecipeService = {
 
     if (error) throw error;
     
-    // Mapeia para garantir compatibilidade de tipos se necessário
+    // Mapeia os dados do banco para o formato da tela
     return data?.map(r => ({
         ...r,
         items: r.items.map((i: any) => ({
             ...i,
-            quantity_used: i.quantity // Mapeia do banco (quantity) para o frontend (quantity_used)
+            quantity_used: i.quantity,
+            // CORREÇÃO DO "0": Preenchemos o input visual com o valor do banco
+            quantity_input: i.quantity, 
+            // CORREÇÃO DA UNIDADE: Usamos a unidade base do ingrediente como padrão
+            unit_input: i.ingredient?.base_unit || 'un'
         }))
     })) || [];
   },
@@ -34,7 +38,7 @@ export const RecipeService = {
 
     // 1. Salva/Atualiza a Receita (Cabeçalho)
     const recipePayload = {
-        id: recipe.id || undefined, // undefined faz o Supabase criar novo ID
+        id: recipe.id || undefined,
         user_id: user.id,
         name: recipe.name,
         yield_units: recipe.yield_units,
@@ -56,16 +60,14 @@ export const RecipeService = {
 
     if (recipeError) throw recipeError;
 
-    // 2. Atualiza os Itens (Remove todos antigos e insere novos - estratégia simples)
+    // 2. Atualiza os Itens
     if (recipe.items && recipe.items.length > 0) {
-       // Deleta itens antigos dessa receita
        await supabase.from('recipe_items').delete().eq('recipe_id', savedRecipe.id);
 
-       // Prepara novos itens
        const itemsToInsert = recipe.items.map(item => ({
          recipe_id: savedRecipe.id,
          ingredient_id: item.ingredient_id,
-         quantity: item.quantity_used || item.quantity_input // Usa a quantidade calculada
+         quantity: item.quantity_used || item.quantity_input
        }));
 
        const { error: itemsError } = await supabase.from('recipe_items').insert(itemsToInsert);
@@ -75,7 +77,7 @@ export const RecipeService = {
     return savedRecipe;
   },
 
-  // --- NOVA FUNÇÃO (A QUE FALTAVA) ---
+  // Atualiza campo específico (Preço de Venda)
   async update(id: string, updates: Partial<Recipe>) {
     const { error } = await supabase
       .from('recipes')

@@ -3,10 +3,10 @@ import { Ingredient, Recipe, RecipeItem, Settings } from '../types';
 import { IngredientService } from '../services/ingredientService';
 import { RecipeService } from '../services/recipeService';
 import { calculateRecipeFinancials } from '../utils/calculations';
-import { ChefHat, Clock, Layers, Plus, Trash2, PieChart, Printer, Edit, Loader2, BookOpen } from 'lucide-react';
+import { ChefHat, Clock, Layers, Plus, Trash2, PieChart, Printer, Edit, Loader2, BookOpen, Save } from 'lucide-react';
 import { RecipePrintView } from './RecipePrintView';
 import { SettingsService } from '../services/settingsService';
-import { toast } from 'sonner'; // <--- BIBLIOTECA DE ALERTAS
+import { toast } from 'sonner';
 
 export const RecipeForm: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'new' | 'list'>('list');
@@ -26,7 +26,6 @@ export const RecipeForm: React.FC = () => {
     cost_per_minute: 0
   });
 
-  // Estados de UI
   const [printingRecipe, setPrintingRecipe] = useState<Recipe | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -72,7 +71,8 @@ export const RecipeForm: React.FC = () => {
 
   useEffect(() => {
     if (selectedIngredientDetails) {
-      setSelectedUnit(selectedIngredientDetails.base_unit);
+      // Se já não tiver uma unidade selecionada (ex: edição), define a padrão
+      if (!selectedUnit) setSelectedUnit(selectedIngredientDetails.base_unit);
     }
   }, [selectedIngId]);
 
@@ -82,7 +82,6 @@ export const RecipeForm: React.FC = () => {
     const qtyInput = parseFloat(itemQuantity);
     let qtyBase = qtyInput;
 
-    // Conversão de unidade se necessário
     if (selectedIngredientDetails && selectedUnit !== selectedIngredientDetails.base_unit) {
       const conversion = selectedIngredientDetails.conversions?.find((c: any) => c.name === selectedUnit);
       if (conversion) {
@@ -108,6 +107,19 @@ export const RecipeForm: React.FC = () => {
     setRecipeItems(recipeItems.filter(i => i.id !== id));
   };
 
+  // --- NOVA FUNÇÃO: EDITAR ITEM DA LISTA ---
+  const handleEditItem = (item: RecipeItem) => {
+    // Joga os valores de volta para os inputs
+    setSelectedIngId(item.ingredient_id);
+    setItemQuantity(item.quantity_input.toString());
+    setSelectedUnit(item.unit_input);
+    
+    // Remove da lista (para o usuário adicionar de novo corrigido)
+    removeItem(item.id);
+    
+    toast.info("Item movido para edição acima.");
+  };
+
   const handleEditRecipe = (recipe: Recipe) => {
     setEditingId(recipe.id || null);
     setName(recipe.name);
@@ -127,9 +139,7 @@ export const RecipeForm: React.FC = () => {
     setActiveTab('list');
   };
 
-  // --- NOVA EXCLUSÃO COM ALERTA VERMELHO ---
   const handleDeleteRecipe = (recipe: Recipe) => {
-    // toast.error cria o alerta vermelho
     toast.error(`Excluir a receita "${recipe.name}"?`, {
       description: "Esta ação apagará a receita permanentemente.",
       action: {
@@ -138,10 +148,7 @@ export const RecipeForm: React.FC = () => {
           try {
             await RecipeService.delete(recipe.id);
             setRecipes((prev) => prev.filter(r => r.id !== recipe.id));
-            
-            // Se estava editando a receita que foi excluída, limpa o form
             if (editingId === recipe.id) cancelEdit();
-            
             toast.success("Receita excluída com sucesso!");
           } catch (e) { 
             toast.error('Não foi possível excluir a receita.'); 
@@ -151,11 +158,10 @@ export const RecipeForm: React.FC = () => {
       cancel: {
         label: "Cancelar",
       },
-      duration: 5000, // Duração maior para dar tempo de ler
+      duration: 5000,
     });
   };
 
-  // Cálculos em tempo real para o formulário
   const financials = calculateRecipeFinancials(recipeItems, ingredients, prepTime, yieldUnits, settings);
 
   const handleSave = async (e: React.FormEvent) => {
@@ -178,16 +184,16 @@ export const RecipeForm: React.FC = () => {
         preparation_time_minutes: prepTime,
         preparation_method: prepMethod,
         items: recipeItems,
-        // Salva o "snapshot" dos custos atuais
         total_cost_material: financials.total_cost_material || 0,
         total_cost_labor: financials.total_cost_labor || 0,
         total_cost_overhead: financials.total_cost_overhead || 0,
         total_cost_final: financials.total_cost_final || 0,
-        unit_cost: financials.unit_cost || 0
+        unit_cost: financials.unit_cost || 0,
+        selling_price: editingId ? recipes.find(r => r.id === editingId)?.selling_price : 0 // Preserva o preço se já existir
       };
 
       await RecipeService.save(recipeData);
-      await loadData(); // Recarrega a lista
+      await loadData();
       cancelEdit();
       toast.success("Receita salva com sucesso!");
     } catch (error: any) {
@@ -200,21 +206,17 @@ export const RecipeForm: React.FC = () => {
   // --- RENDER ---
   return (
     <div className="space-y-6">
-      {/* Modal de Impressão */}
       {printingRecipe && <RecipePrintView recipe={printingRecipe} ingredients={ingredients} onClose={() => setPrintingRecipe(null)} />}
 
-      {/* Abas de Navegação */}
       <div className="flex gap-4 border-b">
         <button onClick={() => { setActiveTab('list'); cancelEdit(); }} className={`pb-3 px-2 font-medium transition ${activeTab === 'list' ? 'text-amber-600 border-b-2 border-amber-600' : 'text-slate-500'}`}>Minhas Receitas</button>
         <button onClick={() => setActiveTab('new')} className={`pb-3 px-2 font-medium transition ${activeTab === 'new' ? 'text-amber-600 border-b-2 border-amber-600' : 'text-slate-500'}`}>{editingId ? 'Editando' : 'Nova Receita'}</button>
       </div>
 
-      {/* ABA: NOVA RECEITA / EDIÇÃO */}
       {activeTab === 'new' && (
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
           <div className="xl:col-span-2 space-y-6">
 
-            {/* CARD 1: DETALHES BÁSICOS */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
@@ -261,11 +263,9 @@ export const RecipeForm: React.FC = () => {
               </div>
             </div>
 
-            {/* CARD 2: INGREDIENTES */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
               <h3 className="text-lg font-bold text-slate-800 mb-4">Ingredientes</h3>
 
-              {/* Linha de Adição */}
               <div className="flex flex-col md:flex-row gap-3 items-end mb-6 bg-slate-50 p-4 rounded-lg">
                 <div className="flex-1 w-full">
                   <label className="text-xs font-bold text-slate-500">Ingrediente</label>
@@ -294,7 +294,6 @@ export const RecipeForm: React.FC = () => {
                 <button onClick={addItem} disabled={!selectedIngId} className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50"><Plus size={20} /></button>
               </div>
 
-              {/* Lista de Itens */}
               <div className="space-y-2">
                 {recipeItems.map(item => {
                   const ing = ingredients.find(i => i.id === item.ingredient_id);
@@ -305,6 +304,7 @@ export const RecipeForm: React.FC = () => {
                       <div>
                         <div className="font-bold text-slate-800">{ing?.name}</div>
                         <div className="text-xs text-slate-500">
+                          {/* CORRIGIDO: Agora quantity_input virá preenchido do backend */}
                           {item.quantity_input} {item.unit_input}
                           {item.unit_input !== ing?.base_unit &&
                             <span className="ml-1 text-slate-400">({item.quantity_used.toFixed(0)}{ing?.base_unit})</span>
@@ -313,7 +313,15 @@ export const RecipeForm: React.FC = () => {
                       </div>
                       <div className="flex items-center gap-4">
                         <div className="text-sm font-semibold text-slate-600">R$ {cost.toFixed(2)}</div>
-                        <button onClick={() => removeItem(item.id)} className="text-red-400 hover:text-red-600 transition"><Trash2 size={16} /></button>
+                        <div className="flex gap-2">
+                            {/* BOTÃO EDITAR VOLTOU */}
+                            <button onClick={() => handleEditItem(item)} className="text-slate-400 hover:text-amber-600" title="Editar este item">
+                                <Edit size={16} />
+                            </button>
+                            <button onClick={() => removeItem(item.id)} className="text-red-400 hover:text-red-600" title="Remover este item">
+                                <Trash2 size={16} />
+                            </button>
+                        </div>
                       </div>
                     </div>
                   )
@@ -322,7 +330,6 @@ export const RecipeForm: React.FC = () => {
               </div>
             </div>
 
-            {/* CARD 3: MODO DE PREPARO */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
               <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
                 <BookOpen size={20} className="text-amber-600" /> Modo de Preparo
@@ -337,27 +344,32 @@ export const RecipeForm: React.FC = () => {
 
           </div>
 
-          {/* COLUNA DIREITA: RESUMO DE CUSTOS */}
           <div className="space-y-6">
             <div className="bg-slate-800 text-white p-6 rounded-xl shadow-lg sticky top-6">
               <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><PieChart size={20} className="text-amber-400" /> Custos</h3>
+              
               <div className="space-y-2 text-sm opacity-80">
                 <div className="flex justify-between"><span>Materiais</span><span>R$ {financials.total_cost_material.toFixed(2)}</span></div>
                 <div className="flex justify-between"><span>Mão de Obra</span><span>R$ {financials.total_cost_labor.toFixed(2)}</span></div>
                 <div className="flex justify-between"><span>Custos Fixos</span><span>R$ {financials.total_cost_overhead.toFixed(2)}</span></div>
+                <div className="flex justify-between pt-2 mt-2 border-t border-slate-600 font-bold text-amber-400">
+                    <span>Custo Total (Receita)</span>
+                    <span>R$ {financials.total_cost_final.toFixed(2)}</span>
+                </div>
               </div>
+
               <div className="mt-4 pt-4 border-t border-slate-700 text-2xl font-bold text-center">
                 R$ {financials.unit_cost.toFixed(2)} <span className="text-xs font-normal">/un</span>
               </div>
-              <button onClick={handleSave} disabled={saving} className="w-full mt-6 py-3 bg-green-600 hover:bg-green-700 rounded-lg font-bold flex justify-center">
-                {saving ? <Loader2 className="animate-spin" /> : 'Salvar Receita'}
+              
+              <button onClick={handleSave} disabled={saving} className="w-full mt-6 py-3 bg-green-600 hover:bg-green-700 rounded-lg font-bold flex justify-center items-center gap-2">
+                {saving ? <Loader2 className="animate-spin" /> : <><Save size={20} /> Salvar Receita</>}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ABA: LISTA DE RECEITAS */}
       {activeTab === 'list' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {loading ? (
@@ -377,7 +389,6 @@ export const RecipeForm: React.FC = () => {
                   <div className="flex gap-2">
                     <button onClick={() => handleEditRecipe(r)} className="text-slate-400 hover:text-amber-600"><Edit size={18} /></button>
                     <button onClick={() => setPrintingRecipe(r)} className="text-slate-400 hover:text-blue-600"><Printer size={18} /></button>
-                    {/* Botão de Excluir Chama a Nova Função */}
                     <button onClick={() => handleDeleteRecipe(r)} className="text-slate-400 hover:text-red-500"><Trash2 size={18} /></button>
                   </div>
                 </div>
