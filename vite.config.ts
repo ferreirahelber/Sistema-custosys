@@ -18,6 +18,13 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
-      }
+      },
+      // --- CONFIGURAÇÃO DE TESTE ADICIONADA ---
+      // @ts-ignore
+      test: {
+        globals: true,
+        environment: 'jsdom',
+        setupFiles: './test/setup.ts',
+      },
     };
 });
