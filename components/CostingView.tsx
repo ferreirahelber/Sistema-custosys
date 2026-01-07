@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { supabase } from '../services/supabase';
+// Removida a importação direta do supabase para usar o Service
 import { RecipeService } from '../services/recipeService';
 import { IngredientService } from '../services/ingredientService';
+import { SettingsService } from '../services/settingsService'; // <--- IMPORTANTE: Adicione isso
 import { Recipe, Ingredient, Settings } from '../types';
 import { calculateRecipeFinancials } from '../utils/calculations';
 import { PricingSimulator } from './PricingSimulator';
@@ -25,13 +26,17 @@ export const CostingView: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      // Busca dados do banco
-      const { data: settingsData } = await supabase.from('settings').select('*').single();
-      const ingredientsData = await IngredientService.getAll();
-      const recipesData = await RecipeService.getAll();
+      
+      // --- CORREÇÃO AQUI ---
+      // Antes: buscava de 'settings' incorretamente
+      // Agora: busca via SettingsService (tabela 'user_settings')
+      const [settingsData, ingredientsData, recipesData] = await Promise.all([
+        SettingsService.get(),
+        IngredientService.getAll(),
+        RecipeService.getAll()
+      ]);
 
-      // Configura estados com fallback seguro
-      setSettings(settingsData || { cost_per_minute: 0.5, fixed_overhead_rate: 10 });
+      setSettings(settingsData);
       setIngredients(ingredientsData || []);
       setRecipes(recipesData || []);
     } catch (error) {
@@ -82,8 +87,6 @@ export const CostingView: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* O título principal é exibido pelo layout em `App.tsx` — removido para evitar duplicação */}
-
       {/* 1. SELETOR DE RECEITA */}
       <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
         <label className="block text-sm font-bold text-slate-700 mb-2">Selecione uma Receita para Simular</label>
@@ -146,7 +149,6 @@ export const CostingView: React.FC = () => {
               <span className="ml-1 text-lg md:text-xl">Simulador de Venda</span>
            </div>
            
-           {/* AQUI ESTAVA FALTANDO A LIGAÇÃO: Passamos o objeto calculatedRecipe */}
            <PricingSimulator recipe={calculatedRecipe} showHeader={false} />
         </div>
 
