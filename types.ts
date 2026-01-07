@@ -63,6 +63,7 @@ export interface Recipe {
   total_cost_overhead: number;
   total_cost_final: number;
   unit_cost: number;
+  selling_price?: number;
 }
 
 export interface SimulationParams {
