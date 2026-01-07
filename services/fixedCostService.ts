@@ -34,6 +34,19 @@ export const FixedCostService = {
     if (error) throw error;
   },
 
+  // --- NOVO: Atualizar conta ---
+  update: async (id: string, cost: Partial<FixedCost>) => {
+    const { error } = await supabase
+      .from('fixed_costs')
+      .update({
+        name: cost.name,
+        value: cost.value
+      })
+      .eq('id', id);
+
+    if (error) throw error;
+  },
+
   // Remover conta
   delete: async (id: string) => {
     const { error } = await supabase

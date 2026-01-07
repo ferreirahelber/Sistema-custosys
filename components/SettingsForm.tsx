@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { SettingsService } from '../services/settingsService';
 import { TeamService, TeamMember } from '../services/teamService';
-import { FixedCostService, FixedCost } from '../services/fixedCostService'; // Novo Serviço
-import { Users, Calculator, Trash2, Plus, Save, Loader2, AlertTriangle, CheckCircle, Edit, X, PieChart, List } from 'lucide-react';
+import { FixedCostService, FixedCost } from '../services/fixedCostService';
+import { Users, Calculator, Trash2, Plus, Save, Loader2, CheckCircle, Edit, X, PieChart, List } from 'lucide-react';
 import { Settings } from '../types';
 
 interface Props {
@@ -21,12 +21,13 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
 
   // --- DADOS DOS CUSTOS FIXOS ---
   const [fixedCosts, setFixedCosts] = useState<FixedCost[]>([]);
+  const [editingCostId, setEditingCostId] = useState<string | null>(null); // Controle de edição de custo
   const [newCost, setNewCost] = useState({ name: '', value: '' });
   const [costMode, setCostMode] = useState<'manual' | 'detailed'>('manual');
   
   // Configurações Globais
-  const [fixedOverheadRate, setFixedOverheadRate] = useState(0); // A % final
-  const [estimatedRevenue, setEstimatedRevenue] = useState(0);   // Faturamento para cálculo
+  const [fixedOverheadRate, setFixedOverheadRate] = useState(0);
+  const [estimatedRevenue, setEstimatedRevenue] = useState(0);
 
   useEffect(() => {
     loadData();
@@ -44,11 +45,9 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
       setTeam(teamData);
       setFixedCosts(costsData);
       
-      // Carrega configs globais
       setFixedOverheadRate(settingsData.fixed_overhead_rate || 0);
       setEstimatedRevenue(settingsData.estimated_monthly_revenue || 0);
 
-      // Se tiver custos cadastrados mas a taxa for zero, sugere o modo detalhado
       if (costsData.length > 0 && (!settingsData.fixed_overhead_rate || settingsData.fixed_overhead_rate === 0)) {
         setCostMode('detailed');
       }
@@ -60,25 +59,27 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
     }
   };
 
-  // --- CÁLCULOS EQUIPE ---
-  const calculateMemberCPM = (salary: number, hours: number) => (hours > 0 ? salary / (hours * 60) : 0);
+  // --- CÁLCULOS EQUIPE (Restaurados) ---
+  const calculateMemberCPH = (salary: number, hours: number) => (hours > 0 ? salary / hours : 0); // Custo Hora
+  const calculateMemberCPM = (salary: number, hours: number) => (hours > 0 ? salary / (hours * 60) : 0); // Custo Minuto
+
   const totalLaborCost = team.reduce((acc, curr) => acc + Number(curr.salary), 0);
   const totalHours = team.reduce((acc, curr) => acc + Number(curr.hours_monthly), 0);
+  
+  // Totais Globais
+  const globalCPH = team.reduce((acc, curr) => acc + calculateMemberCPH(curr.salary, curr.hours_monthly), 0);
   const globalCPM = team.reduce((acc, curr) => acc + calculateMemberCPM(curr.salary, curr.hours_monthly), 0);
 
   // --- CÁLCULOS CUSTOS FIXOS ---
   const totalFixedExpenses = fixedCosts.reduce((acc, curr) => acc + Number(curr.value), 0);
-  
-  // Calcula a % sugerida baseada nas contas / faturamento
-  const calculatedRate = estimatedRevenue > 0 
-    ? (totalFixedExpenses / estimatedRevenue) * 100 
-    : 0;
+  const calculatedRate = estimatedRevenue > 0 ? (totalFixedExpenses / estimatedRevenue) * 100 : 0;
 
   // --- AÇÕES EQUIPE ---
   const handleEditClick = (member: TeamMember) => {
     setEditingId(member.id!);
     setFormData({ name: member.name, salary: member.salary.toString(), hours: member.hours_monthly.toString() });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // Scroll suave para o topo do formulário se necessário
+    // window.scrollTo({ top: 0, behavior: 'smooth' }); 
   };
 
   const handleCancelEdit = () => {
@@ -108,22 +109,42 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
     setTeam(newTeam);
   };
 
-  // --- AÇÕES CUSTOS FIXOS ---
-  const handleAddCost = async () => {
+  // --- AÇÕES CUSTOS FIXOS (Com Edição) ---
+  const handleEditCost = (cost: FixedCost) => {
+    setEditingCostId(cost.id!);
+    setNewCost({ name: cost.name, value: cost.value.toString() });
+  };
+
+  const handleCancelCostEdit = () => {
+    setEditingCostId(null);
+    setNewCost({ name: '', value: '' });
+  };
+
+  const handleSaveCost = async () => {
     if (!newCost.name || !newCost.value) return;
     try {
         setSaving(true);
-        await FixedCostService.add({ name: newCost.name, value: parseFloat(newCost.value) });
-        setNewCost({ name: '', value: '' });
+        const payload = { name: newCost.name, value: parseFloat(newCost.value) };
+
+        if (editingCostId) {
+            await FixedCostService.update(editingCostId, payload);
+        } else {
+            await FixedCostService.add(payload);
+        }
+        
+        handleCancelCostEdit();
         const newCosts = await FixedCostService.getAll();
         setFixedCosts(newCosts);
-    } catch (e) { alert("Erro ao adicionar custo"); } finally { setSaving(false); }
+
+    } catch (e) { alert("Erro ao salvar custo"); } finally { setSaving(false); }
   };
 
   const handleRemoveCost = async (id: string) => {
+    if(!confirm("Remover este custo?")) return;
     await FixedCostService.delete(id);
     const newCosts = await FixedCostService.getAll();
     setFixedCosts(newCosts);
+    if (editingCostId === id) handleCancelCostEdit();
   };
 
   const applyCalculatedRate = () => {
@@ -135,13 +156,12 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
   const handleSaveAll = async () => {
     try {
       setSaving(true);
-      
       const settingsToSave: Settings = {
         labor_monthly_cost: totalLaborCost,
         work_hours_monthly: totalHours, 
-        fixed_overhead_rate: fixedOverheadRate, // Usa o valor que estiver no input final
+        fixed_overhead_rate: fixedOverheadRate,
         cost_per_minute: globalCPM,
-        estimated_monthly_revenue: estimatedRevenue // Salva o faturamento também
+        estimated_monthly_revenue: estimatedRevenue
       };
 
       await SettingsService.save(settingsToSave);
@@ -193,14 +213,17 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
             </div>
           </div>
 
-          {/* Tabela Equipe */}
-          <div className="border border-slate-100 rounded-lg overflow-hidden">
+          {/* Tabela Equipe (COM A COLUNA RESTAURADA) */}
+          <div className="border border-slate-100 rounded-lg overflow-hidden overflow-x-auto">
             <table className="w-full text-sm text-left">
               <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs">
                 <tr>
                   <th className="p-3">Colaborador</th>
                   <th className="p-3">Salário</th>
                   <th className="p-3">Horas</th>
+                  {/* NOVA COLUNA: CUSTO HORA (AZUL) */}
+                  <th className="p-3 bg-blue-50 text-blue-700">Custo/Hora</th>
+                  {/* COLUNA: CUSTO MINUTO (AMBAR) */}
                   <th className="p-3 bg-amber-50 text-amber-700">Custo/Minuto</th>
                   <th className="p-3 text-right">Ação</th>
                 </tr>
@@ -211,7 +234,17 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
                     <td className="p-3 font-medium">{member.name}</td>
                     <td className="p-3">R$ {Number(member.salary).toFixed(2)}</td>
                     <td className="p-3">{member.hours_monthly}h</td>
-                    <td className="p-3 bg-amber-50/50 font-bold text-amber-700">R$ {calculateMemberCPM(member.salary, member.hours_monthly).toFixed(2)}</td>
+                    
+                    {/* VALOR CUSTO HORA */}
+                    <td className="p-3 bg-blue-50/50 font-bold text-blue-700">
+                        R$ {calculateMemberCPH(member.salary, member.hours_monthly).toFixed(2)}
+                    </td>
+
+                    {/* VALOR CUSTO MINUTO */}
+                    <td className="p-3 bg-amber-50/50 font-bold text-amber-700">
+                        R$ {calculateMemberCPM(member.salary, member.hours_monthly).toFixed(2)}
+                    </td>
+
                     <td className="p-3 text-right flex justify-end gap-2">
                       <button onClick={() => handleEditClick(member)} className="text-slate-400 hover:text-amber-600"><Edit size={16}/></button>
                       <button onClick={() => handleRemoveMember(member.id!)} className="text-slate-400 hover:text-red-600"><Trash2 size={16}/></button>
@@ -221,7 +254,14 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
               </tbody>
               {team.length > 0 && (
                 <tfoot className="bg-slate-50 font-bold text-slate-800">
-                   <tr><td className="p-3">TOTAIS</td><td className="p-3">R$ {totalLaborCost.toFixed(2)}</td><td className="p-3">{totalHours}h</td><td className="p-3 text-amber-700">R$ {globalCPM.toFixed(2)}</td><td></td></tr>
+                   <tr>
+                        <td className="p-3">TOTAIS</td>
+                        <td className="p-3">R$ {totalLaborCost.toFixed(2)}</td>
+                        <td className="p-3">{totalHours}h</td>
+                        <td className="p-3 text-blue-700">R$ {globalCPH.toFixed(2)}</td>
+                        <td className="p-3 text-amber-700">R$ {globalCPM.toFixed(2)}</td>
+                        <td></td>
+                   </tr>
                 </tfoot>
               )}
             </table>
@@ -229,7 +269,7 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
         </div>
       </div>
 
-      {/* === SEÇÃO 2: CUSTOS FIXOS (NOVA LÓGICA) === */}
+      {/* === SEÇÃO 2: CUSTOS FIXOS (Modo com Edição Preservado) === */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
          <div className="p-6 border-b border-slate-100 bg-slate-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
@@ -240,7 +280,6 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
                 <p className="text-sm text-slate-500">Defina a % que será adicionada a cada produto para cobrir contas.</p>
             </div>
             
-            {/* Botões de Alternância */}
             <div className="bg-slate-200 p-1 rounded-lg flex text-sm font-medium">
                 <button 
                     onClick={() => setCostMode('manual')}
@@ -258,8 +297,6 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
          </div>
 
          <div className="p-6">
-            
-            {/* MODO MANUAL */}
             {costMode === 'manual' && (
                 <div className="bg-slate-50 p-6 rounded-xl border border-slate-100 text-center space-y-4 max-w-lg mx-auto">
                     <p className="text-slate-600 text-sm">Digite diretamente a porcentagem que deseja aplicar sobre o custo de produção.</p>
@@ -275,43 +312,65 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
                 </div>
             )}
 
-            {/* MODO DETALHADO (CALCULADORA) */}
             {costMode === 'detailed' && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in">
                     
-                    {/* Lado Esquerdo: Lista de Contas */}
                     <div className="space-y-4">
                         <h3 className="font-bold text-slate-700 flex items-center gap-2 text-sm uppercase"><List size={16}/> Lista de Contas Mensais</h3>
                         
-                        {/* Input de Nova Conta */}
-                        <div className="flex gap-2">
+                        {/* INPUTS DE CUSTO (AGORA INTERATIVO) */}
+                        <div className={`flex gap-2 p-3 rounded-lg border transition-colors ${editingCostId ? 'bg-amber-50 border-amber-200' : 'bg-transparent border-transparent px-0'}`}>
                             <input 
                                 placeholder="Ex: Aluguel" 
                                 value={newCost.name}
                                 onChange={e => setNewCost({...newCost, name: e.target.value})}
-                                className="flex-1 px-3 py-2 border rounded-lg text-sm outline-none focus:border-amber-500"
+                                className="flex-1 px-3 py-2 border rounded-lg text-sm outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
                             />
                             <input 
                                 placeholder="R$ 0.00" 
                                 type="number"
                                 value={newCost.value}
                                 onChange={e => setNewCost({...newCost, value: e.target.value})}
-                                className="w-28 px-3 py-2 border rounded-lg text-sm outline-none focus:border-amber-500"
+                                className="w-28 px-3 py-2 border rounded-lg text-sm outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
                             />
-                            <button onClick={handleAddCost} disabled={saving} className="bg-slate-800 text-white p-2 rounded-lg hover:bg-slate-700"><Plus size={18}/></button>
+                            
+                            {/* BOTÃO SALVAR / ADICIONAR */}
+                            <button 
+                                onClick={handleSaveCost} 
+                                disabled={saving} 
+                                className={`p-2 rounded-lg text-white transition flex items-center justify-center w-10 ${editingCostId ? 'bg-green-600 hover:bg-green-700' : 'bg-slate-800 hover:bg-slate-700'}`}
+                                title={editingCostId ? "Salvar alteração" : "Adicionar conta"}
+                            >
+                                {saving ? <Loader2 size={18} className="animate-spin"/> : (editingCostId ? <CheckCircle size={18}/> : <Plus size={18}/>)}
+                            </button>
+
+                            {/* BOTÃO CANCELAR (SÓ APARECE NA EDIÇÃO) */}
+                            {editingCostId && (
+                                <button onClick={handleCancelCostEdit} className="p-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-600">
+                                    <X size={18}/>
+                                </button>
+                            )}
                         </div>
 
-                        {/* Lista */}
                         <div className="border border-slate-100 rounded-lg overflow-y-auto max-h-60 bg-slate-50">
                             {fixedCosts.length === 0 ? (
                                 <p className="p-4 text-center text-xs text-slate-400">Nenhuma conta adicionada.</p>
                             ) : (
                                 fixedCosts.map(cost => (
-                                    <div key={cost.id} className="flex justify-between items-center p-3 border-b border-slate-100 last:border-0 bg-white">
+                                    <div key={cost.id} className={`flex justify-between items-center p-3 border-b border-slate-100 last:border-0 hover:bg-slate-50 transition ${editingCostId === cost.id ? 'bg-amber-50' : 'bg-white'}`}>
                                         <span className="text-sm text-slate-700">{cost.name}</span>
                                         <div className="flex items-center gap-3">
                                             <span className="text-sm font-bold text-slate-800">R$ {Number(cost.value).toFixed(2)}</span>
-                                            <button onClick={() => handleRemoveCost(cost.id!)} className="text-slate-300 hover:text-red-500"><Trash2 size={14}/></button>
+                                            
+                                            {/* BOTÕES DE AÇÃO */}
+                                            <div className="flex items-center gap-1">
+                                                <button onClick={() => handleEditCost(cost)} className="p-1 text-slate-300 hover:text-amber-600 rounded" title="Editar">
+                                                    <Edit size={14}/>
+                                                </button>
+                                                <button onClick={() => handleRemoveCost(cost.id!)} className="p-1 text-slate-300 hover:text-red-500 rounded" title="Excluir">
+                                                    <Trash2 size={14}/>
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 ))
@@ -327,7 +386,6 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
                     <div className="bg-amber-50 p-6 rounded-xl border border-amber-100 flex flex-col justify-between">
                         <div>
                             <h3 className="font-bold text-amber-900 mb-4 flex items-center gap-2"><Calculator size={18}/> Calculadora de Rateio</h3>
-                            
                             <label className="block text-xs font-bold text-amber-800 uppercase mb-1">Faturamento Mensal Estimado</label>
                             <div className="relative mb-4">
                                 <span className="absolute left-3 top-2.5 text-amber-600/70">R$</span>
@@ -339,7 +397,6 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
                                     className="w-full pl-8 pr-4 py-2 border border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none bg-white"
                                 />
                             </div>
-
                             <div className="space-y-2 text-sm text-amber-800/80 border-t border-amber-200/50 pt-4">
                                 <div className="flex justify-between"><span>Total Contas:</span> <span>R$ {totalFixedExpenses.toFixed(2)}</span></div>
                                 <div className="flex justify-between"><span>Faturamento:</span> <span>R$ {estimatedRevenue.toFixed(2)}</span></div>
@@ -351,14 +408,9 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
                                 <span className="text-sm font-bold text-amber-900">Taxa Calculada:</span>
                                 <span className="text-3xl font-bold text-amber-600">{calculatedRate.toFixed(2)}%</span>
                              </div>
-                             
-                             <button 
-                                onClick={applyCalculatedRate}
-                                className="w-full py-2 bg-amber-600 text-white rounded-lg font-bold hover:bg-amber-700 transition shadow-sm text-sm"
-                             >
+                             <button onClick={applyCalculatedRate} className="w-full py-2 bg-amber-600 text-white rounded-lg font-bold hover:bg-amber-700 transition shadow-sm text-sm">
                                 Usar esta Taxa
                              </button>
-                             <p className="text-xs text-center mt-2 text-amber-700/60">Clique para aplicar este valor ao sistema.</p>
                         </div>
                     </div>
                 </div>
