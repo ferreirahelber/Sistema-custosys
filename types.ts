@@ -19,6 +19,7 @@ export interface Settings {
   work_hours_monthly: number;
   fixed_overhead_rate: number;
   cost_per_minute: number;
+  estimated_monthly_revenue: number;
 }
 
 // NOVA INTERFACE PARA CONVERSÕES

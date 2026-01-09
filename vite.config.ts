@@ -20,7 +20,7 @@ export default defineConfig(({ mode }) => {
       },
     },
     // CORREÇÃO: Adicionada a descrição obrigatória após o comando
-    // @ts-expect-error: Vitest types are not automatically detected in config
+    
     test: {
       globals: true,
       environment: 'jsdom',
