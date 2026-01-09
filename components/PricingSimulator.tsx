@@ -1,12 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { SimulationParams, Recipe } from '../types';
 import { calculateSellingPrice, calculateMargin } from '../utils/calculations';
-import { Calculator, TrendingUp, RefreshCw, AlertCircle, Lock } from 'lucide-react';
+import { Calculator, Lock } from 'lucide-react'; // Removidos ícones não usados
 
 interface Props {
-  // CORREÇÃO 1: Aceita null para quando não tiver selecionado nada
   recipe: Recipe | null;
-  // Novo: controla se o cabeçalho interno deve ser exibido (útil quando o pai já renderiza um título)
   showHeader?: boolean;
 }
 
@@ -25,19 +23,10 @@ export const PricingSimulator: React.FC<Props> = ({ recipe, showHeader = true })
   const totalTax = params.tax_rate + params.card_fee;
   const safeMarginLimit = Math.max(0, 99 - totalTax);
 
-  // CORREÇÃO 2: Variável segura para evitar crash nos Hooks
   const safeUnitCost = recipe?.unit_cost || 0;
 
-  useEffect(() => {
-    // Usamos safeUnitCost para não tentar ler de 'null'
-    const initialPrice = calculateSellingPrice(
-      safeUnitCost,
-      params.tax_rate,
-      params.card_fee,
-      params.desired_margin
-    );
-    setManualPrice(parseFloat(initialPrice.toFixed(2)));
-  }, [safeUnitCost, params.tax_rate, params.card_fee, params.desired_margin]);
+  // REMOVIDO: useEffect que causava o erro de "setState in effect".
+  // A atualização do manualPrice agora acontece apenas quando necessária (ao trocar de aba).
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let val = e.target.value === '' ? 0 : parseFloat(e.target.value);
@@ -63,8 +52,18 @@ export const PricingSimulator: React.FC<Props> = ({ recipe, showHeader = true })
     }
   };
 
-  // CORREÇÃO 3: Se não tem receita, mostra aviso visual e para por aqui.
-  // Isso impede que o código de baixo tente acessar dados inexistentes e quebre a tela.
+  // NOVA FUNÇÃO: Calcula o preço atual e define como manual ao entrar no modo 'price'
+  const switchToPriceMode = () => {
+    const currentCalculatedPrice = calculateSellingPrice(
+      safeUnitCost,
+      params.tax_rate,
+      params.card_fee,
+      params.desired_margin
+    );
+    setManualPrice(parseFloat(currentCalculatedPrice.toFixed(2)));
+    setMode('price');
+  };
+
   if (!recipe) {
     return (
       <div className="bg-slate-50 p-8 rounded-xl border border-dashed border-slate-300 mt-6 text-center transition-all duration-300">
@@ -76,8 +75,6 @@ export const PricingSimulator: React.FC<Props> = ({ recipe, showHeader = true })
       </div>
     );
   }
-
-  // --- DAQUI PARA BAIXO É EXATAMENTE O SEU LAYOUT ORIGINAL ---
 
   let finalPrice = 0;
   let finalMargin = 0;
@@ -97,17 +94,9 @@ export const PricingSimulator: React.FC<Props> = ({ recipe, showHeader = true })
     finalMargin = calculateMargin(recipe.unit_cost, priceNumber, params.tax_rate, params.card_fee);
   }
 
-  // Breakdown
   const taxValue = finalPrice * (params.tax_rate / 100);
   const cardValue = finalPrice * (params.card_fee / 100);
   const profitValue = finalPrice * (finalMargin / 100);
-
-  // CORREÇÃO 4: Proteção matemática para não dividir por zero ou null
-  const yieldUnits = recipe.yield_units || 1;
-
-  const unitMaterial = (recipe.total_cost_material || 0) / yieldUnits;
-  const unitLabor = (recipe.total_cost_labor || 0) / yieldUnits;
-  const unitFixed = (recipe.total_cost_overhead || 0) / yieldUnits;
 
   const getProfitColor = (margin: number) => {
     if (margin < 0) return 'text-red-600';
@@ -119,7 +108,6 @@ export const PricingSimulator: React.FC<Props> = ({ recipe, showHeader = true })
 
   return (
     <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 mt-6 transition-all duration-300">
-      {/* HEADER */}
       {showHeader && (
         <div className="flex items-center gap-2 text-amber-700 mb-6">
           <Calculator className="w-5 h-5" />
@@ -127,11 +115,8 @@ export const PricingSimulator: React.FC<Props> = ({ recipe, showHeader = true })
         </div>
       )}
 
-      {/* GRID PRINCIPAL */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* ================= COLUNA ESQUERDA ================= */}
         <div className="lg:col-span-2 space-y-6">
-          {/* TABS */}
           <div className="bg-slate-200 p-1 rounded-lg flex text-sm font-medium w-fit">
             <button
               onClick={() => setMode('margin')}
@@ -144,7 +129,7 @@ export const PricingSimulator: React.FC<Props> = ({ recipe, showHeader = true })
               Definir Margem
             </button>
             <button
-              onClick={() => setMode('price')}
+              onClick={switchToPriceMode} // Usando a nova função aqui
               className={`px-4 py-1.5 rounded-md transition ${
                 mode === 'price'
                   ? 'bg-white text-slate-800 shadow-sm'
@@ -155,7 +140,6 @@ export const PricingSimulator: React.FC<Props> = ({ recipe, showHeader = true })
             </button>
           </div>
 
-          {/* CONTROLE PRINCIPAL */}
           {mode === 'margin' ? (
             <div
               className={`bg-white p-5 rounded-xl border shadow-sm ${
@@ -201,7 +185,6 @@ export const PricingSimulator: React.FC<Props> = ({ recipe, showHeader = true })
             </div>
           )}
 
-          {/* TAXAS */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-medium text-slate-500 uppercase">Impostos (%)</label>
@@ -228,14 +211,12 @@ export const PricingSimulator: React.FC<Props> = ({ recipe, showHeader = true })
           </div>
         </div>
 
-        {/* ================= COLUNA DIREITA ================= */}
         <div
           className={`bg-white p-6 rounded-xl border shadow-sm flex flex-col justify-between lg:sticky lg:top-6 ${
             finalMargin < 0 ? 'border-red-300 bg-red-50' : 'border-slate-200'
           }`}
         >
           <div className="flex items-start gap-6">
-            {/* CONTROLES (resumo breve) */}
             <div className="flex-1">
               <div className="flex items-center justify-between">
                 <span className="text-xs uppercase tracking-wider text-slate-400 font-semibold">
@@ -249,7 +230,6 @@ export const PricingSimulator: React.FC<Props> = ({ recipe, showHeader = true })
               </div>
 
               <div className="mt-4">
-                {/* Exibição compacta do preço para referência */}
                 <div className="hidden md:block text-sm text-slate-500">Preço atual</div>
                 <div className="mt-2 text-lg font-medium text-slate-700">
                   R$ {finalPrice.toFixed(2)}
@@ -267,7 +247,6 @@ export const PricingSimulator: React.FC<Props> = ({ recipe, showHeader = true })
               </div>
             </div>
 
-            {/* PAINEL PRINCIPAL DE PREÇO */}
             <div className="w-48 md:w-56 lg:w-64 flex-shrink-0">
               <div className="bg-white border rounded-xl shadow p-4 flex flex-col items-center">
                 <div className="text-xs text-slate-400 uppercase tracking-wider mb-2">Preço</div>

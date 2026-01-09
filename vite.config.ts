@@ -19,8 +19,8 @@ export default defineConfig(({ mode }) => {
         '@': path.resolve(__dirname, '.'),
       },
     },
-    // --- CONFIGURAÇÃO DE TESTE ADICIONADA ---
-    // @ts-ignore
+    // CORREÇÃO: Adicionada a descrição obrigatória após o comando
+    // @ts-expect-error: Vitest types are not automatically detected in config
     test: {
       globals: true,
       environment: 'jsdom',

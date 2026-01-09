@@ -1,4 +1,6 @@
+import { RecipeList } from './components/RecipeList';
 import React, { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, NavLink, useLocation, Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { Login } from './components/Login';
 import { SettingsForm } from './components/SettingsForm';
@@ -14,16 +16,16 @@ import {
   LayoutDashboard,
   DollarSign,
   Loader2,
+  LucideIcon,
 } from 'lucide-react';
-import { Toaster } from 'sonner'; // <--- IMPORTANTE: Importe o Toaster
+import { Toaster } from 'sonner';
 import './index.css';
 
-export default function App() {
-  const { session, loading, signOut } = useAuth();
 
-  const [view, setView] = useState<'dashboard' | 'settings' | 'ingredients' | 'recipes' | 'costs'>(
-    'dashboard'
-  );
+// Componente Wrapper para utilizar Hooks do Router (useLocation)
+function AppContent() {
+  const { session, loading, signOut } = useAuth();
+  const location = useLocation();
 
   const [isConfigured, setIsConfigured] = useState(false);
   const [checkingConfig, setCheckingConfig] = useState(true);
@@ -36,9 +38,6 @@ export default function App() {
           const settings = await SettingsService.get();
           if (settings.labor_monthly_cost > 0) {
             setIsConfigured(true);
-          } else {
-            // Se não tiver config, mas o usuário forçar outra view, permitimos (UX melhor)
-            // mas mantemos o aviso no menu
           }
         } catch (error) {
           console.error('Erro ao verificar configs', error);
@@ -67,26 +66,43 @@ export default function App() {
 
   const handleSettingsSaved = () => {
     setIsConfigured(true);
-    setView('dashboard');
+    // O redirecionamento pode ser feito via navegação se necessário, 
+    // mas aqui mantemos o usuário na tela para ver o feedback.
   };
 
-  const NavItem = ({ id, label, icon: Icon }: { id: typeof view; label: string; icon: any }) => (
-    <button
-      onClick={() => setView(id)}
-      className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full text-left transition-all ${
-        view === id
+  // Helper para identificar a view atual baseado na rota para o Header
+  const getCurrentView = () => {
+    const path = location.pathname;
+    if (path === '/settings') return 'settings';
+    if (path === '/ingredients') return 'ingredients';
+    if (path === '/recipes') return 'recipes';
+    if (path === '/costs') return 'costs';
+    return 'dashboard';
+  };
+
+  const currentView = getCurrentView();
+
+  const NavItem = ({ to, label, icon: Icon }: { to: string; label: string; icon: LucideIcon }) => (
+    <NavLink
+      to={to}
+      className={({ isActive }) =>
+        `flex items-center gap-3 px-4 py-3 rounded-lg w-full text-left transition-all ${isActive
           ? 'bg-amber-100 text-amber-900 font-medium'
           : 'text-slate-600 hover:bg-slate-100'
-      }`}
+        }`
+      }
     >
-      <Icon size={20} className={view === id ? 'text-amber-700' : 'text-slate-400'} />
-      {label}
-    </button>
+      {({ isActive }) => (
+        <>
+          <Icon size={20} className={isActive ? 'text-amber-700' : 'text-slate-400'} />
+          {label}
+        </>
+      )}
+    </NavLink>
   );
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-slate-50 font-sans">
-      {/* Componente de Notificações (Fica invisível até ser chamado) */}
       <Toaster position="top-right" richColors expand={true} />
 
       {/* Sidebar */}
@@ -99,16 +115,16 @@ export default function App() {
         </div>
 
         <nav className="space-y-1 flex-1">
-          <NavItem id="dashboard" label="Visão Geral" icon={LayoutDashboard} />
-          <NavItem id="recipes" label="Minhas Receitas" icon={ChefHat} />
-          <NavItem id="ingredients" label="Ingredientes" icon={Package} />
-          <NavItem id="costs" label="Simulador & Custos" icon={DollarSign} />
+          <NavItem to="/" label="Visão Geral" icon={LayoutDashboard} />
+          <NavItem to="/recipes" label="Minhas Receitas" icon={ChefHat} />
+          <NavItem to="/ingredients" label="Ingredientes" icon={Package} />
+          <NavItem to="/costs" label="Simulador & Custos" icon={DollarSign} />
           <div className="pt-4 mt-4 border-t border-slate-100">
-            <NavItem id="settings" label="Configurações" icon={SettingsIcon} />
+            <NavItem to="/settings" label="Configurações" icon={SettingsIcon} />
           </div>
         </nav>
 
-        {!isConfigured && view !== 'settings' && (
+        {!isConfigured && currentView !== 'settings' && (
           <div className="mt-auto bg-amber-50 p-4 rounded-xl border border-amber-100 text-sm text-amber-800 mb-4 animate-pulse">
             <p className="font-bold mb-1">Atenção:</p>
             <p>Configure seus custos fixos e mão de obra para os cálculos funcionarem.</p>
@@ -122,57 +138,83 @@ export default function App() {
           >
             Sair
           </button>
-          <p className="text-xs text-slate-400 text-center">Versão 2.1.0 • Cloud</p>
+          <p className="text-xs text-slate-400 text-center">Versão 2.2.0 • Cloud</p>
         </div>
       </aside>
 
       {/* Main */}
       <main className="flex-1 p-6 md:p-12 overflow-y-auto h-screen bg-slate-50/50">
         <div className="max-w-6xl mx-auto">
-          {view !== 'dashboard' && (
+          {currentView !== 'dashboard' && (
             <header className="mb-8 animate-in fade-in slide-in-from-top-4 duration-500">
               <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                {view === 'settings' && (
+                {currentView === 'settings' && (
                   <>
                     <SettingsIcon className="text-amber-600" /> Configurações Globais
                   </>
                 )}
-                {view === 'ingredients' && (
+                {currentView === 'ingredients' && (
                   <>
                     <Package className="text-amber-600" /> Gestão de Ingredientes
                   </>
                 )}
-                {view === 'recipes' && (
+                {currentView === 'recipes' && (
                   <>
                     <ChefHat className="text-amber-600" /> Gerenciamento de Receitas
                   </>
                 )}
-                {view === 'costs' && (
+                {currentView === 'costs' && (
                   <>
                     <DollarSign className="text-amber-600" /> Simulador de Preços
                   </>
                 )}
               </h2>
               <p className="text-slate-500 mt-1">
-                {view === 'settings' &&
+                {currentView === 'settings' &&
                   'Defina os parâmetros financeiros base para o cálculo da sua mão de obra.'}
-                {view === 'ingredients' &&
+                {currentView === 'ingredients' &&
                   'Cadastre seus insumos com conversão automática de medidas.'}
-                {view === 'recipes' && 'Crie fichas técnicas detalhadas com custos automáticos.'}
-                {view === 'costs' && 'Analise custos, simule margens e defina preços de venda.'}
+                {currentView === 'recipes' && 'Crie fichas técnicas detalhadas com custos automáticos.'}
+                {currentView === 'costs' && 'Analise custos, simule margens e defina preços de venda.'}
               </p>
             </header>
           )}
 
           <div className="animate-fade-in">
-            {view === 'dashboard' && <Dashboard onNavigate={setView} />}
-            {view === 'settings' && <SettingsForm onSave={handleSettingsSaved} />}
-            {view === 'ingredients' && <IngredientForm />}
-            {view === 'recipes' && <RecipeForm />}
-            {view === 'costs' && <CostingView />}
+            <Routes>
+              {/* Rota da Dashboard */}
+              <Route path="/" element={<Dashboard onNavigate={(view) => {
+                const routes: Record<string, string> = {
+                  'settings': '/settings',
+                  'ingredients': '/ingredients',
+                  'recipes': '/recipes',
+                  'costs': '/costs'
+                };
+                if (routes[view]) window.location.href = routes[view];
+              }} />} />
+
+              <Route path="/settings" element={<SettingsForm onSave={handleSettingsSaved} />} />
+              <Route path="/ingredients" element={<IngredientForm />} />
+
+              {/* NOVAS ROTAS DE RECEITA */}
+              <Route path="/recipes" element={<RecipeList />} />          {/* Lista */}
+              <Route path="/recipes/new" element={<RecipeForm />} />      {/* Criar */}
+              <Route path="/recipes/:id" element={<RecipeForm />} />      {/* Editar */}
+
+              <Route path="/costs" element={<CostingView />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
           </div>
         </div>
       </main>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AppContent />
+    </BrowserRouter>
   );
 }
