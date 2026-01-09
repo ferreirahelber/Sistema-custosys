@@ -1,10 +1,10 @@
-import { RecipeList } from './components/RecipeList';
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, NavLink, useLocation, Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { Login } from './components/Login';
 import { SettingsForm } from './components/SettingsForm';
 import { IngredientForm } from './components/IngredientForm';
+import { RecipeList } from './components/RecipeList';
 import { RecipeForm } from './components/RecipeForm';
 import { CostingView } from './components/CostingView';
 import { Dashboard } from './components/Dashboard';
@@ -21,16 +21,14 @@ import {
 import { Toaster } from 'sonner';
 import './index.css';
 
-
-// Componente Wrapper para utilizar Hooks do Router (useLocation)
-function AppContent() {
+// ALTERAÇÃO AQUI: Adicionado 'export' para permitir testes de integração
+export function AppContent() {
   const { session, loading, signOut } = useAuth();
   const location = useLocation();
-
+  
   const [isConfigured, setIsConfigured] = useState(false);
   const [checkingConfig, setCheckingConfig] = useState(true);
 
-  // Verifica configuração no Supabase ao carregar
   useEffect(() => {
     const checkSettings = async () => {
       if (session) {
@@ -66,16 +64,13 @@ function AppContent() {
 
   const handleSettingsSaved = () => {
     setIsConfigured(true);
-    // O redirecionamento pode ser feito via navegação se necessário, 
-    // mas aqui mantemos o usuário na tela para ver o feedback.
   };
 
-  // Helper para identificar a view atual baseado na rota para o Header
   const getCurrentView = () => {
     const path = location.pathname;
     if (path === '/settings') return 'settings';
     if (path === '/ingredients') return 'ingredients';
-    if (path === '/recipes') return 'recipes';
+    if (path.startsWith('/recipes')) return 'recipes';
     if (path === '/costs') return 'costs';
     return 'dashboard';
   };
@@ -86,15 +81,16 @@ function AppContent() {
     <NavLink
       to={to}
       className={({ isActive }) =>
-        `flex items-center gap-3 px-4 py-3 rounded-lg w-full text-left transition-all ${isActive
-          ? 'bg-amber-100 text-amber-900 font-medium'
-          : 'text-slate-600 hover:bg-slate-100'
+        `flex items-center gap-3 px-4 py-3 rounded-lg w-full text-left transition-all ${
+          isActive || (to !== '/' && location.pathname.startsWith(to))
+            ? 'bg-amber-100 text-amber-900 font-medium'
+            : 'text-slate-600 hover:bg-slate-100'
         }`
       }
     >
       {({ isActive }) => (
         <>
-          <Icon size={20} className={isActive ? 'text-amber-700' : 'text-slate-400'} />
+          <Icon size={20} className={isActive || (to !== '/' && location.pathname.startsWith(to)) ? 'text-amber-700' : 'text-slate-400'} />
           {label}
         </>
       )}
@@ -105,7 +101,6 @@ function AppContent() {
     <div className="min-h-screen flex flex-col md:flex-row bg-slate-50 font-sans">
       <Toaster position="top-right" richColors expand={true} />
 
-      {/* Sidebar */}
       <aside className="w-full md:w-64 bg-white border-r border-slate-200 p-6 flex flex-col h-screen sticky top-0 z-20">
         <div className="flex items-center gap-2 mb-8 px-2">
           <div className="w-8 h-8 bg-amber-600 rounded-lg flex items-center justify-center text-white font-bold shadow-lg shadow-amber-600/20">
@@ -142,38 +137,19 @@ function AppContent() {
         </div>
       </aside>
 
-      {/* Main */}
       <main className="flex-1 p-6 md:p-12 overflow-y-auto h-screen bg-slate-50/50">
         <div className="max-w-6xl mx-auto">
           {currentView !== 'dashboard' && (
             <header className="mb-8 animate-in fade-in slide-in-from-top-4 duration-500">
               <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                {currentView === 'settings' && (
-                  <>
-                    <SettingsIcon className="text-amber-600" /> Configurações Globais
-                  </>
-                )}
-                {currentView === 'ingredients' && (
-                  <>
-                    <Package className="text-amber-600" /> Gestão de Ingredientes
-                  </>
-                )}
-                {currentView === 'recipes' && (
-                  <>
-                    <ChefHat className="text-amber-600" /> Gerenciamento de Receitas
-                  </>
-                )}
-                {currentView === 'costs' && (
-                  <>
-                    <DollarSign className="text-amber-600" /> Simulador de Preços
-                  </>
-                )}
+                {currentView === 'settings' && <><SettingsIcon className="text-amber-600" /> Configurações Globais</>}
+                {currentView === 'ingredients' && <><Package className="text-amber-600" /> Gestão de Ingredientes</>}
+                {currentView === 'recipes' && <><ChefHat className="text-amber-600" /> Gerenciamento de Receitas</>}
+                {currentView === 'costs' && <><DollarSign className="text-amber-600" /> Simulador de Preços</>}
               </h2>
               <p className="text-slate-500 mt-1">
-                {currentView === 'settings' &&
-                  'Defina os parâmetros financeiros base para o cálculo da sua mão de obra.'}
-                {currentView === 'ingredients' &&
-                  'Cadastre seus insumos com conversão automática de medidas.'}
+                {currentView === 'settings' && 'Defina os parâmetros financeiros base para o cálculo da sua mão de obra.'}
+                {currentView === 'ingredients' && 'Cadastre seus insumos com conversão automática de medidas.'}
                 {currentView === 'recipes' && 'Crie fichas técnicas detalhadas com custos automáticos.'}
                 {currentView === 'costs' && 'Analise custos, simule margens e defina preços de venda.'}
               </p>
@@ -182,7 +158,6 @@ function AppContent() {
 
           <div className="animate-fade-in">
             <Routes>
-              {/* Rota da Dashboard */}
               <Route path="/" element={<Dashboard onNavigate={(view) => {
                 const routes: Record<string, string> = {
                   'settings': '/settings',
@@ -192,15 +167,11 @@ function AppContent() {
                 };
                 if (routes[view]) window.location.href = routes[view];
               }} />} />
-
               <Route path="/settings" element={<SettingsForm onSave={handleSettingsSaved} />} />
               <Route path="/ingredients" element={<IngredientForm />} />
-
-              {/* NOVAS ROTAS DE RECEITA */}
-              <Route path="/recipes" element={<RecipeList />} />          {/* Lista */}
-              <Route path="/recipes/new" element={<RecipeForm />} />      {/* Criar */}
-              <Route path="/recipes/:id" element={<RecipeForm />} />      {/* Editar */}
-
+              <Route path="/recipes" element={<RecipeList />} />
+              <Route path="/recipes/new" element={<RecipeForm />} />
+              <Route path="/recipes/:id" element={<RecipeForm />} />
               <Route path="/costs" element={<CostingView />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
