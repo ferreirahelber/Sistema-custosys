@@ -1,0 +1,41 @@
+name: CI (Custosys)
+
+# Quando rodar?
+on:
+  push:
+    branches: [ "main", "master" ] # Ao fazer push na main
+  pull_request:
+    branches: [ "main", "master" ] # Ao abrir um PR para a main
+
+jobs:
+  test-and-lint:
+    name: Verificar Qualidade e Testes
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Baixa o código do repositório
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      # 2. Instala o Node.js (v18 é a base do seu projeto)
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+
+      # 3. Instala as dependências (npm ci é mais rápido e seguro que npm install para CI)
+      - name: Instalar Dependências
+        run: npm ci
+
+      # 4. Verifica formatação e erros de código (ESLint)
+      - name: Verificar Linting
+        run: npm run lint
+
+      # 5. Roda os Testes (Vitest)
+      # Injetamos variáveis dummy para o supabase.ts não lançar erro ao carregar
+      - name: Rodar Testes Automatizados
+        env:
+          VITE_SUPABASE_URL: "https://ci-mock.supabase.co"
+          VITE_SUPABASE_ANON_KEY: "mock-key-for-ci-tests"
+        run: npm run test
