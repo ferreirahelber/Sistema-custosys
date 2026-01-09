@@ -15,6 +15,7 @@ export const SettingsService = {
           work_hours_monthly: 160,
           fixed_overhead_rate: 0,
           cost_per_minute: 0,
+          estimated_monthly_revenue: 0, // <--- ADICIONADO
         };
       }
 
@@ -31,6 +32,7 @@ export const SettingsService = {
         work_hours_monthly: Number(data.work_hours_monthly),
         fixed_overhead_rate: Number(data.fixed_overhead_rate),
         cost_per_minute: Number(data.cost_per_minute),
+        estimated_monthly_revenue: Number(data.estimated_monthly_revenue || 0), // <--- ADICIONADO
       };
     } catch (err) {
       console.error('Erro fatal no get:', err);
@@ -41,11 +43,12 @@ export const SettingsService = {
         work_hours_monthly: 0,
         fixed_overhead_rate: 0,
         cost_per_minute: 0,
+        estimated_monthly_revenue: 0, // <--- ADICIONADO
       };
     }
   },
 
-  // Salvar ou Atualizar (CORREÇÃO DO BUG 409)
+  // Salvar ou Atualizar
   save: async (settings: Settings): Promise<boolean> => {
     try {
       const {
@@ -57,20 +60,17 @@ export const SettingsService = {
         return false;
       }
 
-      // Prepara o objeto APENAS com os dados que queremos salvar
-      // NÃO enviamos o 'id' (chave primária) para evitar conflitos
       const dataToSave = {
-        user_id: user.id, // Esta é a chave de verificação
+        user_id: user.id,
         employees: settings.employees,
         labor_monthly_cost: settings.labor_monthly_cost,
         work_hours_monthly: settings.work_hours_monthly,
         fixed_overhead_rate: settings.fixed_overhead_rate,
         cost_per_minute: settings.cost_per_minute,
+        estimated_monthly_revenue: settings.estimated_monthly_revenue, // <--- ADICIONADO
         updated_at: new Date().toISOString(),
       };
 
-      // O segredo está aqui: onConflict: 'user_id'
-      // Isso diz ao Supabase: "Se já existir esse user_id, atualize o resto. Se não, crie."
       const { error } = await supabase
         .from('user_settings')
         .upsert(dataToSave, { onConflict: 'user_id' });

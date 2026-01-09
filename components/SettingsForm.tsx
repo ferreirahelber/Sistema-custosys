@@ -16,7 +16,7 @@ import {
   List,
 } from 'lucide-react';
 import { Settings } from '../types';
-import { toast } from 'sonner'; // <--- Importando toast
+import { toast } from 'sonner';
 
 interface Props {
   onSave?: () => void;
@@ -136,8 +136,6 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
   };
 
   const handleRemoveMember = async (id: string) => {
-    // Usando toast com promise/action seria ideal, mas para manter simples usamos confirm padrão ou um toast customizado
-    // Aqui vou manter o confirm padrão pois é destrutivo, mas avisa sucesso com toast
     if (!confirm('Remover este colaborador?')) return;
 
     try {
@@ -211,7 +209,9 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
   const handleSaveAll = async () => {
     try {
       setSaving(true);
+      // CORREÇÃO: Adicionado 'employees' que estava faltando
       const settingsToSave: Settings = {
+        employees: team as any[], // Casting para evitar conflito de tipo TeamMember vs Employee se houver
         labor_monthly_cost: totalLaborCost,
         work_hours_monthly: totalHours,
         fixed_overhead_rate: fixedOverheadRate,
@@ -238,7 +238,7 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
 
   return (
     <div className="space-y-8 w-full pb-12">
-      {/* SEÇÃO 1: EQUIPE (Mantém o mesmo JSX do passo anterior com a tabela corrigida) */}
+      {/* SEÇÃO 1: EQUIPE */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="p-6 border-b border-slate-100 bg-slate-50">
           <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
