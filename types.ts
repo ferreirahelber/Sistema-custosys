@@ -3,7 +3,7 @@ export enum Unit {
   KG = 'kg',
   ML = 'ml',
   L = 'l',
-  UN = 'un'
+  UN = 'un',
 }
 
 export interface Employee {
@@ -57,7 +57,7 @@ export interface Recipe {
   preparation_time_minutes: number;
   preparation_method?: string;
   items: RecipeItem[];
-  
+
   total_cost_material: number;
   total_cost_labor: number;
   total_cost_overhead: number;

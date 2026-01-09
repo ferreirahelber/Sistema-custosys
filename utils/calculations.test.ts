@@ -3,7 +3,6 @@ import { calculateBaseCost, calculateSellingPrice, calculateMargin } from './cal
 import { Unit } from '../types';
 
 describe('Calculadora Financeira (Core)', () => {
-  
   describe('calculateBaseCost', () => {
     it('deve converter corretamente KG para Gramas', () => {
       // Preço R$ 20,00 por 1 KG. Custo de 1g deve ser 0.02
@@ -32,7 +31,7 @@ describe('Calculadora Financeira (Core)', () => {
       // Margem desejada: 20%
       // Total deduções: 35% (0.35)
       // Fórmula: 10 / (1 - 0.35) = 10 / 0.65 = 15.3846...
-      
+
       const price = calculateSellingPrice(10, 10, 5, 20);
       expect(price).toBeCloseTo(15.38, 2);
     });
@@ -53,5 +52,4 @@ describe('Calculadora Financeira (Core)', () => {
       expect(margin).toBeCloseTo(40);
     });
   });
-
 });

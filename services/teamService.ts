@@ -14,25 +14,25 @@ export const TeamService = {
       .from('team_members')
       .select('*')
       .order('created_at', { ascending: true });
-    
+
     if (error) throw error;
     return data || [];
   },
 
   // Adicionar
   add: async (member: TeamMember) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Usuário não logado");
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error('Usuário não logado');
 
-    const { error } = await supabase
-      .from('team_members')
-      .insert({
-        user_id: user.id,
-        name: member.name,
-        salary: member.salary,
-        hours_monthly: member.hours_monthly
-      });
-    
+    const { error } = await supabase.from('team_members').insert({
+      user_id: user.id,
+      name: member.name,
+      salary: member.salary,
+      hours_monthly: member.hours_monthly,
+    });
+
     if (error) throw error;
   },
 
@@ -43,7 +43,7 @@ export const TeamService = {
       .update({
         name: member.name,
         salary: member.salary,
-        hours_monthly: member.hours_monthly
+        hours_monthly: member.hours_monthly,
       })
       .eq('id', id);
 
@@ -52,11 +52,8 @@ export const TeamService = {
 
   // Remover
   delete: async (id: string) => {
-    const { error } = await supabase
-      .from('team_members')
-      .delete()
-      .eq('id', id);
-    
+    const { error } = await supabase.from('team_members').delete().eq('id', id);
+
     if (error) throw error;
-  }
+  },
 };

@@ -13,24 +13,24 @@ export const FixedCostService = {
       .from('fixed_costs')
       .select('*')
       .order('created_at', { ascending: true });
-    
+
     if (error) throw error;
     return data || [];
   },
 
   // Adicionar conta
   add: async (cost: FixedCost) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Usuário não logado");
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error('Usuário não logado');
 
-    const { error } = await supabase
-      .from('fixed_costs')
-      .insert({
-        user_id: user.id,
-        name: cost.name,
-        value: cost.value
-      });
-    
+    const { error } = await supabase.from('fixed_costs').insert({
+      user_id: user.id,
+      name: cost.name,
+      value: cost.value,
+    });
+
     if (error) throw error;
   },
 
@@ -40,7 +40,7 @@ export const FixedCostService = {
       .from('fixed_costs')
       .update({
         name: cost.name,
-        value: cost.value
+        value: cost.value,
       })
       .eq('id', id);
 
@@ -49,11 +49,8 @@ export const FixedCostService = {
 
   // Remover conta
   delete: async (id: string) => {
-    const { error } = await supabase
-      .from('fixed_costs')
-      .delete()
-      .eq('id', id);
-    
+    const { error } = await supabase.from('fixed_costs').delete().eq('id', id);
+
     if (error) throw error;
-  }
+  },
 };

@@ -23,16 +23,14 @@ export function Login() {
         onSubmit={handleSubmit}
         className="bg-white p-8 rounded-xl shadow-lg w-full max-w-sm space-y-4"
       >
-        <h1 className="text-xl font-bold text-center text-slate-800">
-          Custosys
-        </h1>
+        <h1 className="text-xl font-bold text-center text-slate-800">Custosys</h1>
 
         <input
           type="email"
           placeholder="E-mail"
           className="w-full border rounded-lg px-3 py-2"
           value={email}
-          onChange={e => setEmail(e.target.value)}
+          onChange={(e) => setEmail(e.target.value)}
           required
         />
 
@@ -41,13 +39,11 @@ export function Login() {
           placeholder="Senha"
           className="w-full border rounded-lg px-3 py-2"
           value={password}
-          onChange={e => setPassword(e.target.value)}
+          onChange={(e) => setPassword(e.target.value)}
           required
         />
 
-        {error && (
-          <p className="text-sm text-red-600">{error}</p>
-        )}
+        {error && <p className="text-sm text-red-600">{error}</p>}
 
         <button
           type="submit"

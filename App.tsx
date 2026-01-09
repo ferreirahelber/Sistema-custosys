@@ -7,16 +7,23 @@ import { RecipeForm } from './components/RecipeForm';
 import { CostingView } from './components/CostingView';
 import { Dashboard } from './components/Dashboard';
 import { SettingsService } from './services/settingsService';
-import { Settings as SettingsIcon, ChefHat, Package, LayoutDashboard, DollarSign, Loader2 } from 'lucide-react';
+import {
+  Settings as SettingsIcon,
+  ChefHat,
+  Package,
+  LayoutDashboard,
+  DollarSign,
+  Loader2,
+} from 'lucide-react';
 import { Toaster } from 'sonner'; // <--- IMPORTANTE: Importe o Toaster
 import './index.css';
 
 export default function App() {
   const { session, loading, signOut } = useAuth();
 
-  const [view, setView] = useState<
-    'dashboard' | 'settings' | 'ingredients' | 'recipes' | 'costs'
-  >('dashboard');
+  const [view, setView] = useState<'dashboard' | 'settings' | 'ingredients' | 'recipes' | 'costs'>(
+    'dashboard'
+  );
 
   const [isConfigured, setIsConfigured] = useState(false);
   const [checkingConfig, setCheckingConfig] = useState(true);
@@ -30,11 +37,11 @@ export default function App() {
           if (settings.labor_monthly_cost > 0) {
             setIsConfigured(true);
           } else {
-             // Se não tiver config, mas o usuário forçar outra view, permitimos (UX melhor)
-             // mas mantemos o aviso no menu
+            // Se não tiver config, mas o usuário forçar outra view, permitimos (UX melhor)
+            // mas mantemos o aviso no menu
           }
         } catch (error) {
-          console.error("Erro ao verificar configs", error);
+          console.error('Erro ao verificar configs', error);
         } finally {
           setCheckingConfig(false);
         }
@@ -42,14 +49,14 @@ export default function App() {
         setCheckingConfig(false);
       }
     };
-    
+
     checkSettings();
   }, [session, loading]);
 
   if (loading || checkingConfig) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <Loader2 className="animate-spin text-amber-600 w-8 h-8"/>
+        <Loader2 className="animate-spin text-amber-600 w-8 h-8" />
       </div>
     );
   }
@@ -66,10 +73,11 @@ export default function App() {
   const NavItem = ({ id, label, icon: Icon }: { id: typeof view; label: string; icon: any }) => (
     <button
       onClick={() => setView(id)}
-      className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full text-left transition-all ${view === id
+      className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full text-left transition-all ${
+        view === id
           ? 'bg-amber-100 text-amber-900 font-medium'
           : 'text-slate-600 hover:bg-slate-100'
-        }`}
+      }`}
     >
       <Icon size={20} className={view === id ? 'text-amber-700' : 'text-slate-400'} />
       {label}
@@ -87,9 +95,7 @@ export default function App() {
           <div className="w-8 h-8 bg-amber-600 rounded-lg flex items-center justify-center text-white font-bold shadow-lg shadow-amber-600/20">
             C
           </div>
-          <h1 className="text-xl font-bold text-slate-800 tracking-tight">
-            Custosys
-          </h1>
+          <h1 className="text-xl font-bold text-slate-800 tracking-tight">Custosys</h1>
         </div>
 
         <nav className="space-y-1 flex-1">
@@ -126,14 +132,32 @@ export default function App() {
           {view !== 'dashboard' && (
             <header className="mb-8 animate-in fade-in slide-in-from-top-4 duration-500">
               <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                {view === 'settings' && <><SettingsIcon className="text-amber-600"/> Configurações Globais</>}
-                {view === 'ingredients' && <><Package className="text-amber-600"/> Gestão de Ingredientes</>}
-                {view === 'recipes' && <><ChefHat className="text-amber-600"/> Gerenciamento de Receitas</>}
-                {view === 'costs' && <><DollarSign className="text-amber-600"/> Simulador de Preços</>}
+                {view === 'settings' && (
+                  <>
+                    <SettingsIcon className="text-amber-600" /> Configurações Globais
+                  </>
+                )}
+                {view === 'ingredients' && (
+                  <>
+                    <Package className="text-amber-600" /> Gestão de Ingredientes
+                  </>
+                )}
+                {view === 'recipes' && (
+                  <>
+                    <ChefHat className="text-amber-600" /> Gerenciamento de Receitas
+                  </>
+                )}
+                {view === 'costs' && (
+                  <>
+                    <DollarSign className="text-amber-600" /> Simulador de Preços
+                  </>
+                )}
               </h2>
               <p className="text-slate-500 mt-1">
-                {view === 'settings' && 'Defina os parâmetros financeiros base para o cálculo da sua mão de obra.'}
-                {view === 'ingredients' && 'Cadastre seus insumos com conversão automática de medidas.'}
+                {view === 'settings' &&
+                  'Defina os parâmetros financeiros base para o cálculo da sua mão de obra.'}
+                {view === 'ingredients' &&
+                  'Cadastre seus insumos com conversão automática de medidas.'}
                 {view === 'recipes' && 'Crie fichas técnicas detalhadas com custos automáticos.'}
                 {view === 'costs' && 'Analise custos, simule margens e defina preços de venda.'}
               </p>

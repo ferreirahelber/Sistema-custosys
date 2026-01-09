@@ -39,15 +39,15 @@ export const calculateBaseCost = (
   const amountDec = new Decimal(amount || 0);
   const totalBaseUnits = amountDec.times(multiplier);
   const priceDec = new Decimal(price || 0);
-  
+
   // CORREÇÃO: Usando .greaterThan() em vez de .isGreaterThan()
-  const baseCost = totalBaseUnits.greaterThan(0) 
-    ? priceDec.dividedBy(totalBaseUnits) 
+  const baseCost = totalBaseUnits.greaterThan(0)
+    ? priceDec.dividedBy(totalBaseUnits)
     : new Decimal(0);
 
-  return { 
-    baseCost: baseCost.toNumber(), 
-    baseUnit 
+  return {
+    baseCost: baseCost.toNumber(),
+    baseUnit,
   };
 };
 
@@ -61,13 +61,12 @@ export const calculateRecipeFinancials = (
   yieldUnits: number,
   settings: Settings
 ): Partial<Recipe> => {
-  
   // 1. Custo dos Materiais
   const total_cost_material_dec = items.reduce((acc, item) => {
-    const ingredient = ingredients.find(i => i.id === item.ingredient_id);
+    const ingredient = ingredients.find((i) => i.id === item.ingredient_id);
     const costBase = ingredient ? ingredient.unit_cost_base : (item as any).price || 0;
     const qty = item.quantity_used || 0;
-    
+
     const costStep = new Decimal(qty).times(costBase);
     return acc.plus(costStep);
   }, new Decimal(0));
@@ -84,12 +83,12 @@ export const calculateRecipeFinancials = (
 
   // 4. Totais
   const total_cost_final_dec = prime_cost_dec.plus(total_cost_overhead_dec);
-  
+
   const yieldDec = new Decimal(yieldUnits || 1);
-  
+
   // CORREÇÃO: Usando .greaterThan() aqui também
-  const unit_cost_dec = yieldDec.greaterThan(0) 
-    ? total_cost_final_dec.dividedBy(yieldDec) 
+  const unit_cost_dec = yieldDec.greaterThan(0)
+    ? total_cost_final_dec.dividedBy(yieldDec)
     : new Decimal(0);
 
   return {
@@ -97,7 +96,7 @@ export const calculateRecipeFinancials = (
     total_cost_labor: total_cost_labor_dec.toNumber(),
     total_cost_overhead: total_cost_overhead_dec.toNumber(),
     total_cost_final: total_cost_final_dec.toNumber(),
-    unit_cost: unit_cost_dec.toNumber()
+    unit_cost: unit_cost_dec.toNumber(),
   };
 };
 
@@ -113,14 +112,14 @@ export const calculateSellingPrice = (
   const taxDec = new Decimal(taxRate || 0);
   const feeDec = new Decimal(cardFee || 0);
   const marginDec = new Decimal(desiredMargin || 0);
-  
+
   const totalDeductionsDec = taxDec.plus(feeDec).plus(marginDec).dividedBy(100);
 
   if (totalDeductionsDec.greaterThanOrEqualTo(1)) return 0;
 
   const costDec = new Decimal(unitCost || 0);
   const divisor = new Decimal(1).minus(totalDeductionsDec);
-  
+
   return costDec.dividedBy(divisor).toNumber();
 };
 
@@ -142,8 +141,8 @@ export const calculateMargin = (
 
   const deductionRate = taxDec.plus(feeDec).dividedBy(100);
   const costRate = costDec.dividedBy(priceDec);
-  
+
   const marginRate = new Decimal(1).minus(costRate).minus(deductionRate);
-  
+
   return marginRate.times(100).toNumber();
 };

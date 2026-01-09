@@ -6,50 +6,54 @@ export const RecipeService = {
   async getAll(): Promise<Recipe[]> {
     const { data, error } = await supabase
       .from('recipes')
-      .select(`
+      .select(
+        `
         *,
         items:recipe_items (
           *,
           ingredient:ingredients (*)
         )
-      `)
+      `
+      )
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    
+
     // Mapeia os dados do banco para o formato da tela
-    return data?.map(r => ({
+    return (
+      data?.map((r) => ({
         ...r,
         items: r.items.map((i: any) => ({
-            ...i,
-            quantity_used: i.quantity,
-            // CORREÇÃO DO "0": Preenchemos o input visual com o valor do banco
-            quantity_input: i.quantity, 
-            // CORREÇÃO DA UNIDADE: Usamos a unidade base do ingrediente como padrão
-            unit_input: i.ingredient?.base_unit || 'un'
-        }))
-    })) || [];
+          ...i,
+          quantity_used: i.quantity,
+          // CORREÇÃO DO "0": Preenchemos o input visual com o valor do banco
+          quantity_input: i.quantity,
+          // CORREÇÃO DA UNIDADE: Usamos a unidade base do ingrediente como padrão
+          unit_input: i.ingredient?.base_unit || 'un',
+        })),
+      })) || []
+    );
   },
 
   // Salva (Cria ou Atualiza Completo)
   async save(recipe: Recipe) {
     const user = (await supabase.auth.getUser()).data.user;
-    if (!user) throw new Error("Usuário não autenticado");
+    if (!user) throw new Error('Usuário não autenticado');
 
     // 1. Salva/Atualiza a Receita (Cabeçalho)
     const recipePayload = {
-        id: recipe.id || undefined,
-        user_id: user.id,
-        name: recipe.name,
-        yield_units: recipe.yield_units,
-        preparation_time_minutes: recipe.preparation_time_minutes,
-        preparation_method: recipe.preparation_method,
-        total_cost_material: recipe.total_cost_material,
-        total_cost_labor: recipe.total_cost_labor,
-        total_cost_overhead: recipe.total_cost_overhead,
-        total_cost_final: recipe.total_cost_final,
-        unit_cost: recipe.unit_cost,
-        selling_price: recipe.selling_price
+      id: recipe.id || undefined,
+      user_id: user.id,
+      name: recipe.name,
+      yield_units: recipe.yield_units,
+      preparation_time_minutes: recipe.preparation_time_minutes,
+      preparation_method: recipe.preparation_method,
+      total_cost_material: recipe.total_cost_material,
+      total_cost_labor: recipe.total_cost_labor,
+      total_cost_overhead: recipe.total_cost_overhead,
+      total_cost_final: recipe.total_cost_final,
+      unit_cost: recipe.unit_cost,
+      selling_price: recipe.selling_price,
     };
 
     const { data: savedRecipe, error: recipeError } = await supabase
@@ -62,16 +66,16 @@ export const RecipeService = {
 
     // 2. Atualiza os Itens
     if (recipe.items && recipe.items.length > 0) {
-       await supabase.from('recipe_items').delete().eq('recipe_id', savedRecipe.id);
+      await supabase.from('recipe_items').delete().eq('recipe_id', savedRecipe.id);
 
-       const itemsToInsert = recipe.items.map(item => ({
-         recipe_id: savedRecipe.id,
-         ingredient_id: item.ingredient_id,
-         quantity: item.quantity_used || item.quantity_input
-       }));
+      const itemsToInsert = recipe.items.map((item) => ({
+        recipe_id: savedRecipe.id,
+        ingredient_id: item.ingredient_id,
+        quantity: item.quantity_used || item.quantity_input,
+      }));
 
-       const { error: itemsError } = await supabase.from('recipe_items').insert(itemsToInsert);
-       if (itemsError) throw itemsError;
+      const { error: itemsError } = await supabase.from('recipe_items').insert(itemsToInsert);
+      if (itemsError) throw itemsError;
     }
 
     return savedRecipe;
@@ -79,20 +83,14 @@ export const RecipeService = {
 
   // Atualiza campo específico (Preço de Venda)
   async update(id: string, updates: Partial<Recipe>) {
-    const { error } = await supabase
-      .from('recipes')
-      .update(updates)
-      .eq('id', id);
+    const { error } = await supabase.from('recipes').update(updates).eq('id', id);
 
     if (error) throw error;
   },
 
   // Deleta receita
   async delete(id: string) {
-    const { error } = await supabase
-      .from('recipes')
-      .delete()
-      .eq('id', id);
+    const { error } = await supabase.from('recipes').delete().eq('id', id);
     if (error) throw error;
-  }
+  },
 };

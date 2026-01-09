@@ -10,10 +10,10 @@ O objetivo do projeto é facilitar o controle de estoque de ingredientes, criaç
 
 O projeto utiliza uma stack moderna e robusta:
 
-* **Frontend:** React 19, TypeScript, Vite
-* **Estilização:** Tailwind CSS, Lucide React
-* **Backend / Banco de Dados:** Supabase (PostgreSQL + Auth)
-* **Gerenciamento de Estado:** React Context API + Hooks
+- **Frontend:** React 19, TypeScript, Vite
+- **Estilização:** Tailwind CSS, Lucide React
+- **Backend / Banco de Dados:** Supabase (PostgreSQL + Auth)
+- **Gerenciamento de Estado:** React Context API + Hooks
 
 ---
 
@@ -21,15 +21,14 @@ O projeto utiliza uma stack moderna e robusta:
 
 Sistema-custosys/ ├─ components/ # Componentes de UI e telas do sistema ├─ contexts/ # Contextos globais (AuthContext, etc) ├─ services/ # Camada de comunicação com o Supabase ├─ utils/ # Regras de negócio e cálculos matemáticos ├─ database/ # Scripts SQL para criação do banco e políticas de segurança ├─ .env.example # Modelo das variáveis de ambiente └─ App.tsx # Componente raiz e roteamento
 
-
 ---
 
 ## ⚙️ Requisitos
 
 Antes de começar, certifique-se de ter instalado:
 
-* **Node.js** (versão 18 ou superior)
-* **npm** ou **yarn**
+- **Node.js** (versão 18 ou superior)
+- **npm** ou **yarn**
 
 ---
 
@@ -119,3 +118,4 @@ Desenvolvido por Helber Ferreira
 
 📄 Licença
 MIT
+```
