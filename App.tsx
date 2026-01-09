@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, NavLink, useLocation, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, NavLink, useLocation, Navigate, useNavigate } from 'react-router-dom'; // <--- ADICIONADO useNavigate
 import { useAuth } from './contexts/AuthContext';
 import { Login } from './components/Login';
 import { SettingsForm } from './components/SettingsForm';
@@ -21,10 +21,10 @@ import {
 import { Toaster } from 'sonner';
 import './index.css';
 
-// ALTERAÇÃO AQUI: Adicionado 'export' para permitir testes de integração
 export function AppContent() {
   const { session, loading, signOut } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate(); // <--- NOVO HOOK
   
   const [isConfigured, setIsConfigured] = useState(false);
   const [checkingConfig, setCheckingConfig] = useState(true);
@@ -158,6 +158,7 @@ export function AppContent() {
 
           <div className="animate-fade-in">
             <Routes>
+              {/* CORREÇÃO AQUI: Usando navigate() ao invés de window.location */}
               <Route path="/" element={<Dashboard onNavigate={(view) => {
                 const routes: Record<string, string> = {
                   'settings': '/settings',
@@ -165,7 +166,7 @@ export function AppContent() {
                   'recipes': '/recipes',
                   'costs': '/costs'
                 };
-                if (routes[view]) window.location.href = routes[view];
+                if (routes[view]) navigate(routes[view]); // <--- AQUI MUDOU
               }} />} />
               <Route path="/settings" element={<SettingsForm onSave={handleSettingsSaved} />} />
               <Route path="/ingredients" element={<IngredientForm />} />
