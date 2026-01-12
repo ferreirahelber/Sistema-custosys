@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, NavLink, useLocation, Navigate, useNavigate } from 'react-router-dom'; // <--- ADICIONADO useNavigate
+import { BrowserRouter, Routes, Route, NavLink, useLocation, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { Login } from './components/Login';
 import { SettingsForm } from './components/SettingsForm';
@@ -13,6 +13,7 @@ import {
   Settings as SettingsIcon,
   ChefHat,
   Package,
+  Box, // Ícone de Produtos
   LayoutDashboard,
   DollarSign,
   Loader2,
@@ -24,8 +25,8 @@ import './index.css';
 export function AppContent() {
   const { session, loading, signOut } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate(); // <--- NOVO HOOK
-  
+  const navigate = useNavigate();
+
   const [isConfigured, setIsConfigured] = useState(false);
   const [checkingConfig, setCheckingConfig] = useState(true);
 
@@ -70,6 +71,7 @@ export function AppContent() {
     const path = location.pathname;
     if (path === '/settings') return 'settings';
     if (path === '/ingredients') return 'ingredients';
+    if (path === '/products') return 'products';
     if (path.startsWith('/recipes')) return 'recipes';
     if (path === '/costs') return 'costs';
     return 'dashboard';
@@ -112,7 +114,13 @@ export function AppContent() {
         <nav className="space-y-1 flex-1">
           <NavItem to="/" label="Visão Geral" icon={LayoutDashboard} />
           <NavItem to="/recipes" label="Minhas Receitas" icon={ChefHat} />
-          <NavItem to="/ingredients" label="Ingredientes" icon={Package} />
+          
+          <div className="pt-2 pb-2">
+            <p className="px-4 text-xs font-bold text-slate-400 uppercase mb-1">Estoques</p>
+            <NavItem to="/ingredients" label="Ingredientes" icon={Package} />
+            <NavItem to="/products" label="Produtos & Emb." icon={Box} />
+          </div>
+
           <NavItem to="/costs" label="Simulador & Custos" icon={DollarSign} />
           <div className="pt-4 mt-4 border-t border-slate-100">
             <NavItem to="/settings" label="Configurações" icon={SettingsIcon} />
@@ -133,7 +141,7 @@ export function AppContent() {
           >
             Sair
           </button>
-          <p className="text-xs text-slate-400 text-center">Versão 2.2.0 • Cloud</p>
+          <p className="text-xs text-slate-400 text-center">Versão 2.2.0 • Effitech</p>
         </div>
       </aside>
 
@@ -144,12 +152,16 @@ export function AppContent() {
               <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
                 {currentView === 'settings' && <><SettingsIcon className="text-amber-600" /> Configurações Globais</>}
                 {currentView === 'ingredients' && <><Package className="text-amber-600" /> Gestão de Ingredientes</>}
+                {/* --- ADICIONADO AQUI: Título para Produtos --- */}
+                {currentView === 'products' && <><Box className="text-purple-600" /> Produtos & Embalagens</>} 
+                
                 {currentView === 'recipes' && <><ChefHat className="text-amber-600" /> Gerenciamento de Receitas</>}
                 {currentView === 'costs' && <><DollarSign className="text-amber-600" /> Simulador de Preços</>}
               </h2>
               <p className="text-slate-500 mt-1">
                 {currentView === 'settings' && 'Defina os parâmetros financeiros base para o cálculo da sua mão de obra.'}
                 {currentView === 'ingredients' && 'Cadastre seus insumos com conversão automática de medidas.'}
+                {currentView === 'products' && 'Cadastre embalagens, caixas, laços e etiquetas.'}
                 {currentView === 'recipes' && 'Crie fichas técnicas detalhadas com custos automáticos.'}
                 {currentView === 'costs' && 'Analise custos, simule margens e defina preços de venda.'}
               </p>
@@ -158,18 +170,19 @@ export function AppContent() {
 
           <div className="animate-fade-in">
             <Routes>
-              {/* CORREÇÃO AQUI: Usando navigate() ao invés de window.location */}
               <Route path="/" element={<Dashboard onNavigate={(view) => {
                 const routes: Record<string, string> = {
                   'settings': '/settings',
                   'ingredients': '/ingredients',
+                  'products': '/products', // Adicionado ao Dashboard
                   'recipes': '/recipes',
                   'costs': '/costs'
                 };
-                if (routes[view]) navigate(routes[view]); // <--- AQUI MUDOU
+                if (routes[view]) navigate(routes[view]);
               }} />} />
               <Route path="/settings" element={<SettingsForm onSave={handleSettingsSaved} />} />
-              <Route path="/ingredients" element={<IngredientForm />} />
+              <Route path="/ingredients" element={<IngredientForm type="ingredient" />} />
+              <Route path="/products" element={<IngredientForm type="product" />} />
               <Route path="/recipes" element={<RecipeList />} />
               <Route path="/recipes/new" element={<RecipeForm />} />
               <Route path="/recipes/:id" element={<RecipeForm />} />

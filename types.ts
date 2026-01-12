@@ -36,10 +36,10 @@ export interface Ingredient {
   package_unit: Unit;
   unit_cost_base: number;
   base_unit: 'g' | 'ml' | 'un';
-  // NOVO CAMPO
   conversions?: MeasureConversion[];
   current_stock?: number; // Quantidade atual em base_unit (g/ml/un)
   min_stock?: number; // Quantidade mínima desejada em base_unit (g/ml/un)
+  category?: 'ingredient' | 'product';
 }
 
 export interface RecipeItem {
