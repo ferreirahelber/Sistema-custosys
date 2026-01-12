@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { IngredientService } from '../services/ingredientService';
-import { Ingredient } from '../types'; // <--- CORREÇÃO AQUI
+import { Ingredient } from '../types';
 import {
   Package,
   Plus,
@@ -23,6 +23,15 @@ const formatCurrency = (value: number) => {
   if (!value) return 'R$ 0,00';
   if (value < 0.01) return `R$ ${value.toFixed(4).replace('.', ',')}`;
   return `R$ ${value.toFixed(2).replace('.', ',')}`;
+};
+
+// --- NOVA FUNÇÃO PARA REMOVER ACENTOS E NORMALIZAR ---
+const normalizeText = (text: string) => {
+  return text
+    .normalize("NFD") // Separa o acento da letra (ex: 'ó' vira 'o' + '´')
+    .replace(/[\u0300-\u036f]/g, "") // Remove os acentos
+    .toLowerCase()
+    .trim();
 };
 
 export const IngredientForm: React.FC = () => {
@@ -74,7 +83,7 @@ export const IngredientForm: React.FC = () => {
     const price = parseFloat(packagePrice) || 0;
     const amount = parseFloat(packageAmount) || 0;
     
-    // CASO 1: Embalagem em UNIDADE (ex: Lata, Dúzia)
+    // CASO 1: Embalagem em UNIDADE
     if (packageUnit === 'un') {
       if (baseUnit === 'un') {
         return amount > 0 ? price / amount : 0;
@@ -132,9 +141,34 @@ export const IngredientForm: React.FC = () => {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // 1. Validação de Campos Obrigatórios
     if (!name || !packagePrice || !packageAmount) {
       toast.warning('Preencha os campos obrigatórios');
       return;
+    }
+
+    // 2. Validação de DUPLICIDADE (IGNORANDO ACENTOS E CASE)
+    const inputNameNormalized = normalizeText(name);
+    
+    const isDuplicate = ingredients.some(ing => {
+      // Normaliza o nome que já existe no banco
+      const existingNameNormalized = normalizeText(ing.name);
+      
+      const namesMatch = existingNameNormalized === inputNameNormalized;
+      
+      // Se estiver editando, permite que o nome seja igual ao dele mesmo (ignora o próprio ID)
+      if (mode === 'edit' && currentId) {
+        return namesMatch && ing.id !== currentId;
+      }
+      
+      // Se estiver criando, qualquer nome igual é duplicata
+      return namesMatch;
+    });
+
+    if (isDuplicate) {
+      toast.error('Produto já cadastrado (nome similar encontrado)!');
+      return; // Interrompe o salvamento
     }
 
     const calculatedBaseCost = calculateBaseCost();
@@ -189,7 +223,6 @@ export const IngredientForm: React.FC = () => {
       setDeleteConfirmation({ isOpen: false, id: null, name: '' });
       loadIngredients();
     } catch (error: any) {
-      // Tratamento de erro detalhado
       if (error.code === '23503') {
         toast.error('Este ingrediente está em uso numa receita e não pode ser excluído.');
       } else {
@@ -200,7 +233,7 @@ export const IngredientForm: React.FC = () => {
   };
 
   const filteredIngredients = ingredients.filter(i => 
-    i.name.toLowerCase().includes(searchTerm.toLowerCase())
+    normalizeText(i.name).includes(normalizeText(searchTerm))
   );
 
   const costKPI = calculateBaseCost();
@@ -330,7 +363,7 @@ export const IngredientForm: React.FC = () => {
                 </div>
               </div>
 
-              {/* PESO UNITÁRIO - Exibido apenas se necessário */}
+              {/* PESO UNITÁRIO */}
               {packageUnit === 'un' && baseUnit !== 'un' && (
                 <div className="bg-amber-50 p-3 rounded-lg border border-amber-200 animate-in slide-in-from-top-2">
                    <label className="text-xs font-bold text-amber-800 uppercase flex items-center gap-1">
