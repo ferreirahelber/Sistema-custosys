@@ -26,10 +26,15 @@ export const RecipeService = {
         items: r.items.map((i: any) => ({
           ...i,
           quantity_used: i.quantity,
-          // CORREÇÃO DO "0": Preenchemos o input visual com o valor do banco
-          quantity_input: i.quantity,
-          // CORREÇÃO DA UNIDADE: Usamos a unidade base do ingrediente como padrão
-          unit_input: i.ingredient?.base_unit || 'un',
+          
+          // --- CORREÇÃO 1: LEITURA INTELIGENTE ---
+          // Se tiver colunas de input salvas (futuro), usa elas. Senão, usa o padrão.
+          quantity_input: i.quantity_input || i.quantity, 
+          unit_input: i.unit_input || i.ingredient?.base_unit || 'un',
+          
+          // IMPORTANTE: Tenta pegar o nome histórico (salvo na receita). 
+          // Se não tiver (receitas antigas), tenta pegar do ingrediente linkado.
+          ingredient_name: i.ingredient_name || i.ingredient?.name 
         })),
       })) || []
     );
@@ -66,12 +71,22 @@ export const RecipeService = {
 
     // 2. Atualiza os Itens
     if (recipe.items && recipe.items.length > 0) {
+      // Remove itens antigos para regravar
       await supabase.from('recipe_items').delete().eq('recipe_id', savedRecipe.id);
 
+      // --- CORREÇÃO 2: GRAVAÇÃO DO NOME (HISTÓRICO) ---
       const itemsToInsert = recipe.items.map((item) => ({
         recipe_id: savedRecipe.id,
         ingredient_id: item.ingredient_id,
-        quantity: item.quantity_used || item.quantity_input,
+        quantity: item.quantity_used, // Valor base para cálculo
+        
+        // Salvamos os inputs originais para manter a receita fiel (ex: "1 xícara")
+        quantity_input: item.quantity_input,
+        unit_input: item.unit_input,
+        
+        // AQUI ESTÁ O SEGREDO: Salvamos o nome texto. 
+        // Se o ingrediente for excluído da base, este nome permanece.
+        ingredient_name: item.ingredient_name 
       }));
 
       const { error: itemsError } = await supabase.from('recipe_items').insert(itemsToInsert);

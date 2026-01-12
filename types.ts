@@ -49,6 +49,7 @@ export interface RecipeItem {
   // NOVOS CAMPOS PARA EXIBIÇÃO
   quantity_input?: number; // O que o usuário digitou (ex: 2)
   unit_input?: string; // A unidade que o usuário escolheu (ex: 'Xícara')
+  ingredient_name?: string;
 }
 
 export interface Recipe {

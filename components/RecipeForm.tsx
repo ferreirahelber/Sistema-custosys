@@ -6,7 +6,6 @@ import { RecipeService } from '../services/recipeService';
 import { SettingsService } from '../services/settingsService';
 import { calculateRecipeFinancials } from '../utils/calculations';
 import {
-  ChefHat,
   Clock,
   Layers,
   Plus,
@@ -17,12 +16,14 @@ import {
   BookOpen,
   Save,
   ArrowLeft,
+  AlertTriangle,
+  Info
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export const RecipeForm: React.FC = () => {
   const navigate = useNavigate();
-  const { id } = useParams(); // Pega o ID da URL se existir
+  const { id } = useParams();
   const isEditing = Boolean(id);
 
   // Estados de Dados
@@ -33,6 +34,7 @@ export const RecipeForm: React.FC = () => {
     work_hours_monthly: 160,
     fixed_overhead_rate: 0,
     cost_per_minute: 0,
+    estimated_monthly_revenue: 0,
   });
   
   const [loading, setLoading] = useState(true);
@@ -44,7 +46,7 @@ export const RecipeForm: React.FC = () => {
   const [prepTime, setPrepTime] = useState(60);
   const [prepMethod, setPrepMethod] = useState('');
   const [recipeItems, setRecipeItems] = useState<RecipeItem[]>([]);
-  const [currentSellingPrice, setCurrentSellingPrice] = useState(0); // Para preservar preço na edição
+  const [currentSellingPrice, setCurrentSellingPrice] = useState(0);
 
   // Inputs temporários (Adicionar Item)
   const [selectedIngId, setSelectedIngId] = useState('');
@@ -63,10 +65,7 @@ export const RecipeForm: React.FC = () => {
         setIngredients(allIngs);
         setSettings(mySettings);
 
-        // Se for edição, carrega a receita específica
         if (id) {
-          // Nota: O ideal seria ter um RecipeService.getById(id), mas vamos usar o getAll e filtrar por enquanto
-          // para manter compatibilidade com seu serviço atual se ele não tiver o getById.
           const allRecipes = await RecipeService.getAll();
           const recipeToEdit = allRecipes.find(r => r.id === id);
           
@@ -122,6 +121,8 @@ export const RecipeForm: React.FC = () => {
       quantity_used: qtyBase,
       quantity_input: qtyInput,
       unit_input: selectedUnit,
+      // Salva o nome para histórico
+      ingredient_name: selectedIngredientDetails?.name 
     };
 
     setRecipeItems([...recipeItems, newItem]);
@@ -135,6 +136,16 @@ export const RecipeForm: React.FC = () => {
   };
 
   const handleEditItem = (item: RecipeItem) => {
+    const exists = ingredients.find(i => i.id === item.ingredient_id);
+    
+    if (!exists) {
+      // Se não existe mais na base, permite remover mas avisa que não dá para editar os dados antigos
+      if(confirm(`O ingrediente original "${item.ingredient_name || 'Desconhecido'}" foi excluído da base. Deseja remover este item da receita?`)) {
+        removeItem(item.id);
+      }
+      return;
+    }
+
     setSelectedIngId(item.ingredient_id);
     setItemQuantity(item.quantity_input.toString());
     setSelectedUnit(item.unit_input);
@@ -165,13 +176,23 @@ export const RecipeForm: React.FC = () => {
 
     try {
       setSaving(true);
+      
+      // Garante que todos os itens tenham o nome atualizado antes de salvar
+      const itemsWithNames = recipeItems.map(item => {
+        const ing = ingredients.find(i => i.id === item.ingredient_id);
+        return {
+          ...item,
+          ingredient_name: ing ? ing.name : (item.ingredient_name || 'Item Excluído')
+        };
+      });
+
       const recipeData: Recipe = {
-        id: id || '', // Se tiver ID na URL, usa ele (update), senão vazio (create)
+        id: id || '',
         name,
         yield_units: yieldUnits,
         preparation_time_minutes: prepTime,
         preparation_method: prepMethod,
-        items: recipeItems,
+        items: itemsWithNames,
         total_cost_material: financials.total_cost_material || 0,
         total_cost_labor: financials.total_cost_labor || 0,
         total_cost_overhead: financials.total_cost_overhead || 0,
@@ -182,7 +203,7 @@ export const RecipeForm: React.FC = () => {
 
       await RecipeService.save(recipeData);
       toast.success('Receita salva com sucesso!');
-      navigate('/recipes'); // Volta para a lista
+      navigate('/recipes');
     } catch (error: any) {
       toast.error(`Erro ao salvar: ${error.message}`);
     } finally {
@@ -320,16 +341,28 @@ export const RecipeForm: React.FC = () => {
 
             <div className="space-y-2">
               {recipeItems.map((item) => {
+                // Tenta encontrar o ingrediente na lista ativa
                 const ing = ingredients.find((i) => i.id === item.ingredient_id);
+                // Se não achar, usa o nome do histórico
+                const displayName = ing ? ing.name : (item.ingredient_name || '(Ingrediente Desconhecido)');
+                
                 const cost = (ing?.unit_cost_base || 0) * item.quantity_used;
 
                 return (
-                  <div key={item.id} className="flex justify-between items-center p-3 border-b hover:bg-slate-50">
+                  <div key={item.id} className={`flex justify-between items-center p-3 border-b hover:bg-slate-50 ${!ing ? 'bg-amber-50 border-amber-100' : ''}`}>
                     <div>
-                      <div className="font-bold text-slate-800">{ing?.name}</div>
+                      <div className="font-bold text-slate-800 flex items-center gap-2">
+                        {displayName}
+                        {/* Se não existir o ingrediente ativo (ing), mostra o alerta */}
+                        {!ing && (
+                          <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full flex items-center gap-1 border border-amber-200">
+                            <AlertTriangle size={10} /> Excluído da Base
+                          </span>
+                        )}
+                      </div>
                       <div className="text-xs text-slate-500">
                         {item.quantity_input} {item.unit_input}
-                        {item.unit_input !== ing?.base_unit && (
+                        {item.unit_input !== ing?.base_unit && ing && (
                           <span className="ml-1 text-slate-400">
                             ({item.quantity_used.toFixed(0)}{ing?.base_unit})
                           </span>
@@ -338,10 +371,14 @@ export const RecipeForm: React.FC = () => {
                     </div>
                     <div className="flex items-center gap-4">
                       <div className="text-sm font-semibold text-slate-600">
-                        R$ {cost.toFixed(2)}
+                        {ing ? `R$ ${cost.toFixed(2)}` : <span className="text-slate-400 italic">--</span>}
                       </div>
                       <div className="flex gap-2">
-                        <button onClick={() => handleEditItem(item)} className="text-slate-400 hover:text-amber-600">
+                        <button 
+                          onClick={() => handleEditItem(item)} 
+                          className={`text-slate-400 ${ing ? 'hover:text-amber-600' : 'opacity-30 cursor-not-allowed'}`}
+                          title={ing ? "Editar" : "Item excluído não pode ser editado"}
+                        >
                           <Edit size={16} />
                         </button>
                         <button onClick={() => removeItem(item.id)} className="text-red-400 hover:text-red-600">
