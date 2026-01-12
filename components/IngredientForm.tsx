@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { IngredientService, Ingredient } from '../services/ingredientService';
+import { IngredientService } from '../services/ingredientService';
+import { Ingredient } from '../types'; // <--- CORREÇÃO AQUI
 import {
   Package,
   Plus,
@@ -188,13 +189,10 @@ export const IngredientForm: React.FC = () => {
       setDeleteConfirmation({ isOpen: false, id: null, name: '' });
       loadIngredients();
     } catch (error: any) {
-      console.error('Erro detalhado:', error);
-      
-      // Tratamento específico para Foreign Key (Ingrediente em uso)
+      // Tratamento de erro detalhado
       if (error.code === '23503') {
         toast.error('Este ingrediente está em uso numa receita e não pode ser excluído.');
       } else {
-        // MOSTRA O ERRO REAL NA TELA
         toast.error(`Erro: ${error.message || 'Não foi possível excluir'}`);
       }
       setDeleteConfirmation({ isOpen: false, id: null, name: '' });
@@ -247,7 +245,7 @@ export const IngredientForm: React.FC = () => {
             // FORMULÁRIO ATIVO
             <form onSubmit={handleSave} className="space-y-5 animate-in slide-in-from-left-4 fade-in duration-300">
               
-              {/* KPI - CUSTO UNITÁRIO (CORRIGIDO: Flex para alinhar unidade ao lado) */}
+              {/* KPI - CUSTO UNITÁRIO */}
               <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-4 text-white shadow-lg relative overflow-hidden group">
                 <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition">
                   <TrendingDown size={48} />
@@ -332,7 +330,7 @@ export const IngredientForm: React.FC = () => {
                 </div>
               </div>
 
-              {/* PESO UNITÁRIO - Exibido apenas se necessário para conversão */}
+              {/* PESO UNITÁRIO - Exibido apenas se necessário */}
               {packageUnit === 'un' && baseUnit !== 'un' && (
                 <div className="bg-amber-50 p-3 rounded-lg border border-amber-200 animate-in slide-in-from-top-2">
                    <label className="text-xs font-bold text-amber-800 uppercase flex items-center gap-1">
