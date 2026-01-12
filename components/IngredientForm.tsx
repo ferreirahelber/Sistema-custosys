@@ -15,11 +15,10 @@ import {
   ChevronUp,
   LayoutGrid,
   TrendingDown,
-  Box // Novo ícone
+  Box
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-// --- PROPS PARA O COMPONENTE (Para saber se é Ingrediente ou Produto) ---
 interface Props {
   type: 'ingredient' | 'product';
 }
@@ -40,7 +39,6 @@ const normalizeText = (text: string) => {
 };
 
 export const IngredientForm: React.FC<Props> = ({ type }) => {
-  // Configurações visuais baseadas no tipo
   const isProduct = type === 'product';
   const title = isProduct ? 'Produtos & Embalagens' : 'Ingredientes Culinários';
   const itemLabel = isProduct ? 'Produto' : 'Ingrediente';
@@ -49,16 +47,14 @@ export const IngredientForm: React.FC<Props> = ({ type }) => {
   const bgLight = isProduct ? 'bg-purple-50' : 'bg-amber-50';
   const borderLight = isProduct ? 'border-purple-200' : 'border-amber-200';
   
-  // --- ESTADOS GERAIS ---
+  // --- ESTADOS ---
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  
-  // --- ESTADOS DE MODO ---
   const [mode, setMode] = useState<'idle' | 'create' | 'edit'>('idle');
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  // --- ESTADOS DO FORMULÁRIO ---
+  // --- FORMULÁRIO ---
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [packagePrice, setPackagePrice] = useState('');
@@ -66,11 +62,9 @@ export const IngredientForm: React.FC<Props> = ({ type }) => {
   const [packageUnit, setPackageUnit] = useState('kg');
   const [baseUnit, setBaseUnit] = useState('g');
   const [weightPerUnit, setWeightPerUnit] = useState(''); 
-  
   const [currentStock, setCurrentStock] = useState('');
   const [minStock, setMinStock] = useState('100');
 
-  // Modal de Exclusão
   const [deleteConfirmation, setDeleteConfirmation] = useState<{ isOpen: boolean; id: string | null; name: string }>({
     isOpen: false,
     id: null,
@@ -81,15 +75,14 @@ export const IngredientForm: React.FC<Props> = ({ type }) => {
     loadIngredients();
     setMode('idle');
     resetForm();
-  }, [type]); // Recarrega se mudar a aba
+  }, [type]);
 
   const loadIngredients = async () => {
     setLoading(true);
     try {
       const data = await IngredientService.getAll();
-      // FILTRA APENAS OS ITENS DA CATEGORIA ATUAL
       const filtered = data.filter(item => {
-        const itemCategory = item.category || 'ingredient'; // Se for null, considera ingrediente
+        const itemCategory = item.category || 'ingredient';
         return itemCategory === type;
       });
       setIngredients(filtered);
@@ -100,7 +93,6 @@ export const IngredientForm: React.FC<Props> = ({ type }) => {
     }
   };
 
-  // --- LÓGICA DE CÁLCULO (KPI) ---
   const calculateBaseCost = () => {
     const price = parseFloat(packagePrice) || 0;
     const amount = parseFloat(packageAmount) || 0;
@@ -123,11 +115,15 @@ export const IngredientForm: React.FC<Props> = ({ type }) => {
     return totalBaseUnits > 0 ? price / totalBaseUnits : 0;
   };
 
-  // --- AÇÕES DO FORMULÁRIO ---
   const handleNew = () => {
     resetForm();
     setMode('create');
   };
+
+  const handleCancel = () => {
+    resetForm();
+    setMode('idle');
+  }
 
   const handleSelect = (ing: Ingredient) => {
     setMode('edit');
@@ -152,7 +148,7 @@ export const IngredientForm: React.FC<Props> = ({ type }) => {
     setName('');
     setPackagePrice('');
     setPackageAmount('');
-    setPackageUnit(isProduct ? 'un' : 'kg'); // Padrão diferente para produtos
+    setPackageUnit(isProduct ? 'un' : 'kg');
     setBaseUnit(isProduct ? 'un' : 'g');
     setWeightPerUnit('');
     setCurrentStock('');
@@ -167,7 +163,6 @@ export const IngredientForm: React.FC<Props> = ({ type }) => {
       return;
     }
 
-    // Validação de Duplicidade
     const inputNameNormalized = normalizeText(name);
     const isDuplicate = ingredients.some(ing => {
       const existingNameNormalized = normalizeText(ing.name);
@@ -194,7 +189,7 @@ export const IngredientForm: React.FC<Props> = ({ type }) => {
       unit_cost_base: calculatedBaseCost,
       current_stock: parseFloat(currentStock) || 0,
       min_stock: parseFloat(minStock) || 0,
-      category: type, // <--- SALVA A CATEGORIA CORRETA
+      category: type,
       conversions: (packageUnit === 'un' && baseUnit !== 'un' && weightPerUnit) 
         ? [{ name: 'Peso Unitário', value: parseFloat(weightPerUnit) }] 
         : []
@@ -251,10 +246,8 @@ export const IngredientForm: React.FC<Props> = ({ type }) => {
   return (
     <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-140px)] min-h-[600px]">
       
-      {/* 🟧 COLUNA ESQUERDA - PAINEL DE EDIÇÃO (FIXO) */}
+      {/* 🟧 PAINEL DE EDIÇÃO */}
       <div className="lg:w-1/3 bg-white rounded-xl shadow-lg border border-slate-200 flex flex-col overflow-hidden">
-        
-        {/* Header do Painel */}
         <div className={`p-4 border-b flex justify-between items-center ${mode === 'create' ? bgLight : mode === 'edit' ? 'bg-blue-50' : 'bg-slate-50'}`}>
           <div className="flex items-center gap-2 font-bold text-slate-700">
             {mode === 'create' && <><Plus size={20} className={iconColor}/> Novo {itemLabel}</>}
@@ -262,61 +255,44 @@ export const IngredientForm: React.FC<Props> = ({ type }) => {
             {mode === 'idle' && <><LayoutGrid size={20} className="text-slate-400"/> Painel de Detalhes</>}
           </div>
           {mode !== 'idle' && (
-            <button onClick={() => setMode('idle')} className="text-xs text-slate-500 hover:text-red-500 underline">
-              Cancelar
-            </button>
+            <button onClick={handleCancel} className="text-xs text-slate-500 hover:text-red-500 underline">Cancelar</button>
           )}
         </div>
 
-        {/* Conteúdo do Painel */}
         <div className="flex-1 overflow-y-auto p-6 relative">
           {mode === 'idle' ? (
-            // ESTADO VAZIO
             <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-4 opacity-60">
               {isProduct ? <Box size={64} strokeWidth={1}/> : <Package size={64} strokeWidth={1} />}
               <p className="text-center text-sm max-w-[200px]">
-                Selecione um {itemLabel.toLowerCase()} na lista ao lado para editar ou clique em "Novo".
+                Selecione um item na lista ou clique em "Novo".
               </p>
-              <button 
-                onClick={handleNew}
-                className={`mt-4 px-6 py-2 text-white rounded-full font-bold shadow-lg transition ${buttonColor}`}
-              >
+              <button onClick={handleNew} className={`mt-4 px-6 py-2 text-white rounded-full font-bold shadow-lg transition ${buttonColor}`}>
                 Criar Novo
               </button>
             </div>
           ) : (
-            // FORMULÁRIO ATIVO
             <form onSubmit={handleSave} className="space-y-5 animate-in slide-in-from-left-4 fade-in duration-300">
-              
-              {/* KPI - CUSTO UNITÁRIO */}
               <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-4 text-white shadow-lg relative overflow-hidden group">
                 <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition">
                   <TrendingDown size={48} />
                 </div>
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                  Custo Base
-                </label>
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Custo Base</label>
                 <div className="flex items-baseline gap-1.5">
                   <span className={`text-3xl font-black tracking-tight ${isProduct ? 'text-purple-400' : 'text-amber-400'}`}>
                     {formatCurrency(costKPI)}
                   </span>
-                  <span className="text-lg font-bold text-slate-500/80">
-                     / {baseUnit}
-                  </span>
+                  <span className="text-lg font-bold text-slate-500/80">/ {baseUnit}</span>
                 </div>
-                <div className="text-[10px] text-slate-400 mt-1">
-                  Calculado automaticamente
-                </div>
+                <div className="text-[10px] text-slate-400 mt-1">Calculado automaticamente</div>
               </div>
 
-              {/* Campos Principais */}
               <div>
-                <label className="text-xs font-bold text-slate-500 uppercase">Nome do {itemLabel}</label>
+                <label className="text-xs font-bold text-slate-500 uppercase">Nome</label>
                 <input 
                   autoFocus
                   value={name}
                   onChange={e => setName(e.target.value)}
-                  placeholder={isProduct ? "Ex: Caixa de Bolo 20cm" : "Ex: Farinha de Trigo"}
+                  placeholder={isProduct ? "Ex: Caixa 20cm" : "Ex: Farinha de Trigo"}
                   className="w-full mt-1 px-3 py-3 border rounded-lg focus:ring-2 focus:ring-slate-500 outline-none font-medium text-slate-700"
                 />
               </div>
@@ -356,7 +332,6 @@ export const IngredientForm: React.FC<Props> = ({ type }) => {
                 </div>
               </div>
 
-              {/* Unidade Base */}
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase">Usar em Receitas como:</label>
                 <div className="flex gap-2 mt-1">
@@ -373,7 +348,6 @@ export const IngredientForm: React.FC<Props> = ({ type }) => {
                 </div>
               </div>
 
-              {/* PESO UNITÁRIO */}
               {packageUnit === 'un' && baseUnit !== 'un' && (
                 <div className={`${bgLight} p-3 rounded-lg border ${borderLight} animate-in slide-in-from-top-2`}>
                    <label className={`text-xs font-bold uppercase flex items-center gap-1 ${isProduct ? 'text-purple-800' : 'text-amber-800'}`}>
@@ -394,7 +368,6 @@ export const IngredientForm: React.FC<Props> = ({ type }) => {
                 </div>
               )}
 
-              {/* Estoque e Alertas */}
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
                 <h4 className="text-xs font-bold text-slate-700 uppercase flex items-center gap-2">
                   <Package size={14}/> Controle de Estoque
@@ -423,30 +396,21 @@ export const IngredientForm: React.FC<Props> = ({ type }) => {
                 </div>
               </div>
 
-              {/* Avançado */}
               <div className="border-t pt-2">
-                <button 
-                  type="button"
-                  onClick={() => setShowAdvanced(!showAdvanced)}
-                  className="flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-slate-800 transition w-full justify-between"
-                >
+                <button type="button" onClick={() => setShowAdvanced(!showAdvanced)} className="flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-slate-800 transition w-full justify-between">
                   CONFIGURAÇÕES AVANÇADAS
                   {showAdvanced ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
                 </button>
                 {showAdvanced && (
                   <div className="mt-3 space-y-3 animate-in slide-in-from-top-2">
                     <div className="p-3 bg-blue-50 text-blue-800 text-xs rounded-lg">
-                      O sistema converterá automaticamente medidas caseiras baseadas na densidade padrão se não especificado.
+                      Conversão automática de medidas caseiras ativada.
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Botão Salvar */}
-              <button 
-                type="submit"
-                className={`w-full py-3 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition flex items-center justify-center gap-2 ${buttonColor}`}
-              >
+              <button type="submit" className={`w-full py-3 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition flex items-center justify-center gap-2 ${buttonColor}`}>
                 <Save size={20} />
                 {mode === 'edit' ? 'Atualizar Dados' : 'Cadastrar Item'}
               </button>
@@ -455,10 +419,8 @@ export const IngredientForm: React.FC<Props> = ({ type }) => {
         </div>
       </div>
 
-      {/* 🟦 COLUNA DIREITA - LISTA FILTRADA */}
+      {/* 🟦 LISTA (HIERARQUIA VISUAL APRIMORADA) */}
       <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
-        
-        {/* Barra de Ferramentas */}
         <div className="p-4 border-b border-slate-100 flex gap-4 bg-white z-20">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
@@ -469,15 +431,11 @@ export const IngredientForm: React.FC<Props> = ({ type }) => {
               className="w-full pl-10 pr-4 py-2 border rounded-lg text-sm outline-none focus:border-slate-500 bg-slate-50 focus:bg-white transition"
             />
           </div>
-          <button 
-            onClick={handleNew}
-            className="px-4 py-2 bg-slate-900 text-white text-sm font-bold rounded-lg hover:bg-slate-800 transition flex items-center gap-2"
-          >
+          <button onClick={handleNew} className="px-4 py-2 bg-slate-900 text-white text-sm font-bold rounded-lg hover:bg-slate-800 transition flex items-center gap-2">
             <Plus size={16} /> Novo
           </button>
         </div>
 
-        {/* Tabela */}
         <div className="flex-1 overflow-auto bg-slate-50 relative">
           {loading ? (
             <div className="flex items-center justify-center h-full"><Loader2 className="animate-spin text-slate-600"/></div>
@@ -501,21 +459,32 @@ export const IngredientForm: React.FC<Props> = ({ type }) => {
                       group cursor-pointer transition-colors duration-150
                       odd:bg-white even:bg-slate-50/50 
                       ${isProduct ? 'hover:bg-purple-50' : 'hover:bg-amber-50'}
-                      ${currentId === ing.id ? (isProduct ? 'bg-purple-100 ring-1 ring-inset ring-purple-300' : 'bg-amber-100 ring-1 ring-inset ring-amber-300') : ''}
+                      ${currentId === ing.id && mode === 'edit' ? (isProduct ? 'bg-purple-100 ring-1 ring-inset ring-purple-300' : 'bg-amber-100 ring-1 ring-inset ring-amber-300') : ''}
                     `}
                   >
                     <td className="p-4 font-bold text-slate-700 whitespace-nowrap">
                       {ing.name}
-                      {currentId === ing.id && <span className={`ml-2 text-[10px] px-1.5 py-0.5 rounded-full ${isProduct ? 'bg-purple-200 text-purple-800' : 'bg-amber-200 text-amber-800'}`}>EDITANDO</span>}
+                      {currentId === ing.id && mode === 'edit' && <span className={`ml-2 text-[10px] px-1.5 py-0.5 rounded-full ${isProduct ? 'bg-purple-200 text-purple-800' : 'bg-amber-200 text-amber-800'}`}>EDITANDO</span>}
                     </td>
-                    <td className="p-4 text-slate-500 whitespace-nowrap">
-                      R$ {Number(ing.package_price).toFixed(2)} <span className="text-xs opacity-70">/ {ing.package_amount}{ing.package_unit}</span>
-                    </td>
+                    
+                    {/* --- COLUNA COMPRA MELHORADA --- */}
                     <td className="p-4 whitespace-nowrap">
-                      <div className="font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded w-fit text-xs border border-slate-200 group-hover:bg-white group-hover:border-slate-300">
-                        {formatCurrency(ing.unit_cost_base)} <span className="font-normal text-slate-400">/ {ing.base_unit}</span>
+                      <div className="flex flex-col">
+                        <span className="font-bold text-slate-700">R$ {Number(ing.package_price).toFixed(2)}</span>
+                        <span className="text-[10px] text-slate-400 font-medium">
+                          por {ing.package_amount} {ing.package_unit}
+                        </span>
                       </div>
                     </td>
+
+                    {/* --- COLUNA CUSTO BASE MELHORADA --- */}
+                    <td className="p-4 whitespace-nowrap">
+                      <div className={`flex flex-col ${isProduct ? 'text-purple-700' : 'text-amber-700'}`}>
+                        <span className="font-bold">{formatCurrency(ing.unit_cost_base)}</span>
+                        <span className="text-[10px] text-slate-400 font-medium">/ {ing.base_unit}</span>
+                      </div>
+                    </td>
+
                     <td className="p-4 text-center whitespace-nowrap">
                        <span className={`text-xs font-bold px-2 py-1 rounded-full ${
                          (ing.current_stock || 0) <= (ing.min_stock || 0) 
@@ -549,7 +518,6 @@ export const IngredientForm: React.FC<Props> = ({ type }) => {
         </div>
       </div>
 
-      {/* MODAL DE CONFIRMAÇÃO (MANTIDO) */}
       {deleteConfirmation.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 animate-in zoom-in-95">
@@ -565,18 +533,8 @@ export const IngredientForm: React.FC<Props> = ({ type }) => {
               </div>
             </div>
             <div className="flex justify-end gap-3 mt-6">
-              <button 
-                onClick={() => setDeleteConfirmation({ isOpen: false, id: null, name: '' })}
-                className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition"
-              >
-                Cancelar
-              </button>
-              <button 
-                onClick={executeDelete}
-                className="px-4 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition"
-              >
-                Sim, Excluir
-              </button>
+              <button onClick={() => setDeleteConfirmation({ isOpen: false, id: null, name: '' })} className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition">Cancelar</button>
+              <button onClick={executeDelete} className="px-4 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition">Sim, Excluir</button>
             </div>
           </div>
         </div>
