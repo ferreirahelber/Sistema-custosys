@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
-import { Ingredient, Recipe, RecipeItem, Settings } from '../types';
+// IMPORTANTE: Adicione MeasureConversion aqui
+import { Ingredient, Recipe, RecipeItem, Settings, MeasureConversion } from '../types';
 import { IngredientService } from '../services/ingredientService';
 import { RecipeService } from '../services/recipeService';
 import { SettingsService } from '../services/settingsService';
@@ -16,8 +17,7 @@ import {
   BookOpen,
   Save,
   ArrowLeft,
-  AlertTriangle,
-  Info
+  AlertTriangle
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -107,8 +107,9 @@ export const RecipeForm: React.FC = () => {
     let qtyBase = qtyInput;
 
     if (selectedIngredientDetails && selectedUnit !== selectedIngredientDetails.base_unit) {
+      // CORREÇÃO: Usando MeasureConversion explicitamente
       const conversion = selectedIngredientDetails.conversions?.find(
-        (c: any) => c.name === selectedUnit
+        (c: MeasureConversion) => c.name === selectedUnit
       );
       if (conversion) {
         qtyBase = qtyInput * conversion.value;
@@ -121,7 +122,6 @@ export const RecipeForm: React.FC = () => {
       quantity_used: qtyBase,
       quantity_input: qtyInput,
       unit_input: selectedUnit,
-      // Salva o nome para histórico
       ingredient_name: selectedIngredientDetails?.name 
     };
 
@@ -139,7 +139,6 @@ export const RecipeForm: React.FC = () => {
     const exists = ingredients.find(i => i.id === item.ingredient_id);
     
     if (!exists) {
-      // Se não existe mais na base, permite remover mas avisa que não dá para editar os dados antigos
       if(confirm(`O ingrediente original "${item.ingredient_name || 'Desconhecido'}" foi excluído da base. Deseja remover este item da receita?`)) {
         removeItem(item.id);
       }
@@ -147,8 +146,8 @@ export const RecipeForm: React.FC = () => {
     }
 
     setSelectedIngId(item.ingredient_id);
-    setItemQuantity(item.quantity_input.toString());
-    setSelectedUnit(item.unit_input);
+    setItemQuantity(item.quantity_input?.toString() || '');
+    setSelectedUnit(item.unit_input || '');
     removeItem(item.id);
     toast.info('Item movido para edição.');
   };
@@ -177,7 +176,6 @@ export const RecipeForm: React.FC = () => {
     try {
       setSaving(true);
       
-      // Garante que todos os itens tenham o nome atualizado antes de salvar
       const itemsWithNames = recipeItems.map(item => {
         const ing = ingredients.find(i => i.id === item.ingredient_id);
         return {
@@ -204,8 +202,10 @@ export const RecipeForm: React.FC = () => {
       await RecipeService.save(recipeData);
       toast.success('Receita salva com sucesso!');
       navigate('/recipes');
-    } catch (error: any) {
-      toast.error(`Erro ao salvar: ${error.message}`);
+    } catch (error) {
+      // CORREÇÃO: Usando a variável error para não dar aviso de "unused"
+      console.error(error); // Log do erro para uso
+      toast.error('Erro ao salvar receita.');
     } finally {
       setSaving(false);
     }
@@ -237,7 +237,6 @@ export const RecipeForm: React.FC = () => {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         {/* Coluna Esquerda: Formulário */}
         <div className="xl:col-span-2 space-y-6">
-          
           {/* Dados Básicos */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
             <div className="space-y-4">
@@ -341,9 +340,7 @@ export const RecipeForm: React.FC = () => {
 
             <div className="space-y-2">
               {recipeItems.map((item) => {
-                // Tenta encontrar o ingrediente na lista ativa
                 const ing = ingredients.find((i) => i.id === item.ingredient_id);
-                // Se não achar, usa o nome do histórico
                 const displayName = ing ? ing.name : (item.ingredient_name || '(Ingrediente Desconhecido)');
                 
                 const cost = (ing?.unit_cost_base || 0) * item.quantity_used;
@@ -353,7 +350,6 @@ export const RecipeForm: React.FC = () => {
                     <div>
                       <div className="font-bold text-slate-800 flex items-center gap-2">
                         {displayName}
-                        {/* Se não existir o ingrediente ativo (ing), mostra o alerta */}
                         {!ing && (
                           <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full flex items-center gap-1 border border-amber-200">
                             <AlertTriangle size={10} /> Excluído da Base

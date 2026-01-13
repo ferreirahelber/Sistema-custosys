@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { Recipe } from '../types';
+import { Recipe, RecipeItemResponse } from '../types';
 
 export const RecipeService = {
   // Busca todas as receitas com seus itens
@@ -23,17 +23,16 @@ export const RecipeService = {
     return (
       data?.map((r) => ({
         ...r,
-        items: r.items.map((i: any) => ({
+        // AQUI ESTAVA O ANY: Substituído por RecipeItemResponse
+        items: r.items.map((i: RecipeItemResponse) => ({
           ...i,
-          quantity_used: i.quantity,
+          quantity_used: i.quantity, // Mapeia "quantity" do banco para "quantity_used" da tela
           
-          // --- CORREÇÃO 1: LEITURA INTELIGENTE ---
-          // Se tiver colunas de input salvas (futuro), usa elas. Senão, usa o padrão.
+          // Leitura Inteligente
           quantity_input: i.quantity_input || i.quantity, 
           unit_input: i.unit_input || i.ingredient?.base_unit || 'un',
           
-          // IMPORTANTE: Tenta pegar o nome histórico (salvo na receita). 
-          // Se não tiver (receitas antigas), tenta pegar do ingrediente linkado.
+          // Nome Histórico
           ingredient_name: i.ingredient_name || i.ingredient?.name 
         })),
       })) || []
@@ -74,18 +73,12 @@ export const RecipeService = {
       // Remove itens antigos para regravar
       await supabase.from('recipe_items').delete().eq('recipe_id', savedRecipe.id);
 
-      // --- CORREÇÃO 2: GRAVAÇÃO DO NOME (HISTÓRICO) ---
       const itemsToInsert = recipe.items.map((item) => ({
         recipe_id: savedRecipe.id,
         ingredient_id: item.ingredient_id,
-        quantity: item.quantity_used, // Valor base para cálculo
-        
-        // Salvamos os inputs originais para manter a receita fiel (ex: "1 xícara")
+        quantity: item.quantity_used,
         quantity_input: item.quantity_input,
         unit_input: item.unit_input,
-        
-        // AQUI ESTÁ O SEGREDO: Salvamos o nome texto. 
-        // Se o ingrediente for excluído da base, este nome permanece.
         ingredient_name: item.ingredient_name 
       }));
 
@@ -99,7 +92,6 @@ export const RecipeService = {
   // Atualiza campo específico (Preço de Venda)
   async update(id: string, updates: Partial<Recipe>) {
     const { error } = await supabase.from('recipes').update(updates).eq('id', id);
-
     if (error) throw error;
   },
 

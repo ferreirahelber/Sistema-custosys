@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react'; // Adicionado useCallback
 import { IngredientService } from '../services/ingredientService';
 import { Ingredient } from '../types';
 import {
@@ -40,7 +40,7 @@ const normalizeText = (text: string) => {
 
 export const IngredientForm: React.FC<Props> = ({ type }) => {
   const isProduct = type === 'product';
-  const title = isProduct ? 'Produtos & Embalagens' : 'Ingredientes Culinários';
+  // REMOVIDO: const title = ... (não era usado)
   const itemLabel = isProduct ? 'Produto' : 'Ingrediente';
   const iconColor = isProduct ? 'text-purple-600' : 'text-amber-600';
   const buttonColor = isProduct ? 'bg-purple-600 hover:bg-purple-700' : 'bg-amber-600 hover:bg-amber-700';
@@ -71,13 +71,8 @@ export const IngredientForm: React.FC<Props> = ({ type }) => {
     name: ''
   });
 
-  useEffect(() => {
-    loadIngredients();
-    setMode('idle');
-    resetForm();
-  }, [type]);
-
-  const loadIngredients = async () => {
+  // Função movida para useCallback para ser dependência estável
+  const loadIngredients = useCallback(async () => {
     setLoading(true);
     try {
       const data = await IngredientService.getAll();
@@ -87,11 +82,30 @@ export const IngredientForm: React.FC<Props> = ({ type }) => {
       });
       setIngredients(filtered);
     } catch (error) {
+      console.error(error); // CORREÇÃO: Logar o erro resolve o aviso de "unused"
       toast.error('Erro ao carregar dados');
     } finally {
       setLoading(false);
     }
-  };
+  }, [type]);
+
+  const resetForm = useCallback(() => {
+    setCurrentId(null);
+    setName('');
+    setPackagePrice('');
+    setPackageAmount('');
+    setPackageUnit(isProduct ? 'un' : 'kg');
+    setBaseUnit(isProduct ? 'un' : 'g');
+    setWeightPerUnit('');
+    setCurrentStock('');
+    setMinStock('10');
+  }, [isProduct]);
+
+  useEffect(() => {
+    loadIngredients();
+    setMode('idle');
+    resetForm();
+  }, [type, loadIngredients, resetForm]); // Dependências corrigidas
 
   const calculateBaseCost = () => {
     const price = parseFloat(packagePrice) || 0;
@@ -141,18 +155,6 @@ export const IngredientForm: React.FC<Props> = ({ type }) => {
     } else {
       setWeightPerUnit('');
     }
-  };
-
-  const resetForm = () => {
-    setCurrentId(null);
-    setName('');
-    setPackagePrice('');
-    setPackageAmount('');
-    setPackageUnit(isProduct ? 'un' : 'kg');
-    setBaseUnit(isProduct ? 'un' : 'g');
-    setWeightPerUnit('');
-    setCurrentStock('');
-    setMinStock('10');
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -207,6 +209,7 @@ export const IngredientForm: React.FC<Props> = ({ type }) => {
       setMode('idle');
       loadIngredients();
     } catch (error) {
+      console.error(error); // CORREÇÃO: Logar o erro resolve o aviso
       toast.error('Erro ao salvar');
     }
   };
@@ -227,11 +230,12 @@ export const IngredientForm: React.FC<Props> = ({ type }) => {
       }
       setDeleteConfirmation({ isOpen: false, id: null, name: '' });
       loadIngredients();
-    } catch (error: any) {
-      if (error.code === '23503') {
+    } catch (error: unknown) { // CORREÇÃO: any -> unknown
+      const err = error as { code?: string; message?: string }; // Type assertion segura
+      if (err.code === '23503') {
         toast.error('Este item está em uso numa receita e não pode ser excluído.');
       } else {
-        toast.error(`Erro: ${error.message || 'Não foi possível excluir'}`);
+        toast.error(`Erro: ${err.message || 'Não foi possível excluir'}`);
       }
       setDeleteConfirmation({ isOpen: false, id: null, name: '' });
     }
@@ -419,7 +423,7 @@ export const IngredientForm: React.FC<Props> = ({ type }) => {
         </div>
       </div>
 
-      {/* 🟦 LISTA (HIERARQUIA VISUAL APRIMORADA) */}
+      {/* 🟦 LISTA */}
       <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
         <div className="p-4 border-b border-slate-100 flex gap-4 bg-white z-20">
           <div className="relative flex-1">
@@ -467,7 +471,6 @@ export const IngredientForm: React.FC<Props> = ({ type }) => {
                       {currentId === ing.id && mode === 'edit' && <span className={`ml-2 text-[10px] px-1.5 py-0.5 rounded-full ${isProduct ? 'bg-purple-200 text-purple-800' : 'bg-amber-200 text-amber-800'}`}>EDITANDO</span>}
                     </td>
                     
-                    {/* --- COLUNA COMPRA MELHORADA --- */}
                     <td className="p-4 whitespace-nowrap">
                       <div className="flex flex-col">
                         <span className="font-bold text-slate-700">R$ {Number(ing.package_price).toFixed(2)}</span>
@@ -477,7 +480,6 @@ export const IngredientForm: React.FC<Props> = ({ type }) => {
                       </div>
                     </td>
 
-                    {/* --- COLUNA CUSTO BASE MELHORADA --- */}
                     <td className="p-4 whitespace-nowrap">
                       <div className={`flex flex-col ${isProduct ? 'text-purple-700' : 'text-amber-700'}`}>
                         <span className="font-bold">{formatCurrency(ing.unit_cost_base)}</span>

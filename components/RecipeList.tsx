@@ -2,23 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Recipe, Ingredient } from '../types';
 import { RecipeService } from '../services/recipeService';
-import { IngredientService } from '../services/ingredientService'; // Necessário para a impressão
+import { IngredientService } from '../services/ingredientService';
 import { RecipePrintView } from './RecipePrintView';
 import {
   ChefHat,
   Plus,
-  Search,
   Printer,
   Edit,
   Trash2,
   Loader2,
-} from 'lucide-react';
+} from 'lucide-react'; // REMOVIDO: Search
 import { toast } from 'sonner';
 
 export const RecipeList: React.FC = () => {
   const navigate = useNavigate();
   const [recipes, setRecipes] = useState<Recipe[]>([]);
-  const [ingredients, setIngredients] = useState<Ingredient[]>([]); // Para passar ao PrintView
+  const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [loading, setLoading] = useState(true);
   const [printingRecipe, setPrintingRecipe] = useState<Recipe | null>(null);
 

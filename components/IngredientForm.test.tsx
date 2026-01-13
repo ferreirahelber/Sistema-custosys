@@ -32,63 +32,83 @@ describe('IngredientForm Component', () => {
   // Helper para aguardar o carregamento inicial
   const waitForLoad = async () => {
     await waitFor(() => {
-      expect(screen.queryByText(/Nenhum ingrediente cadastrado/i)).toBeInTheDocument();
+      expect(screen.queryByText(/Nenhum ingrediente encontrado nesta categoria/i)).toBeInTheDocument();
     });
   };
 
-  it('deve renderizar os campos principais corretamente', async () => {
-    render(<IngredientForm />);
+  it('deve renderizar os campos principais corretamente (Modo Ingrediente)', async () => {
+    render(<IngredientForm type="ingredient" />);
     await waitForLoad();
     
-    expect(screen.getByText(/Novo Ingrediente/i)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/Ex: Embalagem Bombom/i)).toBeInTheDocument();
-    expect(screen.getByText(/Lançamento de Estoque/i)).toBeInTheDocument();
+    // Abre o formulário
+    const createButton = screen.getByRole('button', { name: /Criar Novo/i });
+    fireEvent.click(createButton);
+
+    // CORREÇÃO: Usamos getAllByText para pegar todas as ocorrências (filho e pai) 
+    // e verificamos se pelo menos uma existe. Isso resolve o erro "Multiple elements found".
+    const titles = screen.getAllByText((content, element) => {
+      return element?.textContent?.includes('Novo Ingrediente') ?? false;
+    });
+    expect(titles.length).toBeGreaterThan(0);
+
+    // Verifica se os campos específicos apareceram
+    expect(screen.getByPlaceholderText(/Ex: Farinha de Trigo/i)).toBeInTheDocument();
+    
+    // Mesmo tratamento para "Controle de Estoque" para evitar fragilidade
+    const stockHeaders = screen.getAllByText((content, element) => {
+      return element?.textContent?.includes('Controle de Estoque') ?? false;
+    });
+    expect(stockHeaders.length).toBeGreaterThan(0);
   });
 
   it('deve exibir alerta ao tentar salvar com campos vazios', async () => {
-    render(<IngredientForm />);
+    render(<IngredientForm type="ingredient" />);
     await waitForLoad();
 
-    // CORREÇÃO: Desabilitar validação HTML5 (required) para permitir que o onSubmit do React dispare
-    // e possamos testar a validação manual do código (o toast.warning)
-    const form = document.getElementById('ing-form') as HTMLFormElement;
-    if (form) form.noValidate = true;
+    // Abre o formulário
+    const createButton = screen.getByRole('button', { name: /Criar Novo/i });
+    fireEvent.click(createButton);
 
-    // Tenta clicar em "Salvar Item"
-    const saveButton = screen.getByText(/Salvar Item/i);
+    // Tenta salvar sem preencher nada
+    const saveButton = screen.getByText(/Cadastrar Item/i);
     fireEvent.click(saveButton);
 
-    // Agora o onSubmit deve rodar e chamar o toast
-    expect(toast.warning).toHaveBeenCalledWith('Preencha o nome, preço e quantidade da embalagem.');
+    expect(toast.warning).toHaveBeenCalledWith('Preencha os campos obrigatórios');
     expect(IngredientService.create).not.toHaveBeenCalled();
   });
 
   it('deve enviar os dados corretamente quando o formulário é válido', async () => {
-    render(<IngredientForm />);
+    render(<IngredientForm type="ingredient" />);
     await waitForLoad();
 
-    // Preenche o formulário
-    const nameInput = screen.getByPlaceholderText(/Ex: Embalagem Bombom/i);
+    // Abre o formulário
+    const createButton = screen.getByRole('button', { name: /Criar Novo/i });
+    fireEvent.click(createButton);
+
+    // Preenche os campos
+    const nameInput = screen.getByPlaceholderText(/Ex: Farinha de Trigo/i);
     fireEvent.change(nameInput, { target: { value: 'Farinha Premium' } });
 
     const priceInput = screen.getByPlaceholderText('0.00');
     fireEvent.change(priceInput, { target: { value: '10.00' } });
 
-    const amountInput = screen.getByPlaceholderText('Ex: 100');
+    // O input de quantidade é o segundo campo numérico (o primeiro é o preço)
+    const inputs = screen.getAllByRole('spinbutton');
+    const amountInput = inputs[1]; 
     fireEvent.change(amountInput, { target: { value: '1' } }); 
 
-    // Clica em Salvar
-    const saveButton = screen.getByText(/Salvar Item/i);
+    // Salvar
+    const saveButton = screen.getByText(/Cadastrar Item/i);
     fireEvent.click(saveButton);
 
-    // Verifica sucesso
     await waitFor(() => {
       expect(IngredientService.create).toHaveBeenCalledWith(expect.objectContaining({
         name: 'Farinha Premium',
         package_price: 10,
         package_amount: 1,
+        category: 'ingredient'
       }));
-      expect(toast.success).toHaveBeenCalledWith('Ingrediente salvo!');
+      expect(toast.success).toHaveBeenCalledWith('Ingrediente criado!');
     });
   });
 });

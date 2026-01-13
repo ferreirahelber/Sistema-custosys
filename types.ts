@@ -73,3 +73,14 @@ export interface SimulationParams {
   card_fee: number;
   desired_margin: number;
 }
+
+export interface RecipeItemResponse {
+  id: string;
+  recipe_id: string;
+  ingredient_id: string;
+  quantity: number;        // No banco a coluna chama "quantity"
+  quantity_input?: number;
+  unit_input?: string;
+  ingredient_name?: string;
+  ingredient?: Ingredient; // O dado que vem do join com a tabela ingredients
+}
