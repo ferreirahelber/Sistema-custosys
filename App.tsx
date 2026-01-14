@@ -9,6 +9,7 @@ import { RecipeForm } from './components/RecipeForm';
 import { CostingView } from './components/CostingView';
 import { Dashboard } from './components/Dashboard';
 import { SettingsService } from './services/settingsService';
+import { ResaleCalculator } from './components/ResaleCalculator';
 import {
   Settings as SettingsIcon,
   ChefHat,
@@ -18,6 +19,7 @@ import {
   DollarSign,
   Loader2,
   LucideIcon,
+  ShoppingBag,
 } from 'lucide-react';
 import { Toaster } from 'sonner';
 import './index.css';
@@ -122,6 +124,7 @@ export function AppContent() {
           </div>
 
           <NavItem to="/costs" label="Simulador & Custos" icon={DollarSign} />
+          <NavItem to="/resale" label="Calc. de Revenda" icon={ShoppingBag} />
           <div className="pt-4 mt-4 border-t border-slate-100">
             <NavItem to="/settings" label="Configurações" icon={SettingsIcon} />
           </div>
@@ -187,7 +190,8 @@ export function AppContent() {
               <Route path="/recipes/new" element={<RecipeForm />} />
               <Route path="/recipes/:id" element={<RecipeForm />} />
               <Route path="/costs" element={<CostingView />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
+              <Route path="/resale" element={<ResaleCalculator />} />
+              <Route path="*" element={<Navigate to="/" replace />} />              
             </Routes>
           </div>
         </div>

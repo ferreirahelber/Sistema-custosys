@@ -10,8 +10,10 @@ import {
   AlertTriangle,
   TrendingUp,
   PieChart as IconPieChart,
-  BarChart3
+  BarChart3,
+  ShoppingBag
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { Recipe, Ingredient } from '../types';
 import {
   BarChart,
@@ -35,6 +37,7 @@ interface Props {
 const COLORS = ['#d97706', '#2563eb', '#16a34a']; // Amber, Blue, Green
 
 export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [metrics, setMetrics] = useState({
     recipeCount: 0,
