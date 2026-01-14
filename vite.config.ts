@@ -19,12 +19,19 @@ export default defineConfig(({ mode }) => {
         '@': path.resolve(__dirname, '.'),
       },
     },
-    // CORREÇÃO: Adicionada a descrição obrigatória após o comando
     
     test: {
       globals: true,
       environment: 'jsdom',
       setupFiles: './test/setup.ts',
+      // CORREÇÃO: Ignorar TODA a pasta 'tests' (onde o Playwright mora)
+      exclude: [
+        '**/node_modules/**', 
+        '**/dist/**', 
+        '**/cypress/**', 
+        '**/.{idea,git,cache,output,temp}/**', 
+        './tests/**' // Alterado de './tests/e2e/**' para './tests/**'
+      ],
     },
   };
 });
