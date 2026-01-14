@@ -42,6 +42,16 @@ export interface Ingredient {
   category?: 'ingredient' | 'product';
 }
 
+export interface PriceHistory {
+  id: string;
+  recipe_id: string;
+  old_cost: number;
+  new_cost: number;
+  old_price: number;
+  new_price: number;
+  changed_at: string;
+}
+
 export interface RecipeItem {
   id: string;
   ingredient_id: string;

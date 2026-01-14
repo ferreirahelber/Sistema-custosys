@@ -1,4 +1,4 @@
-import { Unit, Ingredient, Settings, Recipe, RecipeItem } from '../types';
+import { Unit, Ingredient, RecipeItem, Settings, Recipe } from '../types';
 import Decimal from 'decimal.js';
 
 /**
@@ -62,14 +62,23 @@ export const calculateRecipeFinancials = (
   settings: Settings
 ): Partial<Recipe> => {
   // 1. Custo dos Materiais
-  const total_cost_material_dec = items.reduce((acc, item) => {
+  let costIngredients = new Decimal(0);
+  let costPackaging = new Decimal(0);
+
+  items.forEach((item) => {
     const ingredient = ingredients.find((i) => i.id === item.ingredient_id);
     const costBase = ingredient ? ingredient.unit_cost_base : (item as any).price || 0;
     const qty = item.quantity_used || 0;
+    const itemCost = new Decimal(qty).times(costBase);
 
-    const costStep = new Decimal(qty).times(costBase);
-    return acc.plus(costStep);
-  }, new Decimal(0));
+    if (ingredient?.category === 'product') {
+      costPackaging = costPackaging.plus(itemCost);
+    } else {
+      costIngredients = costIngredients.plus(itemCost);
+    }
+  });
+
+  const total_cost_material_dec = costIngredients.plus(costPackaging);
 
   // 2. Custo da Mão de Obra
   const prepTimeDec = new Decimal(prepTimeMinutes || 0);
@@ -77,16 +86,15 @@ export const calculateRecipeFinancials = (
   const total_cost_labor_dec = prepTimeDec.times(costPerMinuteDec);
 
   // 3. Custos Fixos (Overhead)
+  // O Overhead incide sobre Materiais + Mão de Obra (Prime Cost)
   const prime_cost_dec = total_cost_material_dec.plus(total_cost_labor_dec);
   const overheadRateDec = new Decimal(settings.fixed_overhead_rate || 0);
   const total_cost_overhead_dec = prime_cost_dec.times(overheadRateDec.dividedBy(100));
 
   // 4. Totais
   const total_cost_final_dec = prime_cost_dec.plus(total_cost_overhead_dec);
-
   const yieldDec = new Decimal(yieldUnits || 1);
 
-  // CORREÇÃO: Usando .greaterThan() aqui também
   const unit_cost_dec = yieldDec.greaterThan(0)
     ? total_cost_final_dec.dividedBy(yieldDec)
     : new Decimal(0);
