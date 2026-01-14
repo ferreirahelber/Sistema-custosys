@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { Settings } from '../types';
 import { toast } from 'sonner';
+import { BackupService, BackupData } from '../services/backupService';
+import { Download, Upload, Database, AlertTriangle } from 'lucide-react';
 
 interface Props {
   onSave?: () => void;
@@ -235,6 +237,85 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
         <Loader2 className="animate-spin text-amber-600" />
       </div>
     );
+
+  // --- LÓGICA DE BACKUP ---
+  const handleExport = async () => {
+    try {
+      toast.info('A gerar backup...');
+      const data = await BackupService.createBackup();
+
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `custosys_backup_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast.success('Backup descarregado com sucesso!');
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao gerar backup.');
+    }
+  };
+
+  // NOVA LÓGICA DE IMPORTAÇÃO (Substitua a função handleImport antiga por esta)
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Limpa o input para permitir selecionar o mesmo arquivo depois se falhar
+    e.target.value = '';
+
+    // Mostra o Toast de Confirmação personalizado
+    toast('Confirmar Restauração?', {
+      description: 'Isso substituirá dados existentes com o mesmo ID.',
+      action: {
+        label: 'Sim, Restaurar',
+        onClick: () => processRestoreFile(file),
+      },
+      cancel: {
+        label: 'Cancelar',
+      },
+      duration: 8000, // Dá mais tempo para o usuário pensar
+    });
+  };
+
+  // Função auxiliar que processa o arquivo após a confirmação
+  const processRestoreFile = (file: File) => {
+    const reader = new FileReader();
+
+    reader.onload = async (event) => {
+      try {
+        const jsonContent = event.target?.result as string;
+        const backupData = JSON.parse(jsonContent) as BackupData;
+
+        // Feedback visual de carregamento
+        const promise = BackupService.restoreBackup(backupData);
+
+        toast.promise(promise, {
+          loading: 'A processar dados do backup...',
+          success: () => {
+            setTimeout(() => window.location.reload(), 1500);
+            return 'Dados restaurados com sucesso! A recarregar...';
+          },
+          error: (err) => {
+            console.error(err);
+            // Mostra a mensagem real do erro vinda do Service
+            return err instanceof Error ? err.message : 'Erro desconhecido na importação.';
+          },
+        });
+
+      } catch (error) {
+        console.error(error);
+        toast.error('O ficheiro selecionado não é um backup válido (JSON incorreto).');
+      }
+    };
+
+    reader.readAsText(file);
+  };
 
   return (
     <div className="space-y-8 w-full pb-12">
@@ -547,7 +628,7 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
         </div>
       </div>
 
-      {/* SEÇÃO 3: RESUMO FINAL */}
+      {/* SEÇÃO 3: RESUMO FINAL (CORRIGIDO) */}
       <div className="bg-slate-900 rounded-xl shadow-lg p-6 text-white">
         <div className="flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-4">
@@ -567,15 +648,61 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
               </div>
             </div>
           </div>
+          <div className="flex md:block">
+            <button
+              onClick={handleSaveAll}
+              disabled={saving}
+              className="w-full md:w-auto px-6 py-2 bg-amber-600 text-white hover:bg-amber-700 rounded-lg font-bold shadow-lg shadow-amber-900/20 transition flex items-center justify-center gap-2"
+            >
+              {saving ? <Loader2 className="animate-spin" /> : <Save size={18} />}
+              Salvar Tudo
+            </button>
+          </div>
+        </div>
+      </div>
+      {/* 🛑 AQUI FECHA O RESUMO, O BACKUP VEM AGORA COMO IRMÃO, NÃO FILHO */}
 
+      {/* --- ZONA DE DADOS (AGORA SEPARADA E BONITA) --- */}
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+        <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+          <Database className="text-amber-600" size={20} /> Backup e Restauro
+        </h3>
+
+        <div className="p-4 bg-amber-50 rounded-lg border border-amber-100 mb-6 flex gap-3">
+          <AlertTriangle className="text-amber-600 shrink-0" size={20} />
+          <div className="text-sm text-amber-800">
+            <p className="font-bold">Importante:</p>
+            <p>O backup gera um ficheiro JSON com todos os seus dados. Guarde-o em local seguro.</p>
+            <p className="mt-1">Ao restaurar, dados com o mesmo ID serão atualizados. Dados novos serão criados.</p>
+          </div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-4">
           <button
-            onClick={handleSaveAll}
-            disabled={saving}
-            className="w-full md:w-auto px-8 py-3 bg-amber-600 hover:bg-amber-700 rounded-lg font-bold shadow-lg shadow-amber-900/20 transition flex items-center justify-center gap-2"
+            type="button"
+            onClick={handleExport}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-slate-100 text-slate-700 font-bold rounded-lg hover:bg-slate-200 transition border border-slate-300"
           >
-            {saving ? <Loader2 className="animate-spin" /> : <Save size={20} />}
-            Salvar Tudo
+            <Download size={20} />
+            Descarregar Backup
           </button>
+
+          <div className="flex-1">
+            <input
+              type="file"
+              accept=".json"
+              id="restore-input"
+              className="hidden"
+              onChange={handleImport}
+            />
+            <label
+              htmlFor="restore-input"
+              className="flex items-center justify-center gap-2 px-4 py-3 bg-slate-800 text-white font-bold rounded-lg hover:bg-slate-700 transition cursor-pointer shadow-md select-none"
+            >
+              <Upload size={20} />
+              Restaurar Dados
+            </label>
+          </div>
         </div>
       </div>
     </div>
