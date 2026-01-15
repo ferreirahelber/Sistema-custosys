@@ -13,7 +13,8 @@ import {
   BarChart3,
   Download,
   FileSpreadsheet,
-  Calendar // Adicionei o ícone de calendário
+  Calendar,
+  HelpCircle // IMPORT NOVO
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Recipe } from '../types';
@@ -72,11 +73,14 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
 
       const totalFixedCost = settings.labor_monthly_cost + (settings.estimated_monthly_revenue * (settings.fixed_overhead_rate / 100));
       
-      const totalMargin = recipes.reduce((acc, r) => {
-        const margin = r.selling_price && r.unit_cost ? ((r.selling_price - r.unit_cost) / r.selling_price * 100) : 0;
+      const recipesWithPrice = recipes.filter(r => r.selling_price && r.selling_price > 0);
+      const totalMargin = recipesWithPrice.reduce((acc, r) => {
+        const price = r.selling_price || 1; 
+        const margin = ((price - r.unit_cost) / price) * 100;
         return acc + margin;
       }, 0);
-      const avgMargin = recipes.length > 0 ? totalMargin / recipes.length : 0;
+      
+      const avgMargin = recipesWithPrice.length > 0 ? totalMargin / recipesWithPrice.length : 0;
 
       setMetrics({
         recipeCount: recipes.length,
@@ -204,9 +208,7 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
           <p className="text-slate-500">Indicadores estratégicos para sua confeitaria.</p>
         </div>
         
-        {/* LADO DIREITO: DATA E AÇÕES */}
         <div className="flex flex-col items-end gap-3">
-            {/* CARD DE DATA (RESTAURADO) */}
             <div className="text-xs font-medium bg-white border border-slate-200 text-slate-500 px-4 py-2 rounded-full shadow-sm flex items-center gap-2">
                <Calendar size={14} className="text-slate-400"/>
                <span className="capitalize">
@@ -214,7 +216,6 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
                </span>
             </div>
 
-            {/* BOTÕES DE EXPORTAÇÃO */}
             <div className="flex gap-2">
               <button 
                 onClick={handleExportPDF}
@@ -234,6 +235,7 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
 
       {/* KPI CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Receitas */}
         <div onClick={() => onNavigate?.('recipes')} className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 hover:shadow-md transition cursor-pointer group">
           <div className="flex justify-between items-start mb-2">
             <div className="p-2 bg-amber-50 text-amber-600 rounded-lg group-hover:scale-110 transition">
@@ -242,9 +244,10 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
             <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">+ Ativo</span>
           </div>
           <div className="text-3xl font-bold text-slate-800">{metrics.recipeCount}</div>
-          <div className="text-xs text-slate-500 font-medium uppercase tracking-wide">Receitas Cadastradas</div>
+          <div className="text-xs text-slate-500 font-medium uppercase tracking-wide">Receitas</div>
         </div>
 
+        {/* Insumos */}
         <div onClick={() => onNavigate?.('ingredients')} className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 hover:shadow-md transition cursor-pointer group">
           <div className="flex justify-between items-start mb-2">
             <div className="p-2 bg-blue-50 text-blue-600 rounded-lg group-hover:scale-110 transition">
@@ -252,17 +255,33 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
             </div>
           </div>
           <div className="text-3xl font-bold text-slate-800">{metrics.ingredientCount}</div>
-          <div className="text-xs text-slate-500 font-medium uppercase tracking-wide">Insumos no estoque</div>
+          <div className="text-xs text-slate-500 font-medium uppercase tracking-wide">Insumos</div>
         </div>
 
-        {/* Margem Média */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 hover:shadow-md transition cursor-pointer group">
+        {/* Margem Média (MODIFICADO: Não clicável + Tooltip) */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 transition group relative">
           <div className="flex justify-between items-start mb-2">
              <div className="p-2 bg-purple-50 text-purple-600 rounded-lg">
                <TrendingUp size={20}/>
              </div>
+             
+             {/* Ícone de Ajuda com Tooltip */}
+             <div className="group/info relative cursor-help">
+                <HelpCircle size={18} className="text-slate-300 hover:text-slate-500 transition-colors"/>
+                
+                {/* O Tooltip */}
+                <div className="absolute right-0 w-56 p-3 bg-slate-800 text-slate-100 text-xs rounded-lg shadow-xl opacity-0 group-hover/info:opacity-100 transition-opacity pointer-events-none z-50 -mt-20 mr-0 border border-slate-700">
+                  <p className="font-bold mb-1 text-white">Indicador de Saúde Financeira</p>
+                  Média de lucro (%) de todas as suas receitas cadastradas. O ideal para o setor é manter acima de 30%.
+                  <div className="absolute bottom-[-6px] right-2 w-3 h-3 bg-slate-800 transform rotate-45 border-r border-b border-slate-700"></div>
+                </div>
+             </div>
           </div>
-          <div className={`text-3xl font-bold ${metrics.avgMargin < 30 ? 'text-red-500' : 'text-green-600'}`}>
+          <div className={`text-3xl font-bold ${
+            metrics.avgMargin >= 30 ? 'text-green-600' : 
+            metrics.avgMargin > 0 ? 'text-amber-500' : 
+            'text-red-500'
+          }`}>
             {metrics.avgMargin.toFixed(0)}%
           </div>
           <div className="text-xs text-slate-500 font-medium uppercase tracking-wide">Margem Média</div>
@@ -276,7 +295,7 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
             </div>
           </div>
           <div className="text-3xl font-bold text-white">R$ {metrics.monthlyCost.toFixed(0)}</div>
-          <div className="text-xs text-slate-400 font-medium uppercase tracking-wide">Custo Operacional</div>
+          <div className="text-xs text-slate-400 font-medium uppercase tracking-wide">Custo Fixo Total</div>
         </div>
       </div>
 
@@ -286,7 +305,7 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
         {/* Distribuição de Custos */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col">
           <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
-            <IconPieChart size={18} className="text-amber-500"/> Estrutura de Custos Média
+            <IconPieChart size={18} className="text-amber-500"/> Estrutura de Custos
           </h3>
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -317,7 +336,7 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
         {/* Top Lucratividade */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col">
           <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
-            <BarChart3 size={18} className="text-green-600"/> Top 5 Receitas Mais Lucrativas (R$)
+            <BarChart3 size={18} className="text-green-600"/> Top 5 Mais Lucrativas (R$)
           </h3>
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -343,7 +362,7 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
         <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
           <div className="p-6 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
             <h3 className="font-bold text-slate-800 flex items-center gap-2">
-              <AlertTriangle size={18} className="text-amber-500" /> Últimas Receitas Criadas
+              <AlertTriangle size={18} className="text-amber-500" /> Últimas Receitas
             </h3>
             <button
               onClick={() => onNavigate?.('recipes')}

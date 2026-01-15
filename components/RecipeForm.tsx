@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
-// IMPORTANTE: Adicione MeasureConversion aqui
 import { Ingredient, Recipe, RecipeItem, Settings, MeasureConversion } from '../types';
 import { IngredientService } from '../services/ingredientService';
 import { RecipeService } from '../services/recipeService';
 import { SettingsService } from '../services/settingsService';
 import { calculateRecipeFinancials } from '../utils/calculations';
+// IMPORT NOVO:
+import { PriceHistoryViewer } from './PriceHistoryViewer';
 import {
   Clock,
   Layers,
@@ -17,7 +18,8 @@ import {
   BookOpen,
   Save,
   ArrowLeft,
-  AlertTriangle
+  AlertTriangle,
+  History // Import Novo
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -39,6 +41,9 @@ export const RecipeForm: React.FC = () => {
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  
+  // NOVO ESTADO: Controla visibilidade do histórico
+  const [showHistory, setShowHistory] = useState(false);
 
   // Estados do Formulário
   const [name, setName] = useState('');
@@ -107,7 +112,6 @@ export const RecipeForm: React.FC = () => {
     let qtyBase = qtyInput;
 
     if (selectedIngredientDetails && selectedUnit !== selectedIngredientDetails.base_unit) {
-      // CORREÇÃO: Usando MeasureConversion explicitamente
       const conversion = selectedIngredientDetails.conversions?.find(
         (c: MeasureConversion) => c.name === selectedUnit
       );
@@ -203,8 +207,7 @@ export const RecipeForm: React.FC = () => {
       toast.success('Receita salva com sucesso!');
       navigate('/recipes');
     } catch (error) {
-      // CORREÇÃO: Usando a variável error para não dar aviso de "unused"
-      console.error(error); // Log do erro para uso
+      console.error(error);
       toast.error('Erro ao salvar receita.');
     } finally {
       setSaving(false);
@@ -221,7 +224,6 @@ export const RecipeForm: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header com Botão Voltar */}
       <div className="flex items-center gap-4 mb-6">
         <Link to="/recipes" className="p-2 hover:bg-slate-100 rounded-full transition text-slate-500">
           <ArrowLeft size={24} />
@@ -237,7 +239,6 @@ export const RecipeForm: React.FC = () => {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         {/* Coluna Esquerda: Formulário */}
         <div className="xl:col-span-2 space-y-6">
-          {/* Dados Básicos */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
             <div className="space-y-4">
               <div>
@@ -279,10 +280,10 @@ export const RecipeForm: React.FC = () => {
             </div>
           </div>
 
-          {/* Ingredientes */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
             <h3 className="text-lg font-bold text-slate-800 mb-4">Ingredientes</h3>
-
+            
+            {/* Input de Ingredientes */}
             <div className="flex flex-col md:flex-row gap-3 items-end mb-6 bg-slate-50 p-4 rounded-lg">
               <div className="flex-1 w-full">
                 <label className="text-xs font-bold text-slate-500">Ingrediente</label>
@@ -342,7 +343,6 @@ export const RecipeForm: React.FC = () => {
               {recipeItems.map((item) => {
                 const ing = ingredients.find((i) => i.id === item.ingredient_id);
                 const displayName = ing ? ing.name : (item.ingredient_name || '(Ingrediente Desconhecido)');
-                
                 const cost = (ing?.unit_cost_base || 0) * item.quantity_used;
 
                 return (
@@ -358,11 +358,6 @@ export const RecipeForm: React.FC = () => {
                       </div>
                       <div className="text-xs text-slate-500">
                         {item.quantity_input} {item.unit_input}
-                        {item.unit_input !== ing?.base_unit && ing && (
-                          <span className="ml-1 text-slate-400">
-                            ({item.quantity_used.toFixed(0)}{ing?.base_unit})
-                          </span>
-                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-4">
@@ -373,7 +368,6 @@ export const RecipeForm: React.FC = () => {
                         <button 
                           onClick={() => handleEditItem(item)} 
                           className={`text-slate-400 ${ing ? 'hover:text-amber-600' : 'opacity-30 cursor-not-allowed'}`}
-                          title={ing ? "Editar" : "Item excluído não pode ser editado"}
                         >
                           <Edit size={16} />
                         </button>
@@ -393,7 +387,6 @@ export const RecipeForm: React.FC = () => {
             </div>
           </div>
 
-          {/* Modo de Preparo */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
             <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
               <BookOpen size={20} className="text-amber-600" /> Modo de Preparo
@@ -439,11 +432,28 @@ export const RecipeForm: React.FC = () => {
             <button
               onClick={handleSave}
               disabled={saving}
-              className="w-full mt-6 py-3 bg-green-600 hover:bg-green-700 rounded-lg font-bold flex justify-center items-center gap-2"
+              className="w-full mt-6 py-3 bg-green-600 hover:bg-green-700 rounded-lg font-bold flex justify-center items-center gap-2 transition"
             >
-              {saving ? <Loader2 className="animate-spin" /> : <><Save size={20} /> Salvar</>}
+              {saving ? <Loader2 className="animate-spin" /> : <><Save size={20} /> Salvar Receita</>}
             </button>
           </div>
+
+          {/* NOVO BLOCO: Botão de Histórico (Só aparece se estiver editando) */}
+          {isEditing && (
+            <>
+              {!showHistory ? (
+                <button
+                  onClick={() => setShowHistory(true)}
+                  className="w-full py-3 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-slate-50 transition shadow-sm"
+                >
+                  <History size={18} /> Ver Histórico de Preços
+                </button>
+              ) : (
+                // Aqui renderizamos o componente de histórico
+                <PriceHistoryViewer recipeId={id!} onClose={() => setShowHistory(false)} />
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>

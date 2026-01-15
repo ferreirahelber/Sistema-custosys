@@ -49,6 +49,7 @@ export interface PriceHistory {
   new_cost: number;
   old_price: number;
   new_price: number;
+  change_reason?: string;
   changed_at: string;
 }
 
