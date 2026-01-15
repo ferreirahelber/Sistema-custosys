@@ -19,7 +19,8 @@ import {
   Save,
   ArrowLeft,
   AlertTriangle,
-  History // Import Novo
+  History, // Import Novo
+  HelpCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -38,10 +39,10 @@ export const RecipeForm: React.FC = () => {
     cost_per_minute: 0,
     estimated_monthly_revenue: 0,
   });
-  
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  
+
   // NOVO ESTADO: Controla visibilidade do histórico
   const [showHistory, setShowHistory] = useState(false);
 
@@ -73,7 +74,7 @@ export const RecipeForm: React.FC = () => {
         if (id) {
           const allRecipes = await RecipeService.getAll();
           const recipeToEdit = allRecipes.find(r => r.id === id);
-          
+
           if (recipeToEdit) {
             setName(recipeToEdit.name);
             setYieldUnits(recipeToEdit.yield_units || 1);
@@ -126,7 +127,7 @@ export const RecipeForm: React.FC = () => {
       quantity_used: qtyBase,
       quantity_input: qtyInput,
       unit_input: selectedUnit,
-      ingredient_name: selectedIngredientDetails?.name 
+      ingredient_name: selectedIngredientDetails?.name
     };
 
     setRecipeItems([...recipeItems, newItem]);
@@ -141,9 +142,9 @@ export const RecipeForm: React.FC = () => {
 
   const handleEditItem = (item: RecipeItem) => {
     const exists = ingredients.find(i => i.id === item.ingredient_id);
-    
+
     if (!exists) {
-      if(confirm(`O ingrediente original "${item.ingredient_name || 'Desconhecido'}" foi excluído da base. Deseja remover este item da receita?`)) {
+      if (confirm(`O ingrediente original "${item.ingredient_name || 'Desconhecido'}" foi excluído da base. Deseja remover este item da receita?`)) {
         removeItem(item.id);
       }
       return;
@@ -179,7 +180,7 @@ export const RecipeForm: React.FC = () => {
 
     try {
       setSaving(true);
-      
+
       const itemsWithNames = recipeItems.map(item => {
         const ing = ingredients.find(i => i.id === item.ingredient_id);
         return {
@@ -200,7 +201,7 @@ export const RecipeForm: React.FC = () => {
         total_cost_overhead: financials.total_cost_overhead || 0,
         total_cost_final: financials.total_cost_final || 0,
         unit_cost: financials.unit_cost || 0,
-        selling_price: currentSellingPrice, 
+        selling_price: currentSellingPrice,
       };
 
       await RecipeService.save(recipeData);
@@ -282,7 +283,7 @@ export const RecipeForm: React.FC = () => {
 
           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
             <h3 className="text-lg font-bold text-slate-800 mb-4">Ingredientes</h3>
-            
+
             {/* Input de Ingredientes */}
             <div className="flex flex-col md:flex-row gap-3 items-end mb-6 bg-slate-50 p-4 rounded-lg">
               <div className="flex-1 w-full">
@@ -365,8 +366,8 @@ export const RecipeForm: React.FC = () => {
                         {ing ? `R$ ${cost.toFixed(2)}` : <span className="text-slate-400 italic">--</span>}
                       </div>
                       <div className="flex gap-2">
-                        <button 
-                          onClick={() => handleEditItem(item)} 
+                        <button
+                          onClick={() => handleEditItem(item)}
                           className={`text-slate-400 ${ing ? 'hover:text-amber-600' : 'opacity-30 cursor-not-allowed'}`}
                         >
                           <Edit size={16} />
@@ -415,8 +416,17 @@ export const RecipeForm: React.FC = () => {
                 <span>Mão de Obra</span>
                 <span>R$ {financials.total_cost_labor.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between">
-                <span>Custos Fixos</span>
+              {/* BLOCO ATUALIZADO NO RESUMO (COLUNA DIREITA) */}
+              <div className="flex justify-between items-center">
+                <span className="flex items-center gap-1">
+                  Custos Fixos
+                  <div className="group relative cursor-help">
+                    <HelpCircle size={12} className="text-amber-400 opacity-70 hover:opacity-100" />
+                    <div className="absolute right-0 w-48 p-2 bg-white text-slate-700 text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 -mt-16 mr-[-10px]">
+                      Taxa de rateio ({settings.fixed_overhead_rate}%) aplicada sobre Materiais + Mão de Obra.
+                    </div>
+                  </div>
+                </span>
                 <span>R$ {financials.total_cost_overhead.toFixed(2)}</span>
               </div>
               <div className="flex justify-between pt-2 mt-2 border-t border-slate-600 font-bold text-amber-400">
