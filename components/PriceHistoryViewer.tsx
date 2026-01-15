@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { PriceHistoryService } from '../services/priceHistoryService';
 import { PriceHistory } from '../types';
-import { History, TrendingUp, TrendingDown, Minus, Loader2, X } from 'lucide-react';
+import { History, TrendingUp, TrendingDown, Minus, Loader2, X, AlertCircle } from 'lucide-react';
 
 interface Props {
   recipeId: string;
@@ -55,19 +55,25 @@ export const PriceHistoryViewer: React.FC<Props> = ({ recipeId, onClose }) => {
         {loading ? (
           <div className="flex justify-center p-4"><Loader2 className="animate-spin text-slate-400"/></div>
         ) : history.length === 0 ? (
-          <p className="text-center text-sm text-slate-400 py-4">Nenhuma alteração registrada ainda.</p>
+          <div className="text-center py-6">
+             <AlertCircle className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+             <p className="text-sm text-slate-400">Nenhuma alteração registrada ainda.</p>
+          </div>
         ) : (
           <div className="space-y-3">
             {history.map((item) => {
               const costDiff = item.new_cost - item.old_cost;
               const isCostHigher = costDiff > 0;
-              const isCostSame = costDiff === 0;
+              const isCostSame = Math.abs(costDiff) < 0.01;
 
               return (
                 <div key={item.id} className="bg-white p-3 rounded-lg border border-slate-100 shadow-sm text-sm">
                   <div className="flex justify-between text-xs text-slate-400 mb-2">
                     <span>{formatDate(item.changed_at)}</span>
-                    <span className="uppercase font-bold tracking-wider">Atualização Automática</span>
+                    {/* CORREÇÃO AQUI: Exibe o motivo real ou um padrão */}
+                    <span className="uppercase font-bold tracking-wider text-[10px] bg-slate-100 px-2 py-0.5 rounded text-slate-500">
+                      {item.change_reason || 'Atualização Manual'}
+                    </span>
                   </div>
                   
                   <div className="grid grid-cols-2 gap-4">
