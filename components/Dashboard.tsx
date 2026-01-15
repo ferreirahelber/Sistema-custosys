@@ -14,7 +14,7 @@ import {
   Download,
   FileSpreadsheet,
   Calendar,
-  HelpCircle // IMPORT NOVO
+  HelpCircle 
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Recipe } from '../types';
@@ -42,6 +42,10 @@ interface Props {
 
 const COLORS = ['#d97706', '#2563eb', '#16a34a', '#7c3aed'];
 
+// TAXAS PADRÃO DO SISTEMA (Para alinhar com o Simulador)
+const DEFAULT_TAX_RATE = 4.5; // 4.5% Imposto (Simples/MEI padrão)
+const DEFAULT_CARD_FEE = 3.99; // 3.99% Taxa Cartão
+
 export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -62,6 +66,13 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
     loadDashboardData();
   }, []);
 
+  const calculateNetProfit = (sellingPrice: number, unitCost: number) => {
+    if (!sellingPrice) return 0;
+    // Cálculo: Preço - Custo - (Preço * (Taxas/100))
+    const totalDeductions = sellingPrice * ((DEFAULT_TAX_RATE + DEFAULT_CARD_FEE) / 100);
+    return sellingPrice - unitCost - totalDeductions;
+  };
+
   const loadDashboardData = async () => {
     try {
       setLoading(true);
@@ -74,9 +85,12 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
       const totalFixedCost = settings.labor_monthly_cost + (settings.estimated_monthly_revenue * (settings.fixed_overhead_rate / 100));
       
       const recipesWithPrice = recipes.filter(r => r.selling_price && r.selling_price > 0);
+      
+      // Cálculo da Margem Média baseado no Lucro Líquido
       const totalMargin = recipesWithPrice.reduce((acc, r) => {
-        const price = r.selling_price || 1; 
-        const margin = ((price - r.unit_cost) / price) * 100;
+        const price = r.selling_price || 1;
+        const netProfit = calculateNetProfit(price, r.unit_cost);
+        const margin = (netProfit / price) * 100;
         return acc + margin;
       }, 0);
       
@@ -103,10 +117,11 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
         ]);
       }
 
+      // Top Lucratividade (Baseado no Lucro Líquido agora)
       const sortedByProfit = [...recipes]
         .map(r => ({
           name: r.name.length > 15 ? r.name.substring(0, 15) + '...' : r.name,
-          lucro: (r.selling_price || 0) - r.unit_cost
+          lucro: calculateNetProfit(r.selling_price || 0, r.unit_cost)
         }))
         .sort((a, b) => b.lucro - a.lucro)
         .slice(0, 5);
@@ -127,53 +142,58 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
       const doc = new jsPDF();
       
       doc.setFontSize(16);
-      doc.text("Relatório de Receitas - Custosys", 14, 15);
+      doc.text("Relatório de Receitas (Lucro Líquido) - Custosys", 14, 15);
       doc.setFontSize(10);
-      doc.text(`Data: ${new Date().toLocaleDateString()}`, 14, 22);
+      doc.text(`Data: ${new Date().toLocaleDateString()} | Taxas aplicadas (Est.): ${(DEFAULT_TAX_RATE + DEFAULT_CARD_FEE).toFixed(2)}%`, 14, 22);
   
-      const tableData = allRecipes.map(r => [
-        r.name,
-        `R$ ${r.unit_cost.toFixed(2)}`,
-        `R$ ${r.selling_price?.toFixed(2) || '0.00'}`,
-        `R$ ${((r.selling_price || 0) - r.unit_cost).toFixed(2)}`
-      ]);
+      const tableData = allRecipes.map(r => {
+        const netProfit = calculateNetProfit(r.selling_price || 0, r.unit_cost);
+        return [
+          r.name,
+          `R$ ${r.unit_cost.toFixed(2)}`,
+          `R$ ${r.selling_price?.toFixed(2) || '0.00'}`,
+          `R$ ${netProfit.toFixed(2)}` // Lucro Líquido
+        ];
+      });
   
       autoTable(doc, {
-        head: [['Receita', 'Custo', 'Venda', 'Lucro']],
+        head: [['Receita', 'Custo Prod.', 'Preço Venda', 'Lucro Líq.']],
         body: tableData,
         startY: 30,
       });
   
-      doc.save('relatorio_custosys.pdf');
-      toast.success('PDF gerado!');
+      doc.save('relatorio_lucro_liquido.pdf');
+      toast.success('PDF gerado com cálculo de lucro líquido!');
   };
 
   const exportExcel = async () => {
     const allRecipes = await RecipeService.getAll();
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Relatório Geral');
+    const worksheet = workbook.addWorksheet('Relatório Financeiro');
 
     worksheet.columns = [
       { header: 'Receita', key: 'name', width: 30 },
-      { header: 'Rendimento', key: 'yield', width: 15 },
-      { header: 'Custo Unit.', key: 'unit', width: 15, style: { numFmt: '"R$"#,##0.00' } },
+      { header: 'Custo Produção', key: 'unit', width: 15, style: { numFmt: '"R$"#,##0.00' } },
       { header: 'Preço Venda', key: 'price', width: 15, style: { numFmt: '"R$"#,##0.00' } },
-      { header: 'Lucro Est.', key: 'profit', width: 15, style: { numFmt: '"R$"#,##0.00' } },
-      { header: 'Margem %', key: 'margin', width: 15, style: { numFmt: '0.00%' } },
+      { header: 'Taxas (Est.)', key: 'taxes', width: 15, style: { numFmt: '"R$"#,##0.00' } },
+      { header: 'Lucro Líquido', key: 'profit', width: 15, style: { numFmt: '"R$"#,##0.00' } },
+      { header: 'Margem Líq %', key: 'margin', width: 15, style: { numFmt: '0.00%' } },
     ];
 
     worksheet.getRow(1).font = { bold: true };
 
     allRecipes.forEach(r => {
-      const profit = (r.selling_price || 0) - r.unit_cost;
-      const margin = r.selling_price ? profit / r.selling_price : 0;
+      const price = r.selling_price || 0;
+      const netProfit = calculateNetProfit(price, r.unit_cost);
+      const taxesValue = price - r.unit_cost - netProfit;
+      const margin = price > 0 ? netProfit / price : 0;
       
       worksheet.addRow({
         name: r.name,
-        yield: r.yield_units,
         unit: r.unit_cost,
-        price: r.selling_price || 0,
-        profit: profit,
+        price: price,
+        taxes: taxesValue, // Mostra quanto foi descontado
+        profit: netProfit, // Lucro Real
         margin: margin
       });
     });
@@ -183,10 +203,10 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `custosys_relatorio_${new Date().toISOString().split('T')[0]}.xlsx`;
+    a.download = `custosys_lucro_real_${new Date().toISOString().split('T')[0]}.xlsx`;
     a.click();
     window.URL.revokeObjectURL(url);
-    toast.success('Relatório Excel gerado!');
+    toast.success('Excel gerado com cálculo de lucro líquido!');
   };
 
   if (loading) {
@@ -205,7 +225,7 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
           <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
             <TrendingUp className="text-amber-600" /> Dashboard Gerencial
           </h2>
-          <p className="text-slate-500">Indicadores estratégicos para sua confeitaria.</p>
+          <p className="text-slate-500">Indicadores de Lucro Líquido (Taxas Padronizadas: 8.49%)</p>
         </div>
         
         <div className="flex flex-col items-end gap-3">
@@ -258,7 +278,7 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
           <div className="text-xs text-slate-500 font-medium uppercase tracking-wide">Insumos</div>
         </div>
 
-        {/* Margem Média (MODIFICADO: Não clicável + Tooltip) */}
+        {/* Margem Média Líquida */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 transition group relative">
           <div className="flex justify-between items-start mb-2">
              <div className="p-2 bg-purple-50 text-purple-600 rounded-lg">
@@ -269,22 +289,21 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
              <div className="group/info relative cursor-help">
                 <HelpCircle size={18} className="text-slate-300 hover:text-slate-500 transition-colors"/>
                 
-                {/* O Tooltip */}
-                <div className="absolute right-0 w-56 p-3 bg-slate-800 text-slate-100 text-xs rounded-lg shadow-xl opacity-0 group-hover/info:opacity-100 transition-opacity pointer-events-none z-50 -mt-20 mr-0 border border-slate-700">
-                  <p className="font-bold mb-1 text-white">Indicador de Saúde Financeira</p>
-                  Média de lucro (%) de todas as suas receitas cadastradas. O ideal para o setor é manter acima de 30%.
+                <div className="absolute right-0 w-64 p-3 bg-slate-800 text-slate-100 text-xs rounded-lg shadow-xl opacity-0 group-hover/info:opacity-100 transition-opacity pointer-events-none z-50 -mt-24 mr-0 border border-slate-700">
+                  <p className="font-bold mb-1 text-white">Margem Líquida Estimada</p>
+                  Média de lucro real (%) descontando impostos (4.5%) e taxas (3.99%). Se estiver vermelho, seus preços não cobrem as taxas.
                   <div className="absolute bottom-[-6px] right-2 w-3 h-3 bg-slate-800 transform rotate-45 border-r border-b border-slate-700"></div>
                 </div>
              </div>
           </div>
           <div className={`text-3xl font-bold ${
-            metrics.avgMargin >= 30 ? 'text-green-600' : 
+            metrics.avgMargin >= 20 ? 'text-green-600' : 
             metrics.avgMargin > 0 ? 'text-amber-500' : 
             'text-red-500'
           }`}>
             {metrics.avgMargin.toFixed(0)}%
           </div>
-          <div className="text-xs text-slate-500 font-medium uppercase tracking-wide">Margem Média</div>
+          <div className="text-xs text-slate-500 font-medium uppercase tracking-wide">Margem Líq. Média</div>
         </div>
 
         {/* Break-even */}
@@ -336,7 +355,7 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
         {/* Top Lucratividade */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col">
           <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
-            <BarChart3 size={18} className="text-green-600"/> Top 5 Mais Lucrativas (R$)
+            <BarChart3 size={18} className="text-green-600"/> Top 5 Mais Lucrativas (Líquido)
           </h3>
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -345,7 +364,7 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
                 <XAxis type="number" hide />
                 <YAxis dataKey="name" type="category" width={100} tick={{fontSize: 12}} />
                 <Tooltip 
-                  formatter={(value: number) => [`R$ ${value.toFixed(2)}`, 'Lucro']}
+                  formatter={(value: number) => [`R$ ${value.toFixed(2)}`, 'Lucro Real']}
                   cursor={{fill: '#f8fafc'}}
                   contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                 />

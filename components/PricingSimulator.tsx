@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { SimulationParams, Recipe } from '../types';
 import { calculateSellingPrice, calculateMargin } from '../utils/calculations';
-import { Calculator, Lock } from 'lucide-react'; // Removidos ícones não usados
+import { Calculator, Lock, HelpCircle } from 'lucide-react';
 
 interface Props {
   recipe: Recipe | null;
@@ -24,9 +24,6 @@ export const PricingSimulator: React.FC<Props> = ({ recipe, showHeader = true })
   const safeMarginLimit = Math.max(0, 99 - totalTax);
 
   const safeUnitCost = recipe?.unit_cost || 0;
-
-  // REMOVIDO: useEffect que causava o erro de "setState in effect".
-  // A atualização do manualPrice agora acontece apenas quando necessária (ao trocar de aba).
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let val = e.target.value === '' ? 0 : parseFloat(e.target.value);
@@ -52,7 +49,6 @@ export const PricingSimulator: React.FC<Props> = ({ recipe, showHeader = true })
     }
   };
 
-  // NOVA FUNÇÃO: Calcula o preço atual e define como manual ao entrar no modo 'price'
   const switchToPriceMode = () => {
     const currentCalculatedPrice = calculateSellingPrice(
       safeUnitCost,
@@ -117,6 +113,7 @@ export const PricingSimulator: React.FC<Props> = ({ recipe, showHeader = true })
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
+          {/* Botões de Alternância */}
           <div className="bg-slate-200 p-1 rounded-lg flex text-sm font-medium w-fit">
             <button
               onClick={() => setMode('margin')}
@@ -126,17 +123,17 @@ export const PricingSimulator: React.FC<Props> = ({ recipe, showHeader = true })
                   : 'text-slate-500 hover:text-slate-700'
               }`}
             >
-              Definir Margem
+              Definir por Margem
             </button>
             <button
-              onClick={switchToPriceMode} // Usando a nova função aqui
+              onClick={switchToPriceMode}
               className={`px-4 py-1.5 rounded-md transition ${
                 mode === 'price'
                   ? 'bg-white text-slate-800 shadow-sm'
                   : 'text-slate-500 hover:text-slate-700'
               }`}
             >
-              Definir Preço Final
+              Definir por Preço
             </button>
           </div>
 
@@ -146,8 +143,21 @@ export const PricingSimulator: React.FC<Props> = ({ recipe, showHeader = true })
                 isAtLimit ? 'border-orange-300 bg-orange-50' : 'border-slate-200'
               }`}
             >
-              <div className="flex justify-between font-bold text-sm mb-2">
-                <span>Margem de Lucro</span>
+              <div className="flex justify-between font-bold text-sm mb-2 items-center">
+                <div className="flex items-center gap-2">
+                   <span>Margem Líquida Alvo</span>
+                   
+                   {/* TOOLTIP EXPLICATIVO */}
+                   <div className="group relative cursor-help">
+                      <HelpCircle size={16} className="text-slate-400 hover:text-amber-600 transition"/>
+                      <div className="absolute left-0 bottom-full mb-2 w-64 p-3 bg-slate-800 text-white text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                        <p className="font-bold mb-1 text-amber-400">Lucro Real no Bolso</p>
+                        É a porcentagem que sobra LIMPA para você após pagar o custo da receita, os impostos e a taxa da maquininha.
+                        <div className="absolute top-full left-2 w-3 h-3 bg-slate-800 transform rotate-45 -mt-2 border-r border-b border-slate-800"></div>
+                      </div>
+                   </div>
+                </div>
+                
                 <span className={isAtLimit ? 'text-orange-600' : 'text-amber-600'}>
                   {params.desired_margin.toFixed(1)}%
                 </span>
@@ -175,7 +185,7 @@ export const PricingSimulator: React.FC<Props> = ({ recipe, showHeader = true })
             </div>
           ) : (
             <div className="bg-white p-5 rounded-xl border border-amber-200 shadow-sm">
-              <label className="text-sm font-bold mb-2 block">Preço de Venda Desejado (R$)</label>
+              <label className="text-sm font-bold mb-2 block">Preço de Venda Manual (R$)</label>
               <input
                 type="number"
                 value={manualPrice}
@@ -211,68 +221,51 @@ export const PricingSimulator: React.FC<Props> = ({ recipe, showHeader = true })
           </div>
         </div>
 
+        {/* Card de Resultado (Direita) */}
         <div
           className={`bg-white p-6 rounded-xl border shadow-sm flex flex-col justify-between lg:sticky lg:top-6 ${
             finalMargin < 0 ? 'border-red-300 bg-red-50' : 'border-slate-200'
           }`}
         >
-          <div className="flex items-start gap-6">
-            <div className="flex-1">
-              <div className="flex items-center justify-between">
-                <span className="text-xs uppercase tracking-wider text-slate-400 font-semibold">
-                  Preço Sugerido de Venda
+          <div className="flex items-start gap-6 h-full flex-col">
+            <div className="w-full">
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
+                <span className="text-xs uppercase tracking-wider text-slate-500 font-bold flex items-center gap-1">
+                  Margem Líquida
+                  <HelpCircle size={12} className="text-slate-300"/>
                 </span>
                 <span
-                  className={`text-sm font-semibold ${finalMargin < 0 ? 'text-red-600' : 'text-amber-700'}`}
+                  className={`text-xl font-extrabold ${finalMargin < 0 ? 'text-red-600' : 'text-green-600'}`}
                 >
                   {finalMargin.toFixed(1)}%
                 </span>
               </div>
 
-              <div className="mt-4">
-                <div className="hidden md:block text-sm text-slate-500">Preço atual</div>
-                <div className="mt-2 text-lg font-medium text-slate-700">
-                  R$ {finalPrice.toFixed(2)}
-                </div>
-                <div className="mt-3 grid grid-cols-2 gap-3">
-                  <div>
-                    <div className="text-xs text-slate-600">Custo</div>
-                    <div className="font-medium">R$ {recipe.unit_cost.toFixed(2)}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-600">Taxas</div>
-                    <div className="text-slate-600">- R$ {(taxValue + cardValue).toFixed(2)}</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="w-48 md:w-56 lg:w-64 flex-shrink-0">
-              <div className="bg-white border rounded-xl shadow p-4 flex flex-col items-center">
-                <div className="text-xs text-slate-400 uppercase tracking-wider mb-2">Preço</div>
-                <div className="text-3xl md:text-5xl font-extrabold text-slate-900 leading-tight">
-                  <span className="text-lg align-top mr-1">R$</span>
+              <div className="text-center py-2">
+                <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Preço Sugerido</div>
+                <div className="text-4xl font-extrabold text-slate-900 leading-tight">
+                  <span className="text-lg align-top mr-1 font-medium text-slate-500">R$</span>
                   {finalPrice.toFixed(2)}
                 </div>
-                <div className="text-xs text-slate-500 mt-1">/ unidade</div>
-
-                <div className="w-full mt-4 border-t pt-3">
-                  <div className="flex justify-between text-xs text-slate-600">
-                    <span>Custo</span>
-                    <span>R$ {recipe.unit_cost.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-xs text-slate-600 mt-2">
-                    <span>Taxas +</span>
-                    <span>- R$ {(taxValue + cardValue).toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between items-center mt-3">
-                    <span className={getProfitColor(finalMargin)}>Lucro Real</span>
+              </div>
+              
+              <div className="w-full mt-4 bg-slate-50 p-3 rounded-lg border border-slate-100 space-y-2">
+                <div className="flex justify-between text-xs text-slate-600">
+                   <span>Custo Produção</span>
+                   <span>R$ {recipe.unit_cost.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-xs text-slate-600">
+                   <span>Impostos + Taxas</span>
+                   <span className="text-red-400">- R$ {(taxValue + cardValue).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between items-center pt-2 mt-2 border-t border-slate-200">
+                    <span className={`font-bold ${getProfitColor(finalMargin)}`}>Lucro Real (R$)</span>
                     <span className={`font-bold ${getProfitColor(finalMargin)} text-lg`}>
                       R$ {profitValue.toFixed(2)}
                     </span>
-                  </div>
                 </div>
               </div>
+
             </div>
           </div>
         </div>
