@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { SimulationParams, Recipe } from '../types';
 import { calculateSellingPrice, calculateMargin } from '../utils/calculations';

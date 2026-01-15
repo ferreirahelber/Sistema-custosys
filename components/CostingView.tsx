@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Recipe } from '../types';
 import { RecipeService } from '../services/recipeService';
+import { SettingsService } from '../services/settingsService'; // Importando serviço de configurações
 import { calculateSellingPrice, calculateMargin } from '../utils/calculations';
 import {
   DollarSign,
@@ -19,9 +20,9 @@ export const CostingView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Inputs do Simulador
-  const [taxRate, setTaxRate] = useState(4.5);
-  const [cardFee, setCardFee] = useState(3.99);
+  // Inputs do Simulador - Iniciam zerados até carregar as configs
+  const [taxRate, setTaxRate] = useState(0); 
+  const [cardFee, setCardFee] = useState(0);
   const [desiredMargin, setDesiredMargin] = useState(25);
   const [manualPrice, setManualPrice] = useState('');
   const [mode, setMode] = useState<'margin' | 'price'>('margin');
@@ -32,10 +33,26 @@ export const CostingView: React.FC = () => {
 
   const loadData = async () => {
     try {
-      const data = await RecipeService.getAll();
-      setRecipes(data);
+      // CORREÇÃO: Carrega Receitas E Configurações Globais ao mesmo tempo
+      const [recipesData, settingsData] = await Promise.all([
+        RecipeService.getAll(),
+        SettingsService.get(),
+      ]);
+      
+      setRecipes(recipesData);
+
+      // CORREÇÃO: Aplica as taxas padrão salvas nas configurações
+      if (settingsData) {
+        setTaxRate(settingsData.default_tax_rate ?? 4.5);
+        setCardFee(settingsData.default_card_fee ?? 3.99);
+      } else {
+        // Fallback caso não tenha config salva
+        setTaxRate(4.5);
+        setCardFee(3.99);
+      }
+
     } catch (error) {
-      toast.error('Erro ao carregar receitas.');
+      toast.error('Erro ao carregar dados.');
     } finally {
       setLoading(false);
     }
@@ -43,23 +60,18 @@ export const CostingView: React.FC = () => {
 
   const selectedRecipe = recipes.find((r) => r.id === selectedRecipeId);
 
-  // --- CORREÇÃO 1: CARREGAR PREÇO SALVO AUTOMATICAMENTE ---
   useEffect(() => {
     if (selectedRecipe) {
-      // Se a receita já tem um preço salvo maior que 0
       if (selectedRecipe.selling_price && selectedRecipe.selling_price > 0) {
-        // Muda o modo para "Preço Final"
         setMode('price');
-        // Preenche o input com o valor salvo
         setManualPrice(selectedRecipe.selling_price.toFixed(2));
       } else {
-        // Se não tem preço, volta para o padrão de margem
         setMode('margin');
         setDesiredMargin(25);
         setManualPrice('');
       }
     }
-  }, [selectedRecipeId]); // Executa toda vez que troca a receita selecionada
+  }, [selectedRecipeId]);
 
   // Validações Matemáticas
   const totalTaxAndFees = taxRate + cardFee;
@@ -84,7 +96,8 @@ export const CostingView: React.FC = () => {
         realMargin = desiredMargin;
       }
     } else {
-      sellingPrice = parseFloat(manualPrice) || 0;
+      const priceVal = manualPrice === '' ? 0 : parseFloat(manualPrice); // Proteção extra
+      sellingPrice = priceVal || 0;
       realMargin = calculateMargin(selectedRecipe.unit_cost, sellingPrice, taxRate, cardFee);
     }
 
@@ -101,7 +114,6 @@ export const CostingView: React.FC = () => {
         selling_price: parseFloat(sellingPrice.toFixed(2)),
       });
 
-      // Atualiza a lista local para refletir a mudança
       const updatedRecipes = recipes.map((r) =>
         r.id === selectedRecipe.id
           ? { ...r, selling_price: parseFloat(sellingPrice.toFixed(2)) }
@@ -114,6 +126,16 @@ export const CostingView: React.FC = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  // CORREÇÃO: Função auxiliar para inputs numéricos evitarem NaN
+  const handleNumberInput = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    setter: (val: number) => void
+  ) => {
+    const value = e.target.value;
+    // Se estiver vazio, define como 0. Se for número, converte.
+    setter(value === '' ? 0 : parseFloat(value));
   };
 
   if (loading)
@@ -265,10 +287,11 @@ export const CostingView: React.FC = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-bold text-slate-500 uppercase">Impostos (%)</label>
+                  {/* CORREÇÃO: Input tratado para não gerar NaN */}
                   <input
                     type="number"
                     value={taxRate}
-                    onChange={(e) => setTaxRate(parseFloat(e.target.value))}
+                    onChange={(e) => handleNumberInput(e, setTaxRate)}
                     className="w-full mt-1 p-2 border rounded bg-slate-50"
                   />
                 </div>
@@ -276,10 +299,11 @@ export const CostingView: React.FC = () => {
                   <label className="text-xs font-bold text-slate-500 uppercase">
                     Taxa Cartão (%)
                   </label>
+                  {/* CORREÇÃO: Input tratado para não gerar NaN */}
                   <input
                     type="number"
                     value={cardFee}
-                    onChange={(e) => setCardFee(parseFloat(e.target.value))}
+                    onChange={(e) => handleNumberInput(e, setCardFee)}
                     className="w-full mt-1 p-2 border rounded bg-slate-50"
                   />
                 </div>
@@ -312,7 +336,6 @@ export const CostingView: React.FC = () => {
                         <span className="text-sm font-normal text-slate-500 ml-2">/ un</span>
                       </div>
 
-                      {/* CORREÇÃO 2: Só exibe se for maior que zero para evitar o "0" na tela */}
                       {(selectedRecipe.selling_price || 0) > 0 && (
                         <div className="text-xs text-slate-500 mt-1 flex items-center gap-1">
                           <Info size={12} /> Salvo anteriormente: R${' '}
