@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { IngredientService } from '../services/ingredientService';
 import { RecipeService } from '../services/recipeService';
 import { SettingsService } from '../services/settingsService';
-import { FixedCostService } from '../services/fixedCostService'; // IMPORT NOVO
+import { FixedCostService } from '../services/fixedCostService';
 import {
   ChefHat,
   Package,
@@ -42,12 +42,14 @@ interface Props {
 }
 
 const COLORS = ['#d97706', '#2563eb', '#16a34a', '#7c3aed'];
-const DEFAULT_TAX_RATE = 4.5;
-const DEFAULT_CARD_FEE = 3.99;
 
 export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  
+  // ESTADOS PARA TAXAS DINÂMICAS
+  const [taxRate, setTaxRate] = useState(4.5);
+  const [cardFee, setCardFee] = useState(3.99);
   
   const [metrics, setMetrics] = useState({
     recipeCount: 0,
@@ -65,16 +67,16 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
     loadDashboardData();
   }, []);
 
-  const calculateNetProfit = (sellingPrice: number, unitCost: number) => {
+  // Função auxiliar para cálculo usando o estado atual (para exportação)
+  const calculateNetProfitWithState = (sellingPrice: number, unitCost: number) => {
     if (!sellingPrice) return 0;
-    const totalDeductions = sellingPrice * ((DEFAULT_TAX_RATE + DEFAULT_CARD_FEE) / 100);
+    const totalDeductions = sellingPrice * ((taxRate + cardFee) / 100);
     return sellingPrice - unitCost - totalDeductions;
   };
 
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      // AGORA BUSCAMOS TAMBÉM OS CUSTOS FIXOS (FixedCostService.getAll)
       const [ingredients, recipes, settings, fixedCosts] = await Promise.all([
         IngredientService.getAll(),
         RecipeService.getAll(),
@@ -82,29 +84,34 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
         FixedCostService.getAll(),
       ]);
 
-      // CÁLCULO INTELIGENTE DO CUSTO FIXO MENSAL (PONTO DE EQUILÍBRIO)
-      // 1. Soma os custos fixos cadastrados (Aluguel, Luz, etc.)
-      const realFixedExpenses = fixedCosts.reduce((acc, c) => acc + Number(c.value), 0);
+      // 1. ATUALIZA AS TAXAS COM O QUE VEM DO BANCO (OU USA PADRÃO)
+      const currentTax = settings.default_tax_rate ?? 4.5;
+      const currentFee = settings.default_card_fee ?? 3.99;
       
-      // 2. Soma a folha de pagamento (Mão de Obra)
+      setTaxRate(currentTax);
+      setCardFee(currentFee);
+
+      // 2. LÓGICA DE CUSTOS FIXOS
+      const realFixedExpenses = fixedCosts.reduce((acc, c) => acc + Number(c.value), 0);
       const laborCost = settings.labor_monthly_cost;
 
-      // 3. Define o Custo Total:
-      // Se houver contas cadastradas, usa (Contas + Mão de Obra).
-      // Se não houver, usa a estimativa antiga baseada na taxa % (Fallback).
       let totalMonthlyCost = 0;
       if (fixedCosts.length > 0) {
         totalMonthlyCost = realFixedExpenses + laborCost;
       } else {
-        // Fallback: Estimativa via Taxa %
         totalMonthlyCost = laborCost + (settings.estimated_monthly_revenue * (settings.fixed_overhead_rate / 100));
       }
 
+      // 3. CÁLCULOS FINANCEIROS USANDO AS TAXAS LIDAS (currentTax/currentFee)
       const recipesWithPrice = recipes.filter(r => r.selling_price && r.selling_price > 0);
       
       const totalMargin = recipesWithPrice.reduce((acc, r) => {
         const price = r.selling_price || 1;
-        const netProfit = calculateNetProfit(price, r.unit_cost);
+        
+        // Cálculo inline para garantir uso das taxas atualizadas
+        const totalDeductions = price * ((currentTax + currentFee) / 100);
+        const netProfit = price - r.unit_cost - totalDeductions;
+        
         const margin = (netProfit / price) * 100;
         return acc + margin;
       }, 0);
@@ -114,7 +121,7 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
       setMetrics({
         recipeCount: recipes.length,
         ingredientCount: ingredients.length,
-        monthlyCost: totalMonthlyCost, // Valor atualizado e real
+        monthlyCost: totalMonthlyCost,
         breakEven: totalMonthlyCost,
         avgMargin: avgMargin
       });
@@ -133,10 +140,16 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
       }
 
       const sortedByProfit = [...recipes]
-        .map(r => ({
-          name: r.name.length > 15 ? r.name.substring(0, 15) + '...' : r.name,
-          lucro: calculateNetProfit(r.selling_price || 0, r.unit_cost)
-        }))
+        .map(r => {
+          // Replicando cálculo inline
+          const price = r.selling_price || 0;
+          const totalDeductions = price * ((currentTax + currentFee) / 100);
+          const netProfit = price - r.unit_cost - totalDeductions;
+          return {
+            name: r.name.length > 15 ? r.name.substring(0, 15) + '...' : r.name,
+            lucro: netProfit
+          };
+        })
         .sort((a, b) => b.lucro - a.lucro)
         .slice(0, 5);
 
@@ -158,10 +171,11 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
       doc.setFontSize(16);
       doc.text("Relatório de Receitas (Lucro Líquido) - Custosys", 14, 15);
       doc.setFontSize(10);
-      doc.text(`Data: ${new Date().toLocaleDateString()} | Taxas aplicadas (Est.): ${(DEFAULT_TAX_RATE + DEFAULT_CARD_FEE).toFixed(2)}%`, 14, 22);
+      // CORREÇÃO: Usa o estado taxRate e cardFee
+      doc.text(`Data: ${new Date().toLocaleDateString()} | Taxas aplicadas: ${(taxRate + cardFee).toFixed(2)}%`, 14, 22);
   
       const tableData = allRecipes.map(r => {
-        const netProfit = calculateNetProfit(r.selling_price || 0, r.unit_cost);
+        const netProfit = calculateNetProfitWithState(r.selling_price || 0, r.unit_cost);
         return [
           r.name,
           `R$ ${r.unit_cost.toFixed(2)}`,
@@ -189,7 +203,7 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
       { header: 'Receita', key: 'name', width: 30 },
       { header: 'Custo Produção', key: 'unit', width: 15, style: { numFmt: '"R$"#,##0.00' } },
       { header: 'Preço Venda', key: 'price', width: 15, style: { numFmt: '"R$"#,##0.00' } },
-      { header: 'Taxas (Est.)', key: 'taxes', width: 15, style: { numFmt: '"R$"#,##0.00' } },
+      { header: 'Taxas', key: 'taxes', width: 15, style: { numFmt: '"R$"#,##0.00' } },
       { header: 'Lucro Líquido', key: 'profit', width: 15, style: { numFmt: '"R$"#,##0.00' } },
       { header: 'Margem Líq %', key: 'margin', width: 15, style: { numFmt: '0.00%' } },
     ];
@@ -198,7 +212,7 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
 
     allRecipes.forEach(r => {
       const price = r.selling_price || 0;
-      const netProfit = calculateNetProfit(price, r.unit_cost);
+      const netProfit = calculateNetProfitWithState(price, r.unit_cost);
       const taxesValue = price - r.unit_cost - netProfit;
       const margin = price > 0 ? netProfit / price : 0;
       
@@ -238,7 +252,8 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
           <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
             <TrendingUp className="text-amber-600" /> Dashboard Gerencial
           </h2>
-          <p className="text-slate-500">Indicadores de Lucro Líquido (Taxas Padronizadas: {(DEFAULT_TAX_RATE + DEFAULT_CARD_FEE).toFixed(2)}%)</p>
+          {/* TEXTO DINÂMICO AQUI */}
+          <p className="text-slate-500">Indicadores de Lucro Líquido (Taxas Config: {(taxRate + cardFee).toFixed(2)}%)</p>
         </div>
         
         <div className="flex flex-col items-end gap-3">
@@ -291,7 +306,8 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
                 <HelpCircle size={18} className="text-slate-300 hover:text-slate-500 transition-colors"/>
                 <div className="absolute right-0 w-64 p-3 bg-slate-800 text-slate-100 text-xs rounded-lg shadow-xl opacity-0 group-hover/info:opacity-100 transition-opacity pointer-events-none z-50 -mt-24 mr-0 border border-slate-700">
                   <p className="font-bold mb-1 text-white">Margem Líquida Estimada</p>
-                  Média de lucro real (%) descontando impostos e taxas.
+                  {/* TEXTO DINÂMICO AQUI TAMBÉM */}
+                  Média de lucro real (%) descontando impostos ({taxRate}%) e taxas ({cardFee}%). Se estiver vermelho, seus preços não cobrem as taxas.
                   <div className="absolute bottom-[-6px] right-2 w-3 h-3 bg-slate-800 transform rotate-45 border-r border-b border-slate-700"></div>
                 </div>
              </div>
@@ -306,13 +322,11 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
           <div className="text-xs text-slate-500 font-medium uppercase tracking-wide">Margem Líq. Média</div>
         </div>
 
-        {/* CARD DE PONTO DE EQUILÍBRIO ATUALIZADO */}
         <div onClick={() => onNavigate?.('settings')} className="bg-slate-900 p-6 rounded-xl shadow-lg border border-slate-800 hover:shadow-xl transition cursor-pointer group relative">
           <div className="flex justify-between items-start mb-2">
             <div className="p-2 bg-slate-800 text-amber-400 rounded-lg group-hover:scale-110 transition">
               <DollarSign size={20} />
             </div>
-             {/* Tooltip Explicativo */}
              <div className="group/cost relative cursor-help">
                 <HelpCircle size={16} className="text-slate-600 hover:text-slate-400 transition-colors"/>
                 <div className="absolute right-0 w-60 p-3 bg-white text-slate-700 text-xs rounded-lg shadow-xl opacity-0 group-hover/cost:opacity-100 transition-opacity pointer-events-none z-50 -mt-24 mr-0 border border-slate-200">
@@ -327,6 +341,7 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
         </div>
       </div>
 
+      {/* ÁREA DE GRÁFICOS E LISTAS (MANTIDA IGUAL) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col">
           <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">

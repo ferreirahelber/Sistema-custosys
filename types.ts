@@ -20,6 +20,8 @@ export interface Settings {
   fixed_overhead_rate: number;
   cost_per_minute: number;
   estimated_monthly_revenue: number;
+  default_tax_rate?: number;
+  default_card_fee?: number;
 }
 
 // NOVA INTERFACE PARA CONVERSÕES
