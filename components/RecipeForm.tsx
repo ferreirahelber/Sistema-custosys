@@ -124,7 +124,6 @@ export const RecipeForm: React.FC = () => {
 
   // --- ADICIONAR ITENS ---
 
-  // Adicionar Ingrediente (Food)
   const addIngredientItem = () => {
     if (!selectedIngId || !itemQuantity || !selectedUnit) return;
     const qtyInput = parseFloat(itemQuantity);
@@ -152,7 +151,6 @@ export const RecipeForm: React.FC = () => {
     setSelectedUnit('');
   };
 
-  // Adicionar Produto (Packaging)
   const addProductItem = () => {
     if (!selectedProdId || !prodQuantity || !selectedProdUnit) return;
     const qtyInput = parseFloat(prodQuantity);
@@ -229,6 +227,10 @@ export const RecipeForm: React.FC = () => {
 
   const materialsCostOnly = financials.total_cost_material - packagingCost;
 
+  // Cálculo aproximado das despesas para exibição no tooltip
+  const totalFixedExpensesApprox = (settings.estimated_monthly_revenue * settings.fixed_overhead_rate) / 100;
+  const showDetailedTooltip = settings.estimated_monthly_revenue > 0;
+
   // --- SALVAR ---
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -271,7 +273,7 @@ export const RecipeForm: React.FC = () => {
     }
   };
 
-  // --- RENDERIZAÇÃO DOS LIST ITEMS ---
+  // --- RENDERIZAÇÃO ---
   const renderItemList = (filterFn: (ing: Ingredient | undefined) => boolean, emptyMsg: string) => {
     const filteredItems = recipeItems.filter(item => {
       const ing = ingredients.find(i => i.id === item.ingredient_id);
@@ -330,9 +332,8 @@ export const RecipeForm: React.FC = () => {
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         
-        {/* COLUNA ESQUERDA: FORMULÁRIO */}
+        {/* COLUNA ESQUERDA */}
         <div className="xl:col-span-2 space-y-6">
-          
           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 space-y-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Nome da Receita</label>
@@ -350,6 +351,7 @@ export const RecipeForm: React.FC = () => {
             </div>
           </div>
 
+          {/* Ingredientes */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
             <h3 className="text-lg font-bold text-slate-800 mb-4">Ingredientes</h3>
             <div className="flex flex-col md:flex-row gap-3 items-end mb-6 bg-slate-50 p-4 rounded-lg">
@@ -380,6 +382,7 @@ export const RecipeForm: React.FC = () => {
             {renderItemList(isNotProduct, 'Nenhum ingrediente adicionado.')}
           </div>
 
+          {/* Produtos / Embalagens */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 border-l-4 border-l-blue-500">
             <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
                <Package size={20} className="text-blue-500" /> Produtos / Embalagens
@@ -418,12 +421,11 @@ export const RecipeForm: React.FC = () => {
           </div>
         </div>
 
-        {/* COLUNA DIREITA: RESUMO FINANCEIRO ATUALIZADO */}
+        {/* COLUNA DIREITA */}
         <div className="space-y-6">
-          {/* FIX: Wrapper Sticky que segura o Card e o Botão juntos */}
           <div className="sticky top-6 space-y-6">
             
-            <div className="bg-slate-800 text-white p-6 rounded-xl shadow-lg"> {/* Sticky removido daqui */}
+            <div className="bg-slate-800 text-white p-6 rounded-xl shadow-lg">
               <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><PieChart size={20} className="text-amber-400" /> Custos Calculados</h3>
               <div className="space-y-2 text-sm opacity-80">
                 <div className="flex justify-between">
@@ -446,8 +448,32 @@ export const RecipeForm: React.FC = () => {
                     Custos Fixos
                     <div className="group relative cursor-help">
                       <HelpCircle size={12} className="text-amber-400 opacity-70 hover:opacity-100" />
-                      <div className="absolute right-0 w-48 p-2 bg-white text-slate-700 text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 -mt-16 mr-[-10px]">
-                        Taxa de rateio ({settings.fixed_overhead_rate}%) aplicada sobre Materiais + Mão de Obra.
+                      {/* TOOLTIP MELHORADO E EDUCATIVO */}
+                      <div className="absolute right-0 w-64 p-3 bg-white text-slate-600 text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 bottom-full mb-2 -mr-2 border border-slate-100">
+                        {showDetailedTooltip ? (
+                          <>
+                            <div className="font-bold text-amber-600 border-b border-amber-100 pb-2 mb-2">
+                              Entenda a taxa de {settings.fixed_overhead_rate}%:
+                            </div>
+                            <div className="space-y-2">
+                              <div className="flex justify-between">
+                                <span>Despesas Fixas (Aprox):</span>
+                                <strong>R$ {totalFixedExpensesApprox.toFixed(2)}</strong>
+                              </div>
+                              <div className="flex justify-between">
+                                <span>Faturamento Estimado:</span>
+                                <strong>R$ {settings.estimated_monthly_revenue.toFixed(2)}</strong>
+                              </div>
+                              <div className="bg-amber-50 p-2 rounded text-amber-800 text-[10px] text-center border border-amber-100 mt-1">
+                                (Despesas ÷ Faturamento) × 100 = Taxa
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <p>Taxa manual de <strong>{settings.fixed_overhead_rate}%</strong> definida nas configurações.</p>
+                        )}
+                        {/* Seta do Tooltip */}
+                        <div className="absolute bottom-[-5px] right-3 w-3 h-3 bg-white border-b border-r border-slate-100 transform rotate-45"></div>
                       </div>
                     </div>
                   </span>
