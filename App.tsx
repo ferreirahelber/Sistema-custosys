@@ -12,6 +12,7 @@ import { SettingsService } from './services/settingsService';
 import { ResaleCalculator } from './components/ResaleCalculator';
 import { SalesView } from './components/SalesView';
 import { ExpensesView } from './components/ExpensesView';
+import { PricingSimulator } from './components/PricingSimulator';
 import {
   Settings as SettingsIcon,
   ChefHat,
@@ -23,7 +24,9 @@ import {
   LucideIcon,
   ShoppingBag,
   TrendingUp,
-  TrendingDown
+  TrendingDown,
+  Calculator,
+  Tags
 } from 'lucide-react';
 import { Toaster } from 'sonner';
 import './index.css';
@@ -129,12 +132,18 @@ export function AppContent() {
 
           <div className="pt-2 pb-2">
             <p className="px-4 text-xs font-bold text-slate-400 uppercase mb-1">Estoques</p>
-            <NavItem to="/ingredients" label="Ingredientes" icon={Package} />
-            <NavItem to="/products" label="Produtos & Emb." icon={Box} />
+            <NavItem to="/ingredients" label="Meus Ingredientes" icon={Package} />
+            <NavItem to="/products" label="Produtos & Emb." icon={ShoppingBag} />
           </div>
 
-          <NavItem to="/costs" label="Simulador & Custos" icon={DollarSign} />
-          <NavItem to="/resale" label="Calc. de Revenda" icon={ShoppingBag} />
+          {/* --- MÓDULO FERRAMENTAS --- */}
+          <div className="pt-2 pb-2">
+            <p className="px-4 text-xs font-bold text-slate-400 uppercase mb-1">Ferramentas</p>
+            <NavItem to="/costs" label="Simulador & Custos" icon={DollarSign} />
+            {/* Link correto para o PricingSimulator */}
+            <NavItem to="/resale" label="Cálculo de Revenda" icon={Tags} />
+          </div>
+
           <div className="pt-4 mt-4 border-t border-slate-100">
             <NavItem to="/settings" label="Configurações" icon={SettingsIcon} />
           </div>
@@ -196,7 +205,7 @@ export function AppContent() {
                   'products': '/products', // Adicionado ao Dashboard
                   'recipes': '/recipes',
                   'costs': '/costs',
-                  'sales': '/sales',       
+                  'sales': '/sales',
                   'expenses': '/expenses'
                 };
                 if (routes[view]) navigate(routes[view]);
@@ -208,10 +217,17 @@ export function AppContent() {
               <Route path="/recipes/new" element={<RecipeForm />} />
               <Route path="/recipes/:id" element={<RecipeForm />} />
               <Route path="/costs" element={<CostingView />} />
+              {/* NOVAS ROTAS DE FERRAMENTAS */}
+              <Route path="/calculator" element={<PricingSimulator />} /> 
               <Route path="/resale" element={<ResaleCalculator />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
+
+              {/* NOVAS ROTAS FINANCEIRAS */}
               <Route path="/sales" element={<SalesView />} />
               <Route path="/expenses" element={<ExpensesView />} />
+
+              {/* IMPORTANTE: Esta rota deve ser sempre a ÚLTIMA */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+
             </Routes>
           </div>
         </div>
