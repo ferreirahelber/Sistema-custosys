@@ -13,6 +13,7 @@ import { ResaleCalculator } from './components/ResaleCalculator';
 import { SalesView } from './components/SalesView';
 import { ExpensesView } from './components/ExpensesView';
 import { PricingSimulator } from './components/PricingSimulator';
+import { PosView } from './components/PosView';
 import {
   Settings as SettingsIcon,
   ChefHat,
@@ -26,7 +27,8 @@ import {
   TrendingUp,
   TrendingDown,
   Calculator,
-  Tags
+  Tags,
+  Store
 } from 'lucide-react';
 import { Toaster } from 'sonner';
 import './index.css';
@@ -123,6 +125,7 @@ export function AppContent() {
 
         <nav className="space-y-1 flex-1">
           <NavItem to="/" label="Visão Geral" icon={LayoutDashboard} />
+          <NavItem to="/pos" label="Frente de Caixa (PDV)" icon={Store} />
           <NavItem to="/recipes" label="Minhas Receitas" icon={ChefHat} />
           <div className="pt-2 pb-2">
             <p className="px-4 text-xs font-bold text-slate-400 uppercase mb-1">Financeiro</p>
@@ -224,6 +227,8 @@ export function AppContent() {
               {/* NOVAS ROTAS FINANCEIRAS */}
               <Route path="/sales" element={<SalesView />} />
               <Route path="/expenses" element={<ExpensesView />} />
+
+              <Route path="/pos" element={<PosView />} />
 
               {/* IMPORTANTE: Esta rota deve ser sempre a ÚLTIMA */}
               <Route path="*" element={<Navigate to="/" replace />} />

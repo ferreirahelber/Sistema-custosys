@@ -117,3 +117,59 @@ export interface Expense {
   date: string;
   created_at: string;
 }
+
+// --- MÓDULO FRENTE DE CAIXA (PDV) ---
+
+export interface CartItem {
+  id: string;
+  name: string;
+  price: number;
+  quantity: number;
+  type: 'recipe' | 'product'; // Para saber se é receita ou revenda
+}
+
+export interface Customer {
+  id: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  cpf_cnpj?: string;
+  notes?: string;
+}
+
+export interface CashSession {
+  id: string;
+  user_id: string;
+  opened_at: string;
+  closed_at?: string;
+  initial_balance: number;
+  final_balance?: number;
+  calculated_balance?: number; // Quanto o sistema acha que tem
+  status: 'open' | 'closed';
+  notes?: string;
+}
+
+export interface Order {
+  id: string;
+  session_id: string;
+  customer_id?: string;
+  customer_name?: string; // Para facilitar exibição
+  total_amount: number;
+  discount: number;
+  change_amount: number;
+  payment_method: string;
+  status: 'completed' | 'canceled';
+  created_at: string;
+  items?: OrderItem[]; // Opcional, carregado sob demanda
+}
+
+export interface OrderItem {
+  id?: string;
+  order_id?: string;
+  product_id: string;
+  product_name: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+  type: 'recipe' | 'product';
+}

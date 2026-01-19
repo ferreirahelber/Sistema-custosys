@@ -21,3 +21,33 @@ body {
     transform: translateY(0);
   }
 }
+
+/* --- ESTILOS DE IMPRESSÃO (CUPOM) --- */
+@media print {
+  /* Esconde tudo que faz parte do sistema normal */
+  body * {
+    visibility: hidden;
+  }
+  
+  /* Esconde barra de rolagem e fundos */
+  body {
+    background: white;
+    height: auto;
+    overflow: visible;
+  }
+
+  /* Mostra APENAS a área do recibo */
+  #receipt-area, #receipt-area * {
+    visibility: visible;
+  }
+
+  /* Posiciona o recibo no topo absoluto do papel */
+  #receipt-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+}
