@@ -11,3 +11,7 @@ dist/
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+
+# Backups do Banco de Dados
+backups/
+google-service-account.json

@@ -10,6 +10,8 @@ import { CostingView } from './components/CostingView';
 import { Dashboard } from './components/Dashboard';
 import { SettingsService } from './services/settingsService';
 import { ResaleCalculator } from './components/ResaleCalculator';
+import { SalesView } from './components/SalesView';
+import { ExpensesView } from './components/ExpensesView';
 import {
   Settings as SettingsIcon,
   ChefHat,
@@ -20,6 +22,8 @@ import {
   Loader2,
   LucideIcon,
   ShoppingBag,
+  TrendingUp,
+  TrendingDown
 } from 'lucide-react';
 import { Toaster } from 'sonner';
 import './index.css';
@@ -76,6 +80,8 @@ export function AppContent() {
     if (path === '/products') return 'products';
     if (path.startsWith('/recipes')) return 'recipes';
     if (path === '/costs') return 'costs';
+    if (path === '/sales') return 'sales';
+    if (path === '/expenses') return 'expenses';
     return 'dashboard';
   };
 
@@ -85,10 +91,9 @@ export function AppContent() {
     <NavLink
       to={to}
       className={({ isActive }) =>
-        `flex items-center gap-3 px-4 py-3 rounded-lg w-full text-left transition-all ${
-          isActive || (to !== '/' && location.pathname.startsWith(to))
-            ? 'bg-amber-100 text-amber-900 font-medium'
-            : 'text-slate-600 hover:bg-slate-100'
+        `flex items-center gap-3 px-4 py-3 rounded-lg w-full text-left transition-all ${isActive || (to !== '/' && location.pathname.startsWith(to))
+          ? 'bg-amber-100 text-amber-900 font-medium'
+          : 'text-slate-600 hover:bg-slate-100'
         }`
       }
     >
@@ -116,7 +121,12 @@ export function AppContent() {
         <nav className="space-y-1 flex-1">
           <NavItem to="/" label="Visão Geral" icon={LayoutDashboard} />
           <NavItem to="/recipes" label="Minhas Receitas" icon={ChefHat} />
-          
+          <div className="pt-2 pb-2">
+            <p className="px-4 text-xs font-bold text-slate-400 uppercase mb-1">Financeiro</p>
+            <NavItem to="/sales" label="Receitas (Vendas)" icon={TrendingUp} />
+            <NavItem to="/expenses" label="Despesas" icon={TrendingDown} />
+          </div>
+
           <div className="pt-2 pb-2">
             <p className="px-4 text-xs font-bold text-slate-400 uppercase mb-1">Estoques</p>
             <NavItem to="/ingredients" label="Ingredientes" icon={Package} />
@@ -156,10 +166,13 @@ export function AppContent() {
                 {currentView === 'settings' && <><SettingsIcon className="text-amber-600" /> Configurações Globais</>}
                 {currentView === 'ingredients' && <><Package className="text-amber-600" /> Gestão de Ingredientes</>}
                 {/* --- ADICIONADO AQUI: Título para Produtos --- */}
-                {currentView === 'products' && <><Box className="text-purple-600" /> Produtos & Embalagens</>} 
-                
+                {currentView === 'products' && <><Box className="text-purple-600" /> Produtos & Embalagens</>}
+
                 {currentView === 'recipes' && <><ChefHat className="text-amber-600" /> Gerenciamento de Receitas</>}
                 {currentView === 'costs' && <><DollarSign className="text-amber-600" /> Simulador de Preços</>}
+                {/* NOVOS TÍTULOS */}
+                {currentView === 'sales' && <><TrendingUp className="text-emerald-600" /> Controle de Vendas</>}
+                {currentView === 'expenses' && <><TrendingDown className="text-rose-600" /> Controle de Despesas</>}
               </h2>
               <p className="text-slate-500 mt-1">
                 {currentView === 'settings' && 'Defina os parâmetros financeiros base para o cálculo da sua mão de obra.'}
@@ -167,6 +180,9 @@ export function AppContent() {
                 {currentView === 'products' && 'Cadastre embalagens, caixas, laços e etiquetas.'}
                 {currentView === 'recipes' && 'Crie fichas técnicas detalhadas com custos automáticos.'}
                 {currentView === 'costs' && 'Analise custos, simule margens e defina preços de venda.'}
+                {/* NOVAS DESCRIÇÕES */}
+                {currentView === 'sales' && 'Registe as entradas de dinheiro das suas encomendas.'}
+                {currentView === 'expenses' && 'Gerencie os gastos com compras, contas e pessoal.'}
               </p>
             </header>
           )}
@@ -179,7 +195,9 @@ export function AppContent() {
                   'ingredients': '/ingredients',
                   'products': '/products', // Adicionado ao Dashboard
                   'recipes': '/recipes',
-                  'costs': '/costs'
+                  'costs': '/costs',
+                  'sales': '/sales',       
+                  'expenses': '/expenses'
                 };
                 if (routes[view]) navigate(routes[view]);
               }} />} />
@@ -191,7 +209,9 @@ export function AppContent() {
               <Route path="/recipes/:id" element={<RecipeForm />} />
               <Route path="/costs" element={<CostingView />} />
               <Route path="/resale" element={<ResaleCalculator />} />
-              <Route path="*" element={<Navigate to="/" replace />} />              
+              <Route path="*" element={<Navigate to="/" replace />} />
+              <Route path="/sales" element={<SalesView />} />
+              <Route path="/expenses" element={<ExpensesView />} />
             </Routes>
           </div>
         </div>

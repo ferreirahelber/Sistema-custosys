@@ -9,12 +9,16 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "preview": "vite preview",
-    "test": "vitest"
+    "test": "vitest",
+    "db:backup": "node scripts/backup-db.js",
+    "full:backup": "node scripts/backup-full.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.88.0",
+    "archiver": "^7.0.1",
     "decimal.js": "^10.6.0",
     "exceljs": "^4.4.0",
+    "googleapis": "^170.1.0",
     "jspdf": "^4.0.0",
     "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.556.0",
@@ -32,6 +36,7 @@
     "@typescript-eslint/eslint-plugin": "^8.52.0",
     "@typescript-eslint/parser": "^8.52.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "dotenv": "^17.2.3",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react": "^7.37.5",

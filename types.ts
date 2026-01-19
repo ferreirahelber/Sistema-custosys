@@ -97,3 +97,23 @@ export interface RecipeItemResponse {
   ingredient_name?: string;
   ingredient?: Ingredient; // O dado que vem do join com a tabela ingredients
 }
+
+export interface Sale {
+  id: string;
+  user_id: string;
+  description: string;
+  amount: number; // Valor da venda
+  category: string;
+  date: string;
+  created_at: string;
+}
+
+export interface Expense {
+  id: string;
+  user_id: string;
+  description: string;
+  amount: number; // Valor da despesa
+  category: string;
+  date: string;
+  created_at: string;
+}
