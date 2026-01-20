@@ -42,6 +42,7 @@ export interface Ingredient {
   current_stock?: number; // Quantidade atual em base_unit (g/ml/un)
   min_stock?: number; // Quantidade mínima desejada em base_unit (g/ml/un)
   category?: 'ingredient' | 'product';
+  barcode?: string;
 }
 
 export interface PriceHistory {
@@ -79,6 +80,7 @@ export interface Recipe {
   total_cost_final: number;
   unit_cost: number;
   selling_price?: number;
+  barcode?: string;
 }
 
 export interface SimulationParams {

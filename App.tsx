@@ -14,6 +14,8 @@ import { SalesView } from './components/SalesView';
 import { ExpensesView } from './components/ExpensesView';
 import { PricingSimulator } from './components/PricingSimulator';
 import { PosView } from './components/PosView';
+import { CashHistory } from './components/CashHistory';
+import { PosReports } from './components/PosReports';
 import {
   Settings as SettingsIcon,
   ChefHat,
@@ -28,7 +30,9 @@ import {
   TrendingDown,
   Calculator,
   Tags,
-  Store
+  History,
+  Store,
+  PieChart
 } from 'lucide-react';
 import { Toaster } from 'sonner';
 import './index.css';
@@ -125,8 +129,13 @@ export function AppContent() {
 
         <nav className="space-y-1 flex-1">
           <NavItem to="/" label="Visão Geral" icon={LayoutDashboard} />
-          <NavItem to="/pos" label="Frente de Caixa (PDV)" icon={Store} />
           <NavItem to="/recipes" label="Minhas Receitas" icon={ChefHat} />
+          <div className="pt-2 pb-2">
+            <p className="px-4 text-xs font-bold text-slate-400 uppercase mb-1">Vendas</p>
+          <NavItem to="/pos" label="Frente de Caixa (PDV)" icon={Store} />
+          <NavItem to="/cash-history" label="Histórico de Caixas" icon={History} />
+          <NavItem to="/pos-reports" label="Relatórios de Vendas" icon={PieChart} />
+          </div>       
           <div className="pt-2 pb-2">
             <p className="px-4 text-xs font-bold text-slate-400 uppercase mb-1">Financeiro</p>
             <NavItem to="/sales" label="Receitas (Vendas)" icon={TrendingUp} />
@@ -232,6 +241,9 @@ export function AppContent() {
 
               {/* IMPORTANTE: Esta rota deve ser sempre a ÚLTIMA */}
               <Route path="*" element={<Navigate to="/" replace />} />
+
+              <Route path="/cash-history" element={<CashHistory />} />
+              <Route path="/pos-reports" element={<PosReports />} />
 
             </Routes>
           </div>
