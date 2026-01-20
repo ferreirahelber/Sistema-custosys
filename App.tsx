@@ -20,7 +20,7 @@ import {
   Settings as SettingsIcon,
   ChefHat,
   Package,
-  Box, // Ícone de Produtos
+  Box,
   LayoutDashboard,
   DollarSign,
   Loader2,
@@ -91,6 +91,9 @@ export function AppContent() {
     if (path === '/costs') return 'costs';
     if (path === '/sales') return 'sales';
     if (path === '/expenses') return 'expenses';
+    if (path === '/pos') return 'pos';
+    if (path === '/reports') return 'reports';
+    if (path === '/cash-history') return 'history';
     return 'dashboard';
   };
 
@@ -99,8 +102,9 @@ export function AppContent() {
   const NavItem = ({ to, label, icon: Icon }: { to: string; label: string; icon: LucideIcon }) => (
     <NavLink
       to={to}
+      // MELHORIA: mudei py-3 para py-2 (Menu mais compacto)
       className={({ isActive }) =>
-        `flex items-center gap-3 px-4 py-3 rounded-lg w-full text-left transition-all ${isActive || (to !== '/' && location.pathname.startsWith(to))
+        `flex items-center gap-3 px-4 py-2 rounded-lg w-full text-left transition-all ${isActive || (to !== '/' && location.pathname.startsWith(to))
           ? 'bg-amber-100 text-amber-900 font-medium'
           : 'text-slate-600 hover:bg-slate-100'
         }`
@@ -127,33 +131,31 @@ export function AppContent() {
           <h1 className="text-xl font-bold text-slate-800 tracking-tight">Custosys</h1>
         </div>
 
-        <nav className="space-y-1 flex-1">
+        <nav className="space-y-1 flex-1 overflow-y-auto">
           <NavItem to="/" label="Visão Geral" icon={LayoutDashboard} />
-          <NavItem to="/recipes" label="Minhas Receitas" icon={ChefHat} />
+          
+          {/* MENU OTIMIZADO (Vendas e Caixa juntos) */}
           <div className="pt-2 pb-2">
-            <p className="px-4 text-xs font-bold text-slate-400 uppercase mb-1">Vendas</p>
-          <NavItem to="/pos" label="Frente de Caixa (PDV)" icon={Store} />
-          <NavItem to="/cash-history" label="Histórico de Caixas" icon={History} />
-          <NavItem to="/pos-reports" label="Relatórios de Vendas" icon={PieChart} />
-          </div>       
-          <div className="pt-2 pb-2">
-            <p className="px-4 text-xs font-bold text-slate-400 uppercase mb-1">Financeiro</p>
-            <NavItem to="/sales" label="Receitas (Vendas)" icon={TrendingUp} />
-            <NavItem to="/expenses" label="Despesas" icon={TrendingDown} />
+            <p className="px-4 text-xs font-bold text-slate-400 uppercase mb-1">Vendas & Caixa</p>
+            <NavItem to="/pos" label="PDV | Frente de Caixa" icon={Store} />
+            <NavItem to="/cash-history" label="Histórico de Caixa" icon={History} />
+            <NavItem to="/reports" label="Relatórios de Vendas" icon={PieChart} />
+            <NavItem to="/sales" label="Financeiro (Entradas)" icon={TrendingUp} />
+            <NavItem to="/expenses" label="Despesas (Saídas)" icon={TrendingDown} />
           </div>
 
           <div className="pt-2 pb-2">
-            <p className="px-4 text-xs font-bold text-slate-400 uppercase mb-1">Estoques</p>
+            <p className="px-4 text-xs font-bold text-slate-400 uppercase mb-1">Produção</p>
+            <NavItem to="/recipes" label="Minhas Receitas" icon={ChefHat} />
             <NavItem to="/ingredients" label="Meus Ingredientes" icon={Package} />
             <NavItem to="/products" label="Produtos & Emb." icon={ShoppingBag} />
           </div>
 
-          {/* --- MÓDULO FERRAMENTAS --- */}
           <div className="pt-2 pb-2">
             <p className="px-4 text-xs font-bold text-slate-400 uppercase mb-1">Ferramentas</p>
             <NavItem to="/costs" label="Simulador & Custos" icon={DollarSign} />
-            {/* Link correto para o PricingSimulator */}
             <NavItem to="/resale" label="Cálculo de Revenda" icon={Tags} />
+            
           </div>
 
           <div className="pt-4 mt-4 border-t border-slate-100">
@@ -175,7 +177,7 @@ export function AppContent() {
           >
             Sair
           </button>
-          <p className="text-xs text-slate-400 text-center">Versão 2.2.0 • Effitech</p>
+          <p className="text-xs text-slate-400 text-center">Versão 2.3.0 • Effitech</p>
         </div>
       </aside>
 
@@ -186,25 +188,15 @@ export function AppContent() {
               <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
                 {currentView === 'settings' && <><SettingsIcon className="text-amber-600" /> Configurações Globais</>}
                 {currentView === 'ingredients' && <><Package className="text-amber-600" /> Gestão de Ingredientes</>}
-                {/* --- ADICIONADO AQUI: Título para Produtos --- */}
                 {currentView === 'products' && <><Box className="text-purple-600" /> Produtos & Embalagens</>}
-
                 {currentView === 'recipes' && <><ChefHat className="text-amber-600" /> Gerenciamento de Receitas</>}
                 {currentView === 'costs' && <><DollarSign className="text-amber-600" /> Simulador de Preços</>}
-                {/* NOVOS TÍTULOS */}
                 {currentView === 'sales' && <><TrendingUp className="text-emerald-600" /> Controle de Vendas</>}
                 {currentView === 'expenses' && <><TrendingDown className="text-rose-600" /> Controle de Despesas</>}
+                {currentView === 'pos' && <><Store className="text-amber-600" /> Frente de Caixa</>}
+                {currentView === 'reports' && <><PieChart className="text-amber-600" /> Relatórios de Vendas</>}
+                {currentView === 'history' && <><History className="text-slate-600" /> Histórico de Caixas</>}
               </h2>
-              <p className="text-slate-500 mt-1">
-                {currentView === 'settings' && 'Defina os parâmetros financeiros base para o cálculo da sua mão de obra.'}
-                {currentView === 'ingredients' && 'Cadastre seus insumos com conversão automática de medidas.'}
-                {currentView === 'products' && 'Cadastre embalagens, caixas, laços e etiquetas.'}
-                {currentView === 'recipes' && 'Crie fichas técnicas detalhadas com custos automáticos.'}
-                {currentView === 'costs' && 'Analise custos, simule margens e defina preços de venda.'}
-                {/* NOVAS DESCRIÇÕES */}
-                {currentView === 'sales' && 'Registe as entradas de dinheiro das suas encomendas.'}
-                {currentView === 'expenses' && 'Gerencie os gastos com compras, contas e pessoal.'}
-              </p>
             </header>
           )}
 
@@ -214,7 +206,7 @@ export function AppContent() {
                 const routes: Record<string, string> = {
                   'settings': '/settings',
                   'ingredients': '/ingredients',
-                  'products': '/products', // Adicionado ao Dashboard
+                  'products': '/products',
                   'recipes': '/recipes',
                   'costs': '/costs',
                   'sales': '/sales',
@@ -229,22 +221,19 @@ export function AppContent() {
               <Route path="/recipes/new" element={<RecipeForm />} />
               <Route path="/recipes/:id" element={<RecipeForm />} />
               <Route path="/costs" element={<CostingView />} />
-              {/* NOVAS ROTAS DE FERRAMENTAS */}
+              
               <Route path="/calculator" element={<PricingSimulator />} /> 
               <Route path="/resale" element={<ResaleCalculator />} />
 
-              {/* NOVAS ROTAS FINANCEIRAS */}
               <Route path="/sales" element={<SalesView />} />
               <Route path="/expenses" element={<ExpensesView />} />
 
               <Route path="/pos" element={<PosView />} />
-
-              {/* IMPORTANTE: Esta rota deve ser sempre a ÚLTIMA */}
-              <Route path="*" element={<Navigate to="/" replace />} />
-
               <Route path="/cash-history" element={<CashHistory />} />
-              <Route path="/pos-reports" element={<PosReports />} />
+              <Route path="/reports" element={<PosReports />} />
 
+              {/* IMPORTANTE: O Wildcard (*) deve ser sempre o ÚLTIMO item */}
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </div>
         </div>
