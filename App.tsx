@@ -183,7 +183,7 @@ export function AppContent() {
 
       <main className="flex-1 p-6 md:p-12 overflow-y-auto h-screen bg-slate-50/50">
         <div className="max-w-6xl mx-auto">
-          {currentView !== 'dashboard' && (
+          {currentView !== 'dashboard' && currentView !== 'reports' && (
             <header className="mb-8 animate-in fade-in slide-in-from-top-4 duration-500">
               <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
                 {currentView === 'settings' && <><SettingsIcon className="text-amber-600" /> Configurações Globais</>}
@@ -194,7 +194,7 @@ export function AppContent() {
                 {currentView === 'sales' && <><TrendingUp className="text-emerald-600" /> Controle de Vendas</>}
                 {currentView === 'expenses' && <><TrendingDown className="text-rose-600" /> Controle de Despesas</>}
                 {currentView === 'pos' && <><Store className="text-amber-600" /> Frente de Caixa</>}
-                {currentView === 'reports' && <><PieChart className="text-amber-600" /> Relatórios de Vendas</>}
+                {/*{currentView === 'reports' && <><PieChart className="text-amber-600" /> Relatórios de Vendas</>}*/}
                 {currentView === 'history' && <><History className="text-slate-600" /> Histórico de Caixas</>}
               </h2>
             </header>

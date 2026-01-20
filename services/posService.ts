@@ -165,7 +165,7 @@ export const PosService = {
 
     // === RELATÓRIOS ===
     async getSalesReport(startDate: string, endDate: string) {
-        // 1. Buscar Pedidos no período
+        // 1. Buscar Pedidos
         const { data: orders, error: ordersError } = await supabase
             .from('orders')
             .select('*')
@@ -175,8 +175,7 @@ export const PosService = {
 
         if (ordersError) throw ordersError;
 
-        // 2. Buscar Itens vendidos no período
-        // Precisamos filtrar itens cujos pedidos estão na lista acima
+        // 2. Buscar Itens
         const orderIds = orders.map(o => o.id);
         let items: any[] = [];
 
@@ -195,10 +194,16 @@ export const PosService = {
         const totalOrders = orders.length;
         const averageTicket = totalOrders > 0 ? totalSales / totalOrders : 0;
 
-        // 4. Processar Formas de Pagamento
+        // 4. Processar Formas de Pagamento (COM CORREÇÃO DE LEGADO)
         const paymentMethods: Record<string, number> = {};
         orders.forEach(o => {
-            const method = o.payment_method || 'Outros';
+            let method = o.payment_method || 'Outros';
+
+            // TRUQUE: Se encontrar "Cartão" (antigo), soma como "Crédito" para não duplicar no gráfico
+            if (method === 'Cartão') {
+                method = 'Crédito';
+            }
+
             paymentMethods[method] = (paymentMethods[method] || 0) + Number(o.total_amount);
         });
 
@@ -213,10 +218,9 @@ export const PosService = {
             topProducts[id].total += Number(i.total_price);
         });
 
-        // Converter para array e ordenar
         const topProductsArray = Object.values(topProducts)
             .sort((a, b) => b.quantity - a.quantity)
-            .slice(0, 10); // Top 10
+            .slice(0, 10);
 
         return {
             summary: {
