@@ -1,102 +1,115 @@
 import { supabase } from './supabase';
-import { Ingredient, Recipe, Settings } from '../types';
+import { SettingsService } from './settingsService';
+import { RecipeService } from './recipeService';
+import { IngredientService } from './ingredientService';
+import { FixedCostService } from './fixedCostService';
+import { TeamService } from './teamService';
 
 export interface BackupData {
-  version: string;
   timestamp: string;
-  source: 'custosys';
+  version: string;
   data: {
-    ingredients: Ingredient[];
-    recipes: Recipe[];
-    recipe_items: any[];
-    settings: Settings | null;
+    settings: any;
+    recipes: any[];
+    ingredients: any[];
+    fixedCosts: any[];
+    team: any[];
+    sales?: any[];
   };
 }
 
 export const BackupService = {
-  // --- EXPORTAR (CRIAR BACKUP) ---
-  async createBackup(): Promise<BackupData> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Utilizador não autenticado');
+  // Renomeado para bater com o SettingsForm
+  async exportData(): Promise<string> {
+    try {
+      const [settings, recipes, ingredients, fixedCosts, team] = await Promise.all([
+        SettingsService.get(),
+        RecipeService.getAll(),
+        IngredientService.getAll(),
+        FixedCostService.getAll(),
+        TeamService.getAll()
+      ]);
 
-    // Busca dados com tratamento de erro
-    const { data: ingredients, error: ingError } = await supabase.from('ingredients').select('*');
-    if (ingError) throw new Error('Erro ao exportar ingredientes: ' + ingError.message);
+      // Tenta pegar vendas se possível, senão ignora
+      let sales = [];
+      try {
+          // Se você tiver um SaleService, descomente:
+          // sales = await SaleService.getAll();
+          const { data } = await supabase.from('sales').select('*');
+          sales = data || [];
+      } catch (e) {
+          console.warn('Vendas não incluídas no backup');
+      }
 
-    const { data: recipes, error: recError } = await supabase.from('recipes').select('*');
-    if (recError) throw new Error('Erro ao exportar receitas: ' + recError.message);
+      const backup: BackupData = {
+        timestamp: new Date().toISOString(),
+        version: '1.0',
+        data: {
+          settings,
+          recipes,
+          ingredients,
+          fixedCosts,
+          team,
+          sales
+        }
+      };
 
-    const { data: recipeItems, error: itemsError } = await supabase.from('recipe_items').select('*');
-    if (itemsError) throw new Error('Erro ao exportar itens: ' + itemsError.message);
-
-    const { data: settings } = await supabase.from('user_settings').select('*').single();
-
-    return {
-      version: '1.0',
-      timestamp: new Date().toISOString(),
-      source: 'custosys',
-      data: {
-        ingredients: ingredients || [],
-        recipes: recipes || [],
-        recipe_items: recipeItems || [],
-        settings: settings || null,
-      },
-    };
+      return JSON.stringify(backup, null, 2);
+    } catch (error) {
+      console.error('Erro ao gerar backup:', error);
+      throw new Error('Falha ao gerar arquivo de backup');
+    }
   },
 
-  // --- IMPORTAR (RESTAURAR DADOS) ---
-  async restoreBackup(backup: BackupData): Promise<void> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Utilizador não autenticado');
+  // Renomeado para bater com o SettingsForm
+  async importData(jsonContent: string): Promise<void> {
+    try {
+      const backup: BackupData = JSON.parse(jsonContent);
 
-    if (backup.source !== 'custosys' || !backup.data) {
-      throw new Error('Ficheiro de backup inválido (Formato incorreto).');
-    }
+      if (!backup.data) throw new Error('Arquivo de backup inválido');
 
-    // 1. Restaurar Configurações (CORREÇÃO AQUI)
-    if (backup.data.settings) {
-      const { id, ...settingsData } = backup.data.settings as any;
-      
-      // Importante: onConflict garante que atualizamos a linha deste usuário
-      const { error } = await supabase.from('user_settings').upsert(
-        { ...settingsData, user_id: user.id }, 
-        { onConflict: 'user_id' }
-      );
-      
-      if (error) throw new Error(`Erro Configurações: ${error.message}`);
-    }
+      // 1. Restaurar Configurações
+      if (backup.data.settings) {
+        await SettingsService.save(backup.data.settings);
+      }
 
-    // 2. Restaurar Ingredientes
-    if (backup.data.ingredients?.length > 0) {
-      const ingredientsPayload = backup.data.ingredients.map(ing => ({
-        ...ing,
-        user_id: user.id
-      }));
-      const { error } = await supabase.from('ingredients').upsert(ingredientsPayload);
-      if (error) throw new Error(`Erro Ingredientes: ${error.message}`);
-    }
+      // 2. Restaurar Ingredientes (Limpa e Recria)
+      if (backup.data.ingredients?.length) {
+        // O ideal seria upsert, mas para simplificar vamos manter
+        for (const item of backup.data.ingredients) {
+            const { id, ...cleanItem } = item; // Remove ID para criar novo ou usa UPSERT se preferir
+            await supabase.from('ingredients').upsert(item);
+        }
+      }
 
-    // 3. Restaurar Receitas
-    if (backup.data.recipes?.length > 0) {
-      const recipesPayload = backup.data.recipes.map(rec => {
-        const { items, ...recipeData } = rec as any; 
-        return { ...recipeData, user_id: user.id };
-      });
-      const { error } = await supabase.from('recipes').upsert(recipesPayload);
-      if (error) throw new Error(`Erro Receitas: ${error.message}`);
-    }
+      // 3. Restaurar Receitas
+      if (backup.data.recipes?.length) {
+         for (const item of backup.data.recipes) {
+            await supabase.from('recipes').upsert(item);
+         }
+      }
 
-    // 4. Restaurar Itens das Receitas
-    if (backup.data.recipe_items?.length > 0) {
-      // Removemos campos virtuais que possam ter vindo no JSON (como ingredient_name se foi injetado)
-      // para evitar erro de "coluna não existe"
-      const itemsPayload = backup.data.recipe_items.map((item: any) => {
-        const { ingredient, ...cleanItem } = item;
-        return cleanItem;
-      });
+      // 4. Restaurar Custos Fixos
+      if (backup.data.fixedCosts?.length) {
+        await supabase.from('fixed_costs').delete().neq('id', '00000000-0000-0000-0000-000000000000'); // Limpa tudo
+        for (const item of backup.data.fixedCosts) {
+             const { id, ...clean } = item; 
+             await FixedCostService.add(clean);
+        }
+      }
 
-      const { error } = await supabase.from('recipe_items').upsert(itemsPayload);
-      if (error) throw new Error(`Erro Itens: ${error.message}`);
+      // 5. Restaurar Equipe
+      if (backup.data.team?.length) {
+        await supabase.from('team_members').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        for (const item of backup.data.team) {
+            const { id, ...clean } = item;
+            await TeamService.add(clean);
+        }
+      }
+
+    } catch (error) {
+      console.error('Erro ao restaurar backup:', error);
+      throw new Error('Falha ao processar arquivo de backup');
     }
   }
 };
