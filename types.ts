@@ -22,29 +22,53 @@ export interface Settings {
   estimated_monthly_revenue: number;
   default_tax_rate?: number;
   default_card_fee?: number;
-  card_debit_rate: number;  // Novo
+  card_debit_rate: number;
   card_credit_rate: number;
 }
 
-// NOVA INTERFACE PARA CONVERSÕES
 export interface MeasureConversion {
-  name: string; // ex: 'Xícara', 'Colher de Sopa'
-  value: number; // ex: 120 (quanto vale em g/ml)
+  name: string;
+  value: number;
 }
 
 export interface Ingredient {
+  id?: string;
+  name: string;
+  category?: string; // 'food' | 'packaging'
+
+  // --- Campos Novos (Pacote Fechado) ---
+  package_price?: number;
+  package_amount?: number;
+  package_unit?: string;
+
+  // --- Campos de Custo Real ---
+  unit_cost_base?: number;
+  base_unit?: string;
+
+  // --- Campos de Estoque ---
+  current_stock?: number;
+  min_stock?: number;
+
+  // --- Campos Legados/Compatibilidade ---
+  price?: number; 
+  unit?: string; 
+
+  // --- Outros ---
+  conversions?: any[];
+}
+
+// --- NOVA INTERFACE QUE FALTAVA ---
+export interface Product {
   id: string;
   name: string;
-  package_price: number;
-  package_amount: number;
-  package_unit: Unit;
-  unit_cost_base: number;
-  base_unit: 'g' | 'ml' | 'un';
-  conversions?: MeasureConversion[];
-  current_stock?: number; // Quantidade atual em base_unit (g/ml/un)
-  min_stock?: number; // Quantidade mínima desejada em base_unit (g/ml/un)
-  category?: 'ingredient' | 'product' | 'packaging';
-  barcode?: string;
+  price: number;       // Preço de Venda
+  cost_price?: number; // Preço de Custo Unitário
+  type?: 'recipe' | 'resale'; 
+
+  // Dados de compra (Revenda)
+  package_price?: number;
+  package_amount?: number;
+  profit_margin?: number;
 }
 
 export interface PriceHistory {
@@ -61,10 +85,9 @@ export interface PriceHistory {
 export interface RecipeItem {
   id: string;
   ingredient_id: string;
-  quantity_used: number; // Valor calculado em unidade base (g/ml) para custo
-  // NOVOS CAMPOS PARA EXIBIÇÃO
-  quantity_input?: number; // O que o usuário digitou (ex: 2)
-  unit_input?: string; // A unidade que o usuário escolheu (ex: 'Xícara')
+  quantity_used: number;
+  quantity_input?: number;
+  unit_input?: string;
   ingredient_name?: string;
 }
 
@@ -95,30 +118,31 @@ export interface RecipeItemResponse {
   id: string;
   recipe_id: string;
   ingredient_id: string;
-  quantity: number;        // No banco a coluna chama "quantity"
+  quantity: number;
   quantity_input?: number;
   unit_input?: string;
   ingredient_name?: string;
-  ingredient?: Ingredient; // O dado que vem do join com a tabela ingredients
+  ingredient?: Ingredient;
 }
 
 export interface Sale {
   id: string;
   user_id: string;
   description: string;
-  amount: number; // Valor da venda
+  amount: number;
   category: string;
   date: string;
   created_at: string;
   fee_amount?: number; 
   net_amount?: number;
+  payment_method?: string; // Adicionado para evitar erro no SalesView
 }
 
 export interface Expense {
   id: string;
   user_id: string;
   description: string;
-  amount: number; // Valor da despesa
+  amount: number;
   category: string;
   date: string;
   created_at: string;
@@ -131,7 +155,8 @@ export interface CartItem {
   name: string;
   price: number;
   quantity: number;
-  type: 'recipe' | 'product'; // Para saber se é receita ou revenda
+  // Atualizado para aceitar 'resale' que vem do banco
+  type?: 'recipe' | 'product' | 'resale'; 
 }
 
 export interface Customer {
@@ -150,7 +175,7 @@ export interface CashSession {
   closed_at?: string;
   initial_balance: number;
   final_balance?: number;
-  calculated_balance?: number; // Quanto o sistema acha que tem
+  calculated_balance?: number;
   status: 'open' | 'closed';
   notes?: string;
 }
@@ -159,14 +184,16 @@ export interface Order {
   id: string;
   session_id: string;
   customer_id?: string;
-  customer_name?: string; // Para facilitar exibição
+  customer_name?: string;
   total_amount: number;
   discount: number;
   change_amount: number;
   payment_method: string;
   status: 'completed' | 'canceled';
   created_at: string;
-  items?: OrderItem[]; // Opcional, carregado sob demanda
+  fee_amount?: number;
+  net_amount?: number;
+  items?: OrderItem[];
 }
 
 export interface OrderItem {
@@ -177,5 +204,6 @@ export interface OrderItem {
   quantity: number;
   unit_price: number;
   total_price: number;
-  type: 'recipe' | 'product';
+  // Atualizado para aceitar 'resale'
+  type?: 'recipe' | 'product' | 'resale';
 }
