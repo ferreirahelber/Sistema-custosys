@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { RecipeService } from '../services/recipeService';
 import { PosService } from '../services/posService';
 import { CashModal } from './CashModal';
-import { PaymentModal } from './PaymentModal'; // <--- IMPORT NOVO
+import { PaymentModal } from './PaymentModal';
 import { CartItem, CashSession } from '../types';
 import {
   ShoppingCart, Trash2, CreditCard, Banknote, QrCode, Plus, Minus, Search,
-  ChefHat, LogOut, Printer, CheckCircle, History
+  ChefHat, LogOut, Printer, CheckCircle, History, ShoppingBag
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Receipt } from './Receipt';
@@ -24,7 +23,7 @@ export function PosView() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [closingSummary, setClosingSummary] = useState<any>(null); 
 
-  // --- NOVO: Estado para o modal de pagamento em dinheiro ---
+  // Estado para o modal de pagamento em dinheiro
   const [showCashModal, setShowCashModal] = useState(false);
 
   // Estados de Dados
@@ -41,7 +40,7 @@ export function PosView() {
     paymentMethod: string;
     date: Date;
     id?: string;
-    change?: number; // Adicionei troco aqui para imprimir se quiser no futuro
+    change?: number;
     received?: number;
   } | null>(null);
 
@@ -62,22 +61,15 @@ export function PosView() {
     }
   }
 
-  // 2. Carregar Catálogo
+  // 2. Carregar Catálogo (CORRIGIDO PARA BUSCAR TUDO)
   async function loadCatalog() {
     try {
-      const recipes = await RecipeService.getAll();
-      const recipeItems = recipes.map(r => ({
-        id: r.id,
-        name: r.name,
-        price: r.selling_price || 0,
-        type: 'recipe',
-        category: 'Confeitaria',
-        barcode: r.barcode || '',
-      }));
-      setSellableItems(recipeItems);
+      // Agora chamamos o PosService que traz Receitas E Produtos juntos
+      const allItems = await PosService.getAllProductsForPOS();
+      setSellableItems(allItems);
     } catch (error) {
       console.error(error);
-      toast.error('Erro ao carregar receitas');
+      toast.error('Erro ao carregar catálogo de produtos');
     } finally {
       setLoadingCatalog(false);
     }
@@ -135,7 +127,7 @@ export function PosView() {
   // 4. Ações do Carrinho
   const addToCart = (item: any) => {
     if (item.price <= 0) {
-      toast.warning(`A receita "${item.name}" está sem preço de venda definido.`);
+      toast.warning(`O item "${item.name}" está sem preço de venda.`);
       return;
     }
     setCart(prev => {
@@ -157,23 +149,19 @@ export function PosView() {
   const handleCheckout = async (paymentMethod: string) => {
     if (cart.length === 0 || !session) return;
 
-    // Se for Dinheiro, ABRE O MODAL de Troco e para por aqui
     if (paymentMethod === 'Dinheiro') {
       setShowCashModal(true);
       return;
     }
 
-    // Se for outros (Pix, Cartão), processa direto sem troco
     await processSaleComplete(paymentMethod, 0, cartTotal);
   };
 
-  // Função chamada quando confirma o modal de dinheiro
   const handleConfirmCash = async (received: number, change: number) => {
     setShowCashModal(false);
     await processSaleComplete('Dinheiro', change, received);
   };
 
-  // Função unificada que grava no banco
   const processSaleComplete = async (method: string, changeAmount: number, receivedAmount: number) => {
     if (!session) return;
 
@@ -182,7 +170,7 @@ export function PosView() {
         session_id: session.id,
         total_amount: cartTotal,
         discount: 0,
-        change_amount: changeAmount, // Salva o troco no banco
+        change_amount: changeAmount,
         payment_method: method,
         status: 'completed'
       }, cart.map(item => ({
@@ -200,7 +188,7 @@ export function PosView() {
         paymentMethod: method,
         date: new Date(),
         id: newOrder.id,
-        change: changeAmount, // Passa para o recibo/modal
+        change: changeAmount,
         received: receivedAmount
       };
 
@@ -229,13 +217,18 @@ export function PosView() {
     if (e.key === 'Enter') {
       const term = searchTerm.trim();
       if (!term) return;
-      const itemByBarcode = sellableItems.find(i => String(i.barcode).trim() === term);
+      
+      // Busca exata (pode ser código de barras ou nome)
+      const itemByBarcode = sellableItems.find(i => String(i.name).toLowerCase() === term.toLowerCase());
+      
       if (itemByBarcode) {
         addToCart(itemByBarcode);
         setSearchTerm('');
         toast.success(`${itemByBarcode.name} adicionado!`);
         return;
       }
+
+      // Busca parcial
       const filtered = sellableItems.filter(i => i.name.toLowerCase().includes(term.toLowerCase()));
       if (filtered.length === 1) {
         addToCart(filtered[0]);
@@ -268,14 +261,12 @@ export function PosView() {
   }
 
   const filteredItems = sellableItems.filter(i =>
-    i.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    String(i.barcode).includes(searchTerm)
+    i.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
     <div className="flex flex-col md:flex-row h-[calc(100vh-100px)] gap-4 animate-fade-in relative">
       
-      {/* NOVO: MODAL DE PAGAMENTO EM DINHEIRO */}
       {showCashModal && (
         <PaymentModal 
           total={cartTotal}
@@ -293,7 +284,6 @@ export function PosView() {
             <h2 className="text-2xl font-bold text-slate-800 mb-2">Venda Realizada!</h2>
             <p className="text-slate-500 mb-4">O pedido foi salvo com sucesso.</p>
             
-            {/* Mostra Troco se houver */}
             {lastOrder?.change && lastOrder.change > 0 ? (
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-6">
                 <p className="text-xs text-amber-700 font-bold uppercase">Troco a Devolver</p>
@@ -337,7 +327,7 @@ export function PosView() {
             <input
               ref={searchInputRef}
               type="text"
-              placeholder="Buscar Receita ou Bipar Código..."
+              placeholder="Buscar Receita ou Produto..."
               className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-amber-500"
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
@@ -349,10 +339,10 @@ export function PosView() {
 
         <div className="flex-1 overflow-y-auto p-4 bg-slate-50/50">
           {loadingCatalog ? (
-            <p className="text-center text-slate-400 mt-10">Carregando receitas...</p>
+            <p className="text-center text-slate-400 mt-10">Carregando catálogo...</p>
           ) : filteredItems.length === 0 ? (
             <div className="text-center text-slate-400 mt-10">
-              <p>Nenhuma receita encontrada.</p>
+              <p>Nenhum item encontrado.</p>
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -360,19 +350,27 @@ export function PosView() {
                 <div
                   key={item.id}
                   onClick={() => addToCart(item)}
-                  className="bg-white border border-slate-200 p-4 rounded-xl cursor-pointer hover:border-amber-500 hover:shadow-md transition group flex flex-col justify-between h-32 relative overflow-hidden"
+                  className={`
+                    bg-white border p-4 rounded-xl cursor-pointer transition group flex flex-col justify-between h-32 relative overflow-hidden
+                    ${item.type === 'resale' ? 'border-emerald-200 hover:border-emerald-500' : 'border-slate-200 hover:border-amber-500'}
+                    hover:shadow-md
+                  `}
                 >
                   <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20">
-                    <ChefHat size={40} className="text-amber-500" />
+                    {/* ÍCONE DINÂMICO: Se for revenda usa Sacola, senão usa Chapéu de Chef */}
+                    {item.type === 'resale' ? (
+                       <ShoppingBag size={40} className="text-emerald-500" />
+                    ) : (
+                       <ChefHat size={40} className="text-amber-500" />
+                    )}
                   </div>
                   <span className="font-bold text-slate-700 line-clamp-2 relative z-10">{item.name}</span>
-                  <div className="text-emerald-600 font-bold text-lg relative z-10">
+                  <div className={`font-bold text-lg relative z-10 ${item.type === 'resale' ? 'text-emerald-600' : 'text-amber-600'}`}>
                     {item.price > 0
                       ? `R$ ${item.price.toFixed(2)}`
                       : <span className="text-red-400 text-xs">Sem preço</span>
                     }
                   </div>
-                  {item.barcode && <div className="text-xs text-slate-400 relative z-10 mt-1 flex items-center gap-1"><QrCode size={10} /> {item.barcode}</div>}
                 </div>
               ))}
             </div>
@@ -411,7 +409,11 @@ export function PosView() {
             cart.map(item => (
               <div key={item.id} className="flex justify-between items-center bg-white p-3 rounded-lg border border-slate-200 shadow-sm animate-in slide-in-from-right-2">
                 <div className="flex-1">
-                  <p className="text-sm font-bold text-slate-700 line-clamp-1">{item.name}</p>
+                  <div className="flex items-center gap-2">
+                    {/* Indicador visual no carrinho também */}
+                    {item.type === 'resale' ? <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div> : <div className="w-1.5 h-1.5 rounded-full bg-amber-500"></div>}
+                    <p className="text-sm font-bold text-slate-700 line-clamp-1">{item.name}</p>
+                  </div>
                   <p className="text-xs text-slate-500">{item.quantity} x R$ {item.price.toFixed(2)}</p>
                 </div>
                 <div className="flex items-center gap-2">

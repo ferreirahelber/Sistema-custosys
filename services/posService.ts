@@ -60,9 +60,44 @@ export const PosService = {
     if (error) throw error;
   },
 
-  // === PROCESSAMENTO DA VENDA (CORRIGIDO PARA FORÇAR TAXA) ===
-  async processSale(order: Omit<Order, 'id' | 'created_at'>, items: OrderItem[]) {
+  // === NOVA FUNÇÃO: BUSCAR TUDO (RECEITAS + REVENDA) ===
+  async getAllProductsForPOS() {
+    // 1. Busca Receitas (Bolos, Doces)
+    const { data: recipes, error: recipesError } = await supabase
+      .from('recipes')
+      .select('id, name, selling_price');
     
+    if (recipesError) throw recipesError;
+
+    // 2. Busca Produtos de Revenda (Coca, Velas)
+    const { data: products, error: productsError } = await supabase
+      .from('products')
+      .select('id, name, price')
+      .eq('type', 'resale'); // Garante que é revenda
+
+    if (productsError) throw productsError;
+
+    // 3. Padroniza e Junta as listas
+    const formattedRecipes = (recipes || []).map(r => ({
+      id: r.id,
+      name: r.name,
+      price: Number(r.selling_price),
+      type: 'recipe'
+    }));
+
+    const formattedProducts = (products || []).map(p => ({
+      id: p.id,
+      name: p.name,
+      price: Number(p.price),
+      type: 'resale' // Marca como revenda (útil se quiser por ícones diferentes no futuro)
+    }));
+
+    // Retorna tudo junto ordenado por nome
+    return [...formattedRecipes, ...formattedProducts].sort((a, b) => a.name.localeCompare(b.name));
+  },
+
+  // === PROCESSAMENTO DA VENDA (MANTIDO IGUAL) ===
+  async processSale(order: Omit<Order, 'id' | 'created_at'>, items: OrderItem[]) {
     // 1. Busca configurações
     let settings;
     try {
@@ -71,8 +106,7 @@ export const PosService = {
       settings = null;
     }
     
-    // CORREÇÃO: Se não vier do banco, usa o padrão fixo
-    // Isso garante que o cálculo SEMPRE aconteça
+    // Taxas padrão caso falhe
     const debitRate = settings?.card_debit_rate ?? 1.60;
     const creditRate = settings?.card_credit_rate ?? 4.39;
     
@@ -88,7 +122,6 @@ export const PosService = {
       fee = total * (creditRate / 100);
     }
 
-    // Arredonda para 2 casas
     fee = Number(fee.toFixed(2));
     const netAmount = Number((total - fee).toFixed(2));
 
@@ -116,7 +149,7 @@ export const PosService = {
       quantity: item.quantity,
       unit_price: item.unit_price,
       total_price: item.total_price,
-      type: item.type
+      type: item.type || 'recipe' 
     }));
 
     const { error: itemsError } = await supabase.from('order_items').insert(itemsWithOrderId);

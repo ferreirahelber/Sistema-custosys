@@ -57,14 +57,13 @@ export const RecipeForm: React.FC = () => {
   const [selectedUnit, setSelectedUnit] = useState('');
   const [itemQuantity, setItemQuantity] = useState('');
 
-  // --- INPUTS: PRODUTOS / EMBALAGENS ---
-  const [selectedProdId, setSelectedProdId] = useState('');
-  const [selectedProdUnit, setSelectedProdUnit] = useState('');
-  const [prodQuantity, setProdQuantity] = useState('');
+  // --- INPUTS: EMBALAGENS ---
+  const [selectedExtraId, setSelectedExtraId] = useState('');
+  const [extraCost, setExtraCost] = useState(0);
 
   // --- LISTAS FILTRADAS ---
-  const foodIngredients = ingredients.filter(i => i.category !== 'product');
-  const productIngredients = ingredients.filter(i => i.category === 'product');
+  const foodIngredients = ingredients.filter(i => i.category !== 'product' && i.category !== 'packaging');
+  const packagingItems = ingredients.filter(i => i.category === 'packaging');
 
   // --- CARREGAMENTO INICIAL ---
   useEffect(() => {
@@ -114,13 +113,13 @@ export const RecipeForm: React.FC = () => {
     }
   }, [selectedIngId, selectedIngredientDetails, selectedUnit]);
 
-  // 2. Para Produtos
-  const selectedProductDetails = ingredients.find((i) => i.id === selectedProdId);
+  // 2. Para Embalagens
+  const selectedPackagingDetails = ingredients.find((i) => i.id === selectedExtraId);
   useEffect(() => {
-    if (selectedProductDetails && !selectedProdUnit) {
-      setSelectedProdUnit(selectedProductDetails.base_unit);
+    if (selectedPackagingDetails) {
+      setExtraCost(selectedPackagingDetails.unit_cost_base || 0);
     }
-  }, [selectedProdId, selectedProductDetails, selectedProdUnit]);
+  }, [selectedExtraId, selectedPackagingDetails]);
 
   // --- ADICIONAR ITENS ---
 
@@ -151,31 +150,21 @@ export const RecipeForm: React.FC = () => {
     setSelectedUnit('');
   };
 
-  const addProductItem = () => {
-    if (!selectedProdId || !prodQuantity || !selectedProdUnit) return;
-    const qtyInput = parseFloat(prodQuantity);
-    let qtyBase = qtyInput;
-
-    if (selectedProductDetails && selectedProdUnit !== selectedProductDetails.base_unit) {
-      const conversion = selectedProductDetails.conversions?.find(
-        (c: MeasureConversion) => c.name === selectedProdUnit
-      );
-      if (conversion) qtyBase = qtyInput * conversion.value;
-    }
+  const addPackagingItem = () => {
+    if (!selectedExtraId || extraCost <= 0) return;
 
     const newItem: RecipeItem = {
       id: Date.now().toString(),
-      ingredient_id: selectedProdId,
-      quantity_used: qtyBase,
-      quantity_input: qtyInput,
-      unit_input: selectedProdUnit,
-      ingredient_name: selectedProductDetails?.name
+      ingredient_id: selectedExtraId,
+      quantity_used: extraCost,
+      quantity_input: 1,
+      unit_input: 'unit',
+      ingredient_name: selectedPackagingDetails?.name
     };
 
     setRecipeItems([...recipeItems, newItem]);
-    setSelectedProdId('');
-    setProdQuantity('');
-    setSelectedProdUnit('');
+    setSelectedExtraId('');
+    setExtraCost(0);
   };
 
   const removeItem = (itemId: string) => {
@@ -192,10 +181,9 @@ export const RecipeForm: React.FC = () => {
       return;
     }
 
-    if (ingredient.category === 'product') {
-      setSelectedProdId(item.ingredient_id);
-      setProdQuantity(item.quantity_input?.toString() || '');
-      setSelectedProdUnit(item.unit_input || '');
+    if (ingredient.category === 'packaging') {
+      setSelectedExtraId(item.ingredient_id);
+      setExtraCost(item.quantity_used || 0);
       toast.info('Embalagem movida para edição.');
     } else {
       setSelectedIngId(item.ingredient_id);
@@ -218,7 +206,7 @@ export const RecipeForm: React.FC = () => {
 
   const packagingCost = recipeItems.reduce((acc, item) => {
     const ing = ingredients.find(i => i.id === item.ingredient_id);
-    if (ing?.category === 'product') {
+    if (ing?.category === 'packaging') {
       const cost = (ing.unit_cost_base || 0) * item.quantity_used;
       return acc + cost;
     }
@@ -277,7 +265,7 @@ export const RecipeForm: React.FC = () => {
   const renderItemList = (filterFn: (ing: Ingredient | undefined) => boolean, emptyMsg: string) => {
     const filteredItems = recipeItems.filter(item => {
       const ing = ingredients.find(i => i.id === item.ingredient_id);
-      if (!ing && filterFn === isNotProduct) return true; 
+      if (!ing && filterFn === isNotPackaging) return true; 
       return filterFn(ing);
     });
 
@@ -315,8 +303,8 @@ export const RecipeForm: React.FC = () => {
     );
   };
 
-  const isProduct = (ing: Ingredient | undefined) => ing?.category === 'product';
-  const isNotProduct = (ing: Ingredient | undefined) => ing?.category !== 'product';
+  const isPackaging = (ing: Ingredient | undefined) => ing?.category === 'packaging';
+  const isNotPackaging = (ing: Ingredient | undefined) => ing?.category !== 'packaging';
 
   if (loading) return <div className="flex justify-center items-center h-64"><Loader2 className="animate-spin text-amber-600 w-8 h-8" /></div>;
 
@@ -379,40 +367,37 @@ export const RecipeForm: React.FC = () => {
               </div>
               <button onClick={addIngredientItem} disabled={!selectedIngId} className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50"><Plus size={20} /></button>
             </div>
-            {renderItemList(isNotProduct, 'Nenhum ingrediente adicionado.')}
+            {renderItemList(isNotPackaging, 'Nenhum ingrediente adicionado.')}
           </div>
 
-          {/* Produtos / Embalagens */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 border-l-4 border-l-blue-500">
-            <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-               <Package size={20} className="text-blue-500" /> Produtos / Embalagens
+          {/* Embalagens */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 border-l-4 border-l-amber-600">
+            <h3 className="font-bold text-slate-700 flex items-center gap-2 mb-2">
+              <Package size={20} className="text-amber-600" /> 
+              Embalagens (Caixas, Fitas, etc)
             </h3>
-            <div className="flex flex-col md:flex-row gap-3 items-end mb-6 bg-blue-50 p-4 rounded-lg">
-              <div className="flex-1 w-full">
-                <label className="text-xs font-bold text-blue-700">Produto / Embalagem</label>
-                <select value={selectedProdId} onChange={(e) => setSelectedProdId(e.target.value)} className="w-full mt-1 px-3 py-2 border border-blue-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none">
-                  <option value="">Selecione...</option>
-                  {productIngredients.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
-                </select>
-              </div>
-              <div className="w-full md:w-32">
-                <label className="text-xs font-bold text-blue-700">Qtd</label>
-                <input type="number" value={prodQuantity} onChange={(e) => setProdQuantity(e.target.value)} className="w-full mt-1 px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="0" />
-              </div>
-              <div className="w-full md:w-32">
-                <label className="text-xs font-bold text-blue-700">Unidade</label>
-                <select value={selectedProdUnit} onChange={(e) => setSelectedProdUnit(e.target.value)} className="w-full mt-1 px-3 py-2 border border-blue-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none" disabled={!selectedProdId}>
-                  {selectedProductDetails ? (
-                    <>
-                      <option value={selectedProductDetails.base_unit}>{selectedProductDetails.base_unit}</option>
-                      {selectedProductDetails.conversions?.map((c: any, idx: number) => <option key={idx} value={c.name}>{c.name}</option>)}
-                    </>
-                  ) : <option>-</option>}
-                </select>
-              </div>
-              <button onClick={addProductItem} disabled={!selectedProdId} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"><Plus size={20} /></button>
+            <p className="text-xs text-slate-400 mb-4">Itens não comestíveis necessários para a venda.</p>
+            
+            <div className="flex gap-2 mb-4">
+              <select
+                className="flex-1 p-2 border rounded-lg bg-white focus:ring-2 focus:ring-amber-500 outline-none"
+                value={selectedExtraId}
+                onChange={(e) => {
+                  const item = ingredients.find(i => i.id === e.target.value);
+                  setSelectedExtraId(e.target.value);
+                  if (item) setExtraCost(item.unit_cost_base || 0);
+                }}
+              >
+                <option value="">Selecione uma embalagem...</option>
+                {packagingItems.map(ing => (
+                  <option key={ing.id} value={ing.id}>
+                    {ing.name} (R$ {(ing.unit_cost_base || 0).toFixed(2)})
+                  </option>
+                ))}
+              </select>
+              <button onClick={addPackagingItem} disabled={!selectedExtraId} className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50"><Plus size={20} /></button>
             </div>
-            {renderItemList(isProduct, 'Nenhum produto ou embalagem adicionado.')}
+            {renderItemList(isPackaging, 'Nenhuma embalagem adicionada.')}
           </div>
 
           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">

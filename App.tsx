@@ -16,6 +16,8 @@ import { PricingSimulator } from './components/PricingSimulator';
 import { PosView } from './components/PosView';
 import { CashHistory } from './components/CashHistory';
 import { PosReports } from './components/PosReports';
+import { PackagingView } from './components/PackagingView';
+import { ResaleProductsView } from './components/ResaleProductsView';
 import {
   Settings as SettingsIcon,
   ChefHat,
@@ -28,7 +30,6 @@ import {
   ShoppingBag,
   TrendingUp,
   TrendingDown,
-  Calculator,
   Tags,
   History,
   Store,
@@ -86,7 +87,8 @@ export function AppContent() {
     const path = location.pathname;
     if (path === '/settings') return 'settings';
     if (path === '/ingredients') return 'ingredients';
-    if (path === '/products') return 'products';
+    if (path === '/packaging') return 'packaging';
+    if (path === '/resale-products') return 'resale_products';
     if (path.startsWith('/recipes')) return 'recipes';
     if (path === '/costs') return 'costs';
     if (path === '/sales') return 'sales';
@@ -99,23 +101,31 @@ export function AppContent() {
 
   const currentView = getCurrentView();
 
+  // CORREÇÃO: Lógica de NavItem aprimorada para evitar conflito de rotas parecidas
   const NavItem = ({ to, label, icon: Icon }: { to: string; label: string; icon: LucideIcon }) => (
     <NavLink
       to={to}
-      // MELHORIA: mudei py-3 para py-2 (Menu mais compacto)
-      className={({ isActive }) =>
-        `flex items-center gap-3 px-4 py-2 rounded-lg w-full text-left transition-all ${isActive || (to !== '/' && location.pathname.startsWith(to))
+      className={({ isActive }) => {
+        // Verifica se é ativo OU se é uma sub-rota real (ex: /recipes/123)
+        // O `${to}/` garante que /resale não ative com /resale-products
+        const isPathActive = isActive || (to !== '/' && location.pathname.startsWith(`${to}/`));
+        
+        return `flex items-center gap-3 px-4 py-2 rounded-lg w-full text-left transition-all ${
+          isPathActive
           ? 'bg-amber-100 text-amber-900 font-medium'
           : 'text-slate-600 hover:bg-slate-100'
-        }`
-      }
+        }`;
+      }}
     >
-      {({ isActive }) => (
-        <>
-          <Icon size={20} className={isActive || (to !== '/' && location.pathname.startsWith(to)) ? 'text-amber-700' : 'text-slate-400'} />
-          {label}
-        </>
-      )}
+      {({ isActive }) => {
+         const isPathActive = isActive || (to !== '/' && location.pathname.startsWith(`${to}/`));
+         return (
+          <>
+            <Icon size={20} className={isPathActive ? 'text-amber-700' : 'text-slate-400'} />
+            {label}
+          </>
+        );
+      }}
     </NavLink>
   );
 
@@ -134,7 +144,6 @@ export function AppContent() {
         <nav className="space-y-1 flex-1 overflow-y-auto">
           <NavItem to="/" label="Visão Geral" icon={LayoutDashboard} />
           
-          {/* MENU OTIMIZADO (Vendas e Caixa juntos) */}
           <div className="pt-2 pb-2">
             <p className="px-4 text-xs font-bold text-slate-400 uppercase mb-1">Vendas & Caixa</p>
             <NavItem to="/pos" label="PDV | Frente de Caixa" icon={Store} />
@@ -148,7 +157,8 @@ export function AppContent() {
             <p className="px-4 text-xs font-bold text-slate-400 uppercase mb-1">Produção</p>
             <NavItem to="/recipes" label="Minhas Receitas" icon={ChefHat} />
             <NavItem to="/ingredients" label="Meus Ingredientes" icon={Package} />
-            <NavItem to="/products" label="Produtos & Emb." icon={ShoppingBag} />
+            <NavItem to="/packaging" label="Embalagens" icon={Box} />
+            <NavItem to="/resale-products" label="Produtos Revenda" icon={ShoppingBag} />
           </div>
 
           <div className="pt-2 pb-2">
@@ -177,7 +187,7 @@ export function AppContent() {
           >
             Sair
           </button>
-          <p className="text-xs text-slate-400 text-center">Versão 2.3.0 • Effitech</p>
+          <p className="text-xs text-slate-400 text-center">Versão 2.3.1 • Effitech</p>
         </div>
       </aside>
 
@@ -188,13 +198,13 @@ export function AppContent() {
               <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
                 {currentView === 'settings' && <><SettingsIcon className="text-amber-600" /> Configurações Globais</>}
                 {currentView === 'ingredients' && <><Package className="text-amber-600" /> Gestão de Ingredientes</>}
-                {currentView === 'products' && <><Box className="text-purple-600" /> Produtos & Embalagens</>}
+                {currentView === 'packaging' && <><Box className="text-blue-600" /> Embalagens</>}
+                {currentView === 'resale_products' && <><ShoppingBag className="text-emerald-600" /> Produtos Revenda</>}
                 {currentView === 'recipes' && <><ChefHat className="text-amber-600" /> Gerenciamento de Receitas</>}
                 {currentView === 'costs' && <><DollarSign className="text-amber-600" /> Simulador de Preços</>}
                 {currentView === 'sales' && <><TrendingUp className="text-emerald-600" /> Controle de Vendas</>}
                 {currentView === 'expenses' && <><TrendingDown className="text-rose-600" /> Controle de Despesas</>}
                 {currentView === 'pos' && <><Store className="text-amber-600" /> Frente de Caixa</>}
-                {/*{currentView === 'reports' && <><PieChart className="text-amber-600" /> Relatórios de Vendas</>}*/}
                 {currentView === 'history' && <><History className="text-slate-600" /> Histórico de Caixas</>}
               </h2>
             </header>
@@ -206,7 +216,7 @@ export function AppContent() {
                 const routes: Record<string, string> = {
                   'settings': '/settings',
                   'ingredients': '/ingredients',
-                  'products': '/products',
+                  'products': '/resale-products',
                   'recipes': '/recipes',
                   'costs': '/costs',
                   'sales': '/sales',
@@ -215,8 +225,9 @@ export function AppContent() {
                 if (routes[view]) navigate(routes[view]);
               }} />} />
               <Route path="/settings" element={<SettingsForm onSave={handleSettingsSaved} />} />
-              <Route path="/ingredients" element={<IngredientForm type="ingredient" />} />
-              <Route path="/products" element={<IngredientForm type="product" />} />
+              <Route path="/ingredients" element={<IngredientForm />} />
+              <Route path="/packaging" element={<PackagingView />} />
+              <Route path="/resale-products" element={<ResaleProductsView />} />
               <Route path="/recipes" element={<RecipeList />} />
               <Route path="/recipes/new" element={<RecipeForm />} />
               <Route path="/recipes/:id" element={<RecipeForm />} />
@@ -232,7 +243,6 @@ export function AppContent() {
               <Route path="/cash-history" element={<CashHistory />} />
               <Route path="/reports" element={<PosReports />} />
 
-              {/* IMPORTANTE: O Wildcard (*) deve ser sempre o ÚLTIMO item */}
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </div>

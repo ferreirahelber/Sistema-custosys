@@ -43,7 +43,7 @@ export interface Ingredient {
   conversions?: MeasureConversion[];
   current_stock?: number; // Quantidade atual em base_unit (g/ml/un)
   min_stock?: number; // Quantidade mínima desejada em base_unit (g/ml/un)
-  category?: 'ingredient' | 'product';
+  category?: 'ingredient' | 'product' | 'packaging';
   barcode?: string;
 }
 
