@@ -1,6 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
-import { Plus, Trash2, Search, Calendar, DollarSign, TrendingUp, CreditCard, Wallet } from 'lucide-react';
+import { 
+  Plus, 
+  Trash2, 
+  Search, 
+  Calendar, 
+  DollarSign, 
+  TrendingUp, 
+  CreditCard, 
+  Wallet, 
+  Clock,     // Ícone de Relógio
+  QrCode,    // Ícone para Pix
+  Banknote   // Ícone para Dinheiro
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Sale {
@@ -12,6 +24,7 @@ interface Sale {
   payment_method?: string;
   fee_amount?: number;
   net_amount?: number;
+  created_at: string; // Adicionado para pegar o horário
 }
 
 export function SalesView() {
@@ -89,6 +102,19 @@ export function SalesView() {
     }
   }
 
+  // Helper para escolher o ícone do pagamento
+  const getPaymentIcon = (method?: string) => {
+    if (!method) return <CreditCard size={10} />;
+    const m = method.toLowerCase();
+    
+    if (m.includes('pix')) return <QrCode size={10} className="text-emerald-500" />;
+    if (m.includes('dinheiro')) return <Banknote size={10} className="text-green-600" />;
+    if (m.includes('crédito') || m.includes('credito')) return <CreditCard size={10} className="text-orange-500" />;
+    if (m.includes('débito') || m.includes('debito')) return <CreditCard size={10} className="text-blue-500" />;
+    
+    return <CreditCard size={10} />;
+  };
+
   const filteredSales = sales.filter(s => 
     s.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
     s.category.toLowerCase().includes(searchTerm.toLowerCase())
@@ -108,10 +134,8 @@ export function SalesView() {
           <p className="text-slate-500">Gerencie suas vendas e veja o líquido real.</p>
         </div>
         
-        {/* CARDS DE RESUMO FINANCEIRO (GRID DE 3 PARA IGUALDADE) */}
+        {/* CARDS DE RESUMO */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          
-          {/* Card Bruto - AZUL/SLATE */}
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
              <div>
                 <p className="text-xs font-bold text-slate-400 uppercase mb-1">Venda Bruta</p>
@@ -122,7 +146,6 @@ export function SalesView() {
              </div>
           </div>
           
-          {/* Card Taxas - VERMELHO/ROSE */}
           <div className="bg-white p-4 rounded-xl border border-rose-100 shadow-sm flex items-center justify-between">
              <div>
                 <p className="text-xs font-bold text-rose-400 uppercase mb-1">Taxas Pagas</p>
@@ -133,7 +156,6 @@ export function SalesView() {
              </div>
           </div>
 
-          {/* Card Líquido - VERDE/EMERALD */}
           <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200 shadow-sm flex items-center justify-between ring-1 ring-emerald-500/20">
             <div>
               <p className="text-xs font-bold text-emerald-600 uppercase mb-1">Líquido em Caixa</p>
@@ -166,7 +188,7 @@ export function SalesView() {
         </button>
       </div>
 
-      {/* Formulário de Nova Venda */}
+      {/* Formulário */}
       {showForm && (
         <form onSubmit={handleSubmit} className="bg-white p-6 rounded-xl shadow-md border border-emerald-100 animate-in slide-in-from-top-4">
           <h3 className="font-bold text-lg mb-4 text-slate-700">Registrar Entrada</h3>
@@ -182,6 +204,15 @@ export function SalesView() {
             <div>
               <label className="block text-xs font-bold text-slate-500 mb-1">Data</label>
               <input required type="date" className="w-full p-2 border border-slate-200 rounded-lg outline-none focus:border-emerald-500" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1">Pagamento</label>
+              <select className="w-full p-2 border border-slate-200 rounded-lg outline-none focus:border-emerald-500" value={formData.payment_method} onChange={e => setFormData({...formData, payment_method: e.target.value})}>
+                <option>Pix</option>
+                <option>Dinheiro</option>
+                <option>Crédito</option>
+                <option>Débito</option>
+              </select>
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-500 mb-1">Categoria</label>
@@ -214,7 +245,7 @@ export function SalesView() {
             <table className="w-full text-left">
               <thead className="bg-slate-50 border-b border-slate-100">
                 <tr>
-                  <th className="p-4 font-bold text-slate-600 text-sm">Data</th>
+                  <th className="p-4 font-bold text-slate-600 text-sm">Data / Hora</th>
                   <th className="p-4 font-bold text-slate-600 text-sm">Descrição</th>
                   <th className="p-4 font-bold text-slate-600 text-sm">Categoria</th>
                   <th className="p-4 font-bold text-slate-600 text-sm">Valor Bruto</th>
@@ -225,20 +256,38 @@ export function SalesView() {
               <tbody className="divide-y divide-slate-100">
                 {filteredSales.map((sale) => {
                   const hasFee = sale.fee_amount && sale.fee_amount > 0;
+                  // Formatação de Hora
+                  const timeString = sale.created_at 
+                    ? new Date(sale.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+                    : '--:--';
+
                   return (
                     <tr key={sale.id} className="hover:bg-slate-50 transition group">
-                      <td className="p-4 text-sm text-slate-500 flex items-center gap-2">
-                        <Calendar size={14} />
-                        {new Date(sale.date).toLocaleDateString()}
+                      
+                      {/* COLUNA DATA E HORA */}
+                      <td className="p-4 text-sm text-slate-500">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Calendar size={14} />
+                          {new Date(sale.date).toLocaleDateString()}
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-slate-400">
+                          <Clock size={12} />
+                          {timeString}
+                        </div>
                       </td>
+
                       <td className="p-4 font-medium text-slate-800">
                         {sale.description}
+                        
+                        {/* MÉTODO DE PAGAMENTO (AGORA COM ÍCONES ESPECÍFICOS) */}
                         {sale.payment_method && (
-                           <div className="text-[10px] text-slate-400 uppercase mt-0.5 flex items-center gap-1">
-                             <CreditCard size={10}/> {sale.payment_method}
+                           <div className="text-[11px] text-slate-500 uppercase mt-1 flex items-center gap-1.5 font-semibold">
+                             {getPaymentIcon(sale.payment_method)}
+                             {sale.payment_method}
                            </div>
                         )}
                       </td>
+
                       <td className="p-4 text-sm">
                         <span className={`px-2 py-1 rounded-full text-xs font-bold
                           ${sale.category === 'Venda PDV' ? 'bg-emerald-100 text-emerald-700' : 
