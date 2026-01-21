@@ -23,7 +23,8 @@ export const RecipeService = {
     return (
       data?.map((r) => ({
         ...r,
-        // AQUI ESTAVA O ANY: Substituído por RecipeItemResponse
+        barcode: r.barcode, // <--- GARANTE QUE O CÓDIGO SEJA LIDO AQUI
+        
         items: r.items.map((i: RecipeItemResponse) => ({
           ...i,
           quantity_used: i.quantity, // Mapeia "quantity" do banco para "quantity_used" da tela
@@ -49,6 +50,7 @@ export const RecipeService = {
       id: recipe.id || undefined,
       user_id: user.id,
       name: recipe.name,
+      barcode: recipe.barcode, // <--- CAMPO CRÍTICO: SALVA O CÓDIGO NO BANCO
       yield_units: recipe.yield_units,
       preparation_time_minutes: recipe.preparation_time_minutes,
       preparation_method: recipe.preparation_method,

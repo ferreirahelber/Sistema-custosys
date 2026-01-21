@@ -11,18 +11,19 @@ import {
   TrendingUp,
   Loader2,
   Package,
-  Calculator
+  Calculator,
+  Barcode // Icone Novo
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-// Tipo atualizado com os novos campos
 interface Product {
   id: string;
   name: string;
-  price: number;       // Preço de Venda
-  cost_price: number;  // Custo Unitário (Calculado)
-  package_price?: number; // Preço do Fardo
-  package_amount?: number; // Qtd no Fardo
+  price: number;
+  cost_price: number;
+  package_price?: number;
+  package_amount?: number;
+  barcode?: string; // NOVO CAMPO
   type: string;
 }
 
@@ -39,12 +40,12 @@ export function ResaleProductsView() {
   
   const [currentId, setCurrentId] = useState<string | null>(null);
   
-  // Estado do formulário atualizado
   const [formData, setFormData] = useState({
     name: '',
-    packagePrice: '',   // Preço do Fardo (ex: 30.00)
-    packageAmount: '1', // Qtd no Fardo (ex: 12)
-    sellingPrice: ''    // Preço de Venda Unitário
+    barcode: '', // NOVO CAMPO
+    packagePrice: '',
+    packageAmount: '1',
+    sellingPrice: ''
   });
 
   const [deleteConfirmation, setDeleteConfirmation] = useState<{ isOpen: boolean; id: string | null; name: string }>({
@@ -77,6 +78,7 @@ export function ResaleProductsView() {
     setCurrentId(null);
     setFormData({
       name: '',
+      barcode: '',
       packagePrice: '',
       packageAmount: '1',
       sellingPrice: ''
@@ -98,21 +100,19 @@ export function ResaleProductsView() {
     setCurrentId(item.id);
     setFormData({
       name: item.name,
-      // Se tiver dados de pacote, usa. Se não, usa o custo unitário como fallback
+      barcode: item.barcode || '', // Carrega o código
       packagePrice: item.package_price?.toString() || item.cost_price?.toString() || '0',
       packageAmount: item.package_amount?.toString() || '1',
       sellingPrice: item.price?.toString() || '0'
     });
   };
 
-  // 1. CÁLCULO AUTOMÁTICO DO CUSTO UNITÁRIO
   const calculateUnitCost = () => {
     const pkgPrice = parseFloat(formData.packagePrice) || 0;
     const pkgAmount = parseFloat(formData.packageAmount) || 1;
     return pkgAmount > 0 ? pkgPrice / pkgAmount : 0;
   };
 
-  // 2. CÁLCULO DO LUCRO (Venda - Custo Unitário)
   const calculateMargin = () => {
     const cost = calculateUnitCost();
     const sell = parseFloat(formData.sellingPrice) || 0;
@@ -133,10 +133,11 @@ export function ResaleProductsView() {
 
     const payload = {
       name: formData.name,
+      barcode: formData.barcode, // SALVA O CÓDIGO
       price: parseFloat(formData.sellingPrice) || 0,
-      cost_price: costCalculated, // Salva o unitário calculado
-      package_price: parseFloat(formData.packagePrice) || 0, // Salva o histórico do fardo
-      package_amount: parseFloat(formData.packageAmount) || 1, // Salva a qtd do fardo
+      cost_price: costCalculated,
+      package_price: parseFloat(formData.packagePrice) || 0,
+      package_amount: parseFloat(formData.packageAmount) || 1,
       type: 'resale',
       profit_margin: marginKPI
     };
@@ -182,7 +183,10 @@ export function ResaleProductsView() {
     }
   };
 
-  const filteredItems = items.filter(i => i.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredItems = items.filter(i => 
+    i.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (i.barcode && i.barcode.includes(searchTerm))
+  );
 
   // Theme Emerald
   const theme = {
@@ -196,7 +200,7 @@ export function ResaleProductsView() {
   return (
     <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-140px)] min-h-[600px] animate-fade-in">
       
-      {/* 🟩 PAINEL DE EDIÇÃO (ESQUERDA) */}
+      {/* 🟩 PAINEL DE EDIÇÃO */}
       <div className="lg:w-1/3 bg-white rounded-xl shadow-lg border border-slate-200 flex flex-col overflow-hidden">
         <div className={`p-4 border-b flex justify-between items-center ${mode === 'create' ? theme.bg : mode === 'edit' ? 'bg-amber-50' : 'bg-slate-50'}`}>
           <div className="flex items-center gap-2 font-bold text-slate-700">
@@ -223,7 +227,6 @@ export function ResaleProductsView() {
           ) : (
             <form onSubmit={handleSave} className="space-y-5 animate-in slide-in-from-left-4 fade-in duration-300">
               
-              {/* Card de Lucro Estimado */}
               <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-4 text-white shadow-lg relative overflow-hidden group">
                 <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition">
                   <TrendingUp size={48} />
@@ -251,7 +254,16 @@ export function ResaleProductsView() {
                 />
               </div>
 
-              {/* ÁREA DE CÁLCULO DE CUSTO (FARDO) */}
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1"><Barcode size={14} /> Código de Barras (Opcional)</label>
+                <input 
+                  value={formData.barcode}
+                  onChange={e => setFormData({...formData, barcode: e.target.value})}
+                  placeholder="Bipe ou digite o código..."
+                  className="w-full mt-1 px-3 py-3 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-slate-700"
+                />
+              </div>
+
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3 relative">
                 <div className="absolute top-3 right-3 text-slate-300">
                     <Calculator size={16} />
@@ -291,7 +303,6 @@ export function ResaleProductsView() {
                 </div>
               </div>
 
-              {/* PREÇO DE VENDA */}
               <div>
                    <label className="text-xs font-bold text-emerald-700 uppercase">Preço de Venda Unitário (R$)</label>
                    <input 
@@ -312,13 +323,13 @@ export function ResaleProductsView() {
         </div>
       </div>
 
-      {/* 📋 LISTA (DIREITA) */}
+      {/* 📋 LISTA */}
       <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
         <div className="p-4 border-b border-slate-100 flex gap-4 bg-white z-20">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
             <input 
-              placeholder="Buscar produto..."
+              placeholder="Buscar por nome ou código..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border rounded-lg text-sm outline-none focus:border-emerald-500 bg-slate-50 focus:bg-white transition"
@@ -354,8 +365,9 @@ export function ResaleProductsView() {
                     `}
                   >
                     <td className="p-4 font-bold text-slate-700 whitespace-nowrap">
-                      {item.name}
-                      {currentId === item.id && mode === 'edit' && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-200 text-emerald-800">EDITANDO</span>}
+                      <div>{item.name}</div>
+                      {item.barcode && <div className="text-[10px] text-slate-400 flex items-center gap-1"><Barcode size={10}/> {item.barcode}</div>}
+                      {currentId === item.id && mode === 'edit' && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-200 text-emerald-800 mt-1 inline-block">EDITANDO</span>}
                     </td>
                     
                     <td className="p-4 whitespace-nowrap text-slate-500">

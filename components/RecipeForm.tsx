@@ -11,7 +11,6 @@ import {
   Layers,
   Plus,
   Trash2,
-  PieChart,
   Edit,
   Loader2,
   BookOpen,
@@ -20,7 +19,9 @@ import {
   AlertTriangle,
   History,
   HelpCircle,
-  Package
+  Package,
+  Barcode,
+  Wand2 // Ícone da Varinha Mágica para gerar código
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -38,6 +39,8 @@ export const RecipeForm: React.FC = () => {
     fixed_overhead_rate: 0,
     cost_per_minute: 0,
     estimated_monthly_revenue: 0,
+    card_debit_rate: 1.99,
+    card_credit_rate: 4.99
   });
 
   const [loading, setLoading] = useState(true);
@@ -46,6 +49,7 @@ export const RecipeForm: React.FC = () => {
 
   // Estados do Formulário Principal
   const [name, setName] = useState('');
+  const [barcode, setBarcode] = useState(''); // NOVO CAMPO
   const [yieldUnits, setYieldUnits] = useState(1);
   const [prepTime, setPrepTime] = useState(60);
   const [prepMethod, setPrepMethod] = useState('');
@@ -83,6 +87,7 @@ export const RecipeForm: React.FC = () => {
 
           if (recipeToEdit) {
             setName(recipeToEdit.name);
+            setBarcode(recipeToEdit.barcode || ''); // Carrega código
             setYieldUnits(recipeToEdit.yield_units || 1);
             setPrepTime(recipeToEdit.preparation_time_minutes || 0);
             setPrepMethod(recipeToEdit.preparation_method || '');
@@ -104,16 +109,13 @@ export const RecipeForm: React.FC = () => {
   }, [id, navigate]);
 
   // --- LÓGICA DE SELEÇÃO E UNIDADES ---
-  
-  // 1. Para Ingredientes
   const selectedIngredientDetails = ingredients.find((i) => i.id === selectedIngId);
   useEffect(() => {
     if (selectedIngredientDetails && !selectedUnit) {
-      setSelectedUnit(selectedIngredientDetails.base_unit);
+      setSelectedUnit(selectedIngredientDetails.base_unit || 'g');
     }
   }, [selectedIngId, selectedIngredientDetails, selectedUnit]);
 
-  // 2. Para Embalagens
   const selectedPackagingDetails = ingredients.find((i) => i.id === selectedExtraId);
   useEffect(() => {
     if (selectedPackagingDetails) {
@@ -121,8 +123,15 @@ export const RecipeForm: React.FC = () => {
     }
   }, [selectedExtraId, selectedPackagingDetails]);
 
-  // --- ADICIONAR ITENS ---
+  // --- GERADOR DE CÓDIGO ---
+  const generateCode = () => {
+    // Gera um código aleatório estilo EAN-8 (8 dígitos)
+    const randomCode = Math.floor(10000000 + Math.random() * 90000000).toString();
+    setBarcode(randomCode);
+    toast.success('Código gerado automaticamente!');
+  };
 
+  // --- ADICIONAR ITENS ---
   const addIngredientItem = () => {
     if (!selectedIngId || !itemQuantity || !selectedUnit) return;
     const qtyInput = parseFloat(itemQuantity);
@@ -214,8 +223,6 @@ export const RecipeForm: React.FC = () => {
   }, 0);
 
   const materialsCostOnly = financials.total_cost_material - packagingCost;
-
-  // Cálculo aproximado das despesas para exibição no tooltip
   const totalFixedExpensesApprox = (settings.estimated_monthly_revenue * settings.fixed_overhead_rate) / 100;
   const showDetailedTooltip = settings.estimated_monthly_revenue > 0;
 
@@ -238,6 +245,7 @@ export const RecipeForm: React.FC = () => {
       const recipeData: Recipe = {
         id: id || '',
         name,
+        barcode, // SALVANDO CÓDIGO
         yield_units: yieldUnits,
         preparation_time_minutes: prepTime,
         preparation_method: prepMethod,
@@ -261,7 +269,7 @@ export const RecipeForm: React.FC = () => {
     }
   };
 
-  // --- RENDERIZAÇÃO ---
+  // --- RENDERIZADORES AUXILIARES ---
   const renderItemList = (filterFn: (ing: Ingredient | undefined) => boolean, emptyMsg: string) => {
     const filteredItems = recipeItems.filter(item => {
       const ing = ingredients.find(i => i.id === item.ingredient_id);
@@ -323,10 +331,33 @@ export const RecipeForm: React.FC = () => {
         {/* COLUNA ESQUERDA */}
         <div className="xl:col-span-2 space-y-6">
           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Nome da Receita</label>
-              <input value={name} onChange={(e) => setName(e.target.value)} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none" placeholder="Ex: Bolo de Cenoura" autoFocus={!isEditing} />
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Nome da Receita</label>
+                    <input value={name} onChange={(e) => setName(e.target.value)} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none" placeholder="Ex: Bolo de Cenoura" autoFocus={!isEditing} />
+                </div>
+                <div>
+                    <label className="flex items-center gap-1 text-sm font-medium text-slate-700 mb-1"><Barcode size={16} /> Código (SKU)</label>
+                    <div className="flex gap-1">
+                        <input 
+                            value={barcode} 
+                            onChange={(e) => setBarcode(e.target.value)} 
+                            className="w-full px-4 py-2 border rounded-l-lg focus:ring-2 focus:ring-amber-500 outline-none" 
+                            placeholder="Ex: 001" 
+                        />
+                        <button 
+                            type="button" 
+                            onClick={generateCode} 
+                            className="bg-slate-100 border border-l-0 rounded-r-lg px-3 hover:bg-slate-200 text-slate-600" 
+                            title="Gerar código sugerido"
+                        >
+                            <Wand2 size={18} />
+                        </button>
+                    </div>
+                </div>
             </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="flex items-center gap-1 text-sm font-medium text-slate-700 mb-1"><Clock size={16} /> Tempo (min)</label>
@@ -411,7 +442,7 @@ export const RecipeForm: React.FC = () => {
           <div className="sticky top-6 space-y-6">
             
             <div className="bg-slate-800 text-white p-6 rounded-xl shadow-lg">
-              <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><PieChart size={20} className="text-amber-400" /> Custos Calculados</h3>
+              <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><Clock size={20} className="text-amber-400" /> Custos Calculados</h3>
               <div className="space-y-2 text-sm opacity-80">
                 <div className="flex justify-between">
                   <span>Materiais</span>
@@ -419,7 +450,7 @@ export const RecipeForm: React.FC = () => {
                 </div>
                 
                 <div className="flex justify-between text-blue-200">
-                  <span className="flex items-center gap-1">Produtos <Package size={12}/></span>
+                  <span className="flex items-center gap-1">Embalagens <Package size={12}/></span>
                   <span>R$ {packagingCost.toFixed(2)}</span>
                 </div>
 
@@ -433,7 +464,6 @@ export const RecipeForm: React.FC = () => {
                     Custos Fixos
                     <div className="group relative cursor-help">
                       <HelpCircle size={12} className="text-amber-400 opacity-70 hover:opacity-100" />
-                      {/* TOOLTIP MELHORADO E EDUCATIVO */}
                       <div className="absolute right-0 w-64 p-3 bg-white text-slate-600 text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 bottom-full mb-2 -mr-2 border border-slate-100">
                         {showDetailedTooltip ? (
                           <>
@@ -457,7 +487,6 @@ export const RecipeForm: React.FC = () => {
                         ) : (
                           <p>Taxa manual de <strong>{settings.fixed_overhead_rate}%</strong> definida nas configurações.</p>
                         )}
-                        {/* Seta do Tooltip */}
                         <div className="absolute bottom-[-5px] right-3 w-3 h-3 bg-white border-b border-r border-slate-100 transform rotate-45"></div>
                       </div>
                     </div>
@@ -466,7 +495,7 @@ export const RecipeForm: React.FC = () => {
                 </div>
 
                 <div className="flex justify-between pt-2 mt-2 border-t border-slate-600 font-bold text-amber-400">
-                  <span>Total Receita</span>
+                  <span>Custo Total</span>
                   <span>R$ {financials.total_cost_final.toFixed(2)}</span>
                 </div>
               </div>

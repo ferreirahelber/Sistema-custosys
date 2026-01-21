@@ -35,6 +35,7 @@ export interface Ingredient {
   id?: string;
   name: string;
   category?: string; // 'food' | 'packaging'
+  barcode?: string;
 
   // --- Campos Novos (Pacote Fechado) ---
   package_price?: number;
@@ -69,6 +70,7 @@ export interface Product {
   package_price?: number;
   package_amount?: number;
   profit_margin?: number;
+  barcode?: string;
 }
 
 export interface PriceHistory {
@@ -89,6 +91,8 @@ export interface RecipeItem {
   quantity_input?: number;
   unit_input?: string;
   ingredient_name?: string;
+  unit_price?: number; // Para ajudar nos cálculos de impressão
+  ingredient?: Ingredient; // O objeto completo do ingrediente (vindo do join)
 }
 
 export interface Recipe {

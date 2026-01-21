@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
-import { Ingredient } from '../types'; // Reusamos o tipo Ingredient
+import { Ingredient } from '../types';
 import {
   Box,
   Plus,
@@ -11,8 +11,9 @@ import {
   LayoutGrid,
   TrendingDown,
   Loader2,
-  AlertTriangle,
-  Package
+  Package,
+  Barcode, // Ícone Novo
+  Calculator // Ícone Novo
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -30,9 +31,10 @@ export function PackagingView() {
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
+    barcode: '', // NOVO CAMPO
     packagePrice: '',
     packageAmount: '',
-    packageUnit: 'un', // Embalagem geralmente é Unidade
+    packageUnit: 'un', 
     baseUnit: 'un',
     currentStock: '',
     minStock: '10'
@@ -52,7 +54,7 @@ export function PackagingView() {
       const { data, error } = await supabase
         .from('ingredients')
         .select('*')
-        .eq('category', 'packaging') // FILTRO: Só Embalagens
+        .eq('category', 'packaging')
         .order('name');
 
       if (error) throw error;
@@ -68,6 +70,7 @@ export function PackagingView() {
     setCurrentId(null);
     setFormData({
       name: '',
+      barcode: '',
       packagePrice: '',
       packageAmount: '',
       packageUnit: 'un',
@@ -89,10 +92,11 @@ export function PackagingView() {
 
   const handleSelect = (item: Ingredient) => {
     setMode('edit');
-    setCurrentId(item.id);
+    setCurrentId(item.id!);
     setFormData({
       name: item.name,
-      packagePrice: item.package_price?.toString() || item.price.toString() || '0',
+      barcode: item.barcode || '', // Carrega código
+      packagePrice: item.package_price?.toString() || item.price?.toString() || '0',
       packageAmount: item.package_amount?.toString() || '1',
       packageUnit: item.package_unit || item.unit || 'un',
       baseUnit: item.base_unit || item.unit || 'un',
@@ -107,12 +111,12 @@ export function PackagingView() {
     
     if (amount === 0) return 0;
     
-    // Lógica simplificada para embalagens (geralmente Unidade)
+    // Lógica para embalagens (Unidade)
     if (formData.packageUnit === 'un') {
       return price / amount;
     }
     
-    // Se for fita (metros)
+    // Lógica para fitas (Metros -> cm)
     let multiplier = 1;
     if (formData.packageUnit === 'm' && formData.baseUnit === 'cm') multiplier = 100;
 
@@ -133,6 +137,7 @@ export function PackagingView() {
 
     const payload = {
       name: formData.name,
+      barcode: formData.barcode, // SALVA O CÓDIGO
       package_price: parseFloat(formData.packagePrice) || 0,
       package_amount: parseFloat(formData.packageAmount) || 0,
       package_unit: formData.packageUnit,
@@ -142,7 +147,7 @@ export function PackagingView() {
       unit_cost_base: unitCost,
       current_stock: parseFloat(formData.currentStock) || 0,
       min_stock: parseFloat(formData.minStock) || 0,
-      category: 'packaging' // FORÇA CATEGORIA EMBALAGEM
+      category: 'packaging'
     };
 
     try {
@@ -186,7 +191,10 @@ export function PackagingView() {
     }
   };
 
-  const filteredItems = items.filter(i => i.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredItems = items.filter(i => 
+    i.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (i.barcode && i.barcode.includes(searchTerm))
+  );
 
   // Theme Blue for Packaging
   const theme = {
@@ -251,36 +259,63 @@ export function PackagingView() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase">Preço Pacote (R$)</label>
-                  <input 
-                    type="number" step="0.01"
-                    value={formData.packagePrice}
-                    onChange={e => setFormData({...formData, packagePrice: e.target.value})}
-                    placeholder="0.00"
-                    className="w-full mt-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                  />
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1"><Barcode size={14} /> Código de Barras (Opcional)</label>
+                <input 
+                  value={formData.barcode}
+                  onChange={e => setFormData({...formData, barcode: e.target.value})}
+                  placeholder="Bipe ou digite o código..."
+                  className="w-full mt-1 px-3 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-slate-700"
+                />
+              </div>
+
+              {/* CARD DE DADOS DE COMPRA (IGUAL AO REVENDA) */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3 relative">
+                <div className="absolute top-3 right-3 text-slate-300">
+                    <Calculator size={16} />
                 </div>
-                <div>
-                   <label className="text-xs font-bold text-slate-500 uppercase">Qtd. no Pacote</label>
-                   <div className="flex mt-1">
+                <h4 className="text-xs font-bold text-slate-700 uppercase flex items-center gap-2">
+                  <Package size={14}/> Dados de Compra (Fardo/Pacote)
+                </h4>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase">Preço Pacote (R$)</label>
                     <input 
-                      type="number" step="0.001"
-                      value={formData.packageAmount}
-                      onChange={e => setFormData({...formData, packageAmount: e.target.value})}
-                      className="w-full px-3 py-2 border-l border-t border-b rounded-l-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      type="number" step="0.01"
+                      value={formData.packagePrice}
+                      onChange={e => setFormData({...formData, packagePrice: e.target.value})}
+                      placeholder="0.00"
+                      className="w-full mt-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
                     />
-                    <select 
-                      value={formData.packageUnit}
-                      onChange={e => setFormData({...formData, packageUnit: e.target.value})}
-                      className="px-2 border rounded-r-lg bg-slate-100 text-slate-700 outline-none text-sm font-bold"
-                    >
-                      <option value="un">un</option>
-                      <option value="pct">pct</option>
-                      <option value="m">m</option>
-                    </select>
-                   </div>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase">Qtd. no Pacote</label>
+                    <div className="flex mt-1">
+                      <input 
+                        type="number" step="0.001"
+                        value={formData.packageAmount}
+                        onChange={e => setFormData({...formData, packageAmount: e.target.value})}
+                        className="w-full px-3 py-2 border-l border-t border-b rounded-l-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                      />
+                      <select 
+                        value={formData.packageUnit}
+                        onChange={e => setFormData({...formData, packageUnit: e.target.value})}
+                        className="px-2 border rounded-r-lg bg-slate-100 text-slate-700 outline-none text-sm font-bold"
+                      >
+                        <option value="un">un</option>
+                        <option value="pct">pct</option>
+                        <option value="m">m</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-slate-200 flex justify-between items-center">
+                    <span className="text-xs text-slate-500 font-bold">Custo Unitário Calculado:</span>
+                    <span className="text-sm font-black text-slate-700 bg-white px-2 py-1 rounded border border-slate-200">
+                        {formatCurrency(costKPI)} / {formData.baseUnit}
+                    </span>
                 </div>
               </div>
 
@@ -343,7 +378,7 @@ export function PackagingView() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
             <input 
-              placeholder="Buscar embalagem..."
+              placeholder="Buscar por nome ou código..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border rounded-lg text-sm outline-none focus:border-blue-500 bg-slate-50 focus:bg-white transition"
@@ -379,8 +414,9 @@ export function PackagingView() {
                     `}
                   >
                     <td className="p-4 font-bold text-slate-700 whitespace-nowrap">
-                      {item.name}
-                      {currentId === item.id && mode === 'edit' && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-blue-200 text-blue-800">EDITANDO</span>}
+                      <div>{item.name}</div>
+                      {item.barcode && <div className="text-[10px] text-slate-400 flex items-center gap-1"><Barcode size={10}/> {item.barcode}</div>}
+                      {currentId === item.id && mode === 'edit' && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-200 text-blue-800 mt-1 inline-block">EDITANDO</span>}
                     </td>
                     
                     <td className="p-4 whitespace-nowrap">
