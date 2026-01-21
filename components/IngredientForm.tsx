@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import { Ingredient } from '../types';
 import {
-  Package,
+  Wheat,
   Plus,
   Search,
   Trash2,
@@ -11,33 +11,34 @@ import {
   LayoutGrid,
   TrendingDown,
   Loader2,
-  AlertTriangle
+  AlertTriangle,
+  Scale,
+  Barcode // Ícone novo
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-// --- UTILITÁRIOS ---
 const formatCurrency = (value: number) => {
   if (!value || isNaN(value)) return 'R$ 0,00';
   return `R$ ${value.toFixed(2).replace('.', ',')}`;
 };
 
 export function IngredientForm() {
-  // --- ESTADOS ---
-  const [ingredients, setIngredients] = useState<Ingredient[]>([]);
+  const [items, setItems] = useState<Ingredient[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [mode, setMode] = useState<'idle' | 'create' | 'edit'>('idle');
   
-  // --- FORMULÁRIO ---
   const [currentId, setCurrentId] = useState<string | null>(null);
+  
   const [formData, setFormData] = useState({
     name: '',
-    packagePrice: '',
-    packageAmount: '',
-    packageUnit: 'kg',
-    baseUnit: 'g',
+    barcode: '', // NOVO CAMPO
+    price: '',
+    amount: '',
+    unit: 'kg', // Unidade de Compra
+    baseUnit: 'g', // Unidade de Uso
     currentStock: '',
-    minStock: '10'
+    minStock: '1000'
   });
 
   const [deleteConfirmation, setDeleteConfirmation] = useState<{ isOpen: boolean; id: string | null; name: string }>({
@@ -45,20 +46,20 @@ export function IngredientForm() {
   });
 
   useEffect(() => {
-    loadIngredients();
+    loadItems();
   }, []);
 
-  const loadIngredients = async () => {
+  const loadItems = async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from('ingredients')
         .select('*')
-        .neq('category', 'packaging')
+        .neq('category', 'packaging') 
         .order('name');
 
       if (error) throw error;
-      setIngredients(data || []);
+      setItems(data || []);
     } catch (error) {
       toast.error('Erro ao carregar ingredientes');
     } finally {
@@ -70,12 +71,13 @@ export function IngredientForm() {
     setCurrentId(null);
     setFormData({
       name: '',
-      packagePrice: '',
-      packageAmount: '',
-      packageUnit: 'kg',
+      barcode: '',
+      price: '',
+      amount: '',
+      unit: 'kg',
       baseUnit: 'g',
       currentStock: '',
-      minStock: '10'
+      minStock: '1000'
     });
   };
 
@@ -89,61 +91,68 @@ export function IngredientForm() {
     setMode('idle');
   }
 
-  const handleSelect = (ing: Ingredient) => {
+  const handleSelect = (item: Ingredient) => {
     setMode('edit');
-    setCurrentId(ing.id);
+    setCurrentId(item.id!);
+    
+    // Tenta recuperar valores antigos ou novos
+    const loadPrice = item.package_price || item.price || 0;
+    const loadAmount = item.package_amount || 1;
+    const loadUnit = item.package_unit || item.unit || 'kg';
+    
     setFormData({
-      name: ing.name,
-      // Garante fallback seguro para evitar crash se vier null do banco
-      packagePrice: ing.package_price?.toString() || ing.price.toString() || '0',
-      packageAmount: ing.package_amount?.toString() || '1',
-      packageUnit: ing.package_unit || ing.unit || 'kg',
-      baseUnit: ing.base_unit || ing.unit || 'g',
-      currentStock: ing.current_stock?.toString() || '0',
-      minStock: ing.min_stock?.toString() || '10'
+      name: item.name,
+      barcode: item.barcode || '', // Carrega código
+      price: loadPrice.toString(),
+      amount: loadAmount.toString(),
+      unit: loadUnit,
+      baseUnit: item.base_unit || 'g',
+      currentStock: item.current_stock?.toString() || '0',
+      minStock: item.min_stock?.toString() || '1000'
     });
   };
 
-  const calculateBaseCost = () => {
-    const price = parseFloat(formData.packagePrice) || 0;
-    const amount = parseFloat(formData.packageAmount) || 0;
+  const calculateUnitCost = () => {
+    const price = parseFloat(formData.price) || 0;
+    const amount = parseFloat(formData.amount) || 0;
     
     if (amount === 0) return 0;
-
-    if (formData.packageUnit === 'un') {
-      return price / amount;
-    }
-
+    
+    // Lógica de conversão simples (kg -> g, l -> ml)
     let multiplier = 1;
-    if ((formData.packageUnit === 'kg' && formData.baseUnit === 'g') || (formData.packageUnit === 'l' && formData.baseUnit === 'ml')) {
+    if ((formData.unit === 'kg' && formData.baseUnit === 'g') || (formData.unit === 'l' && formData.baseUnit === 'ml')) {
       multiplier = 1000;
     }
 
-    const totalBaseUnits = amount * multiplier;
-    return totalBaseUnits > 0 ? price / totalBaseUnits : 0;
+    const totalBase = amount * multiplier;
+    return totalBase > 0 ? price / totalBase : 0;
   };
 
-  const costKPI = calculateBaseCost();
+  const costKPI = calculateUnitCost();
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.packagePrice || !formData.packageAmount) {
+    if (!formData.name || !formData.price || !formData.amount) {
       toast.warning('Preencha os campos obrigatórios');
       return;
     }
 
-    const calculatedBaseCost = calculateBaseCost();
+    const unitCost = calculateUnitCost();
 
-    // Payload limpo para evitar NaN
     const payload = {
       name: formData.name,
-      package_price: parseFloat(formData.packagePrice) || 0,
-      package_amount: parseFloat(formData.packageAmount) || 0,
-      package_unit: formData.packageUnit,
-      base_unit: formData.baseUnit,
-      price: calculatedBaseCost,
+      barcode: formData.barcode, // SALVA O CÓDIGO
+      
+      package_price: parseFloat(formData.price) || 0,
+      package_amount: parseFloat(formData.amount) || 0,
+      package_unit: formData.unit,
+      
+      price: unitCost,
       unit: formData.baseUnit,
-      unit_cost_base: calculatedBaseCost,
+      
+      base_unit: formData.baseUnit,
+      unit_cost_base: unitCost,
+      
       current_stock: parseFloat(formData.currentStock) || 0,
       min_stock: parseFloat(formData.minStock) || 0,
       category: 'food'
@@ -161,16 +170,15 @@ export function IngredientForm() {
       }
       resetForm();
       setMode('idle');
-      loadIngredients();
+      loadItems();
     } catch (error) {
-      console.error(error); // Loga o erro real no console para debug
-      toast.error('Erro ao salvar. Verifique se o banco de dados foi atualizado.');
+      toast.error('Erro ao salvar');
     }
   };
 
-  const confirmDelete = (e: React.MouseEvent, ing: Ingredient) => {
+  const confirmDelete = (e: React.MouseEvent, item: Ingredient) => {
     e.stopPropagation();
-    setDeleteConfirmation({ isOpen: true, id: ing.id!, name: ing.name });
+    setDeleteConfirmation({ isOpen: true, id: item.id!, name: item.name });
   };
 
   const executeDelete = async () => {
@@ -184,26 +192,36 @@ export function IngredientForm() {
         resetForm();
       }
       setDeleteConfirmation({ isOpen: false, id: null, name: '' });
-      loadIngredients();
+      loadItems();
     } catch (error) {
-      toast.error('Erro ao excluir (pode estar em uso)');
+      toast.error('Erro ao excluir');
       setDeleteConfirmation({ isOpen: false, id: null, name: '' });
     }
   };
 
-  const filteredIngredients = ingredients.filter(i => 
-    i.name.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredItems = items.filter(i => 
+    i.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (i.barcode && i.barcode.includes(searchTerm))
   );
+
+  // Theme Amber for Food
+  const theme = {
+    text: 'text-amber-600',
+    bg: 'bg-amber-50',
+    border: 'border-amber-200',
+    btn: 'bg-amber-600 hover:bg-amber-700',
+    selected: 'bg-amber-100 ring-1 ring-inset ring-amber-300'
+  };
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-140px)] min-h-[600px] animate-fade-in">
       
       {/* 🟧 PAINEL DE EDIÇÃO */}
       <div className="lg:w-1/3 bg-white rounded-xl shadow-lg border border-slate-200 flex flex-col overflow-hidden">
-        <div className={`p-4 border-b flex justify-between items-center ${mode === 'create' ? 'bg-amber-50' : mode === 'edit' ? 'bg-blue-50' : 'bg-slate-50'}`}>
+        <div className={`p-4 border-b flex justify-between items-center ${mode === 'create' ? theme.bg : mode === 'edit' ? 'bg-amber-50' : 'bg-slate-50'}`}>
           <div className="flex items-center gap-2 font-bold text-slate-700">
-            {mode === 'create' && <><Plus size={20} className="text-amber-600"/> Novo Ingrediente</>}
-            {mode === 'edit' && <><Edit size={20} className="text-blue-600"/> Editando Item</>}
+            {mode === 'create' && <><Plus size={20} className={theme.text}/> Novo Ingrediente</>}
+            {mode === 'edit' && <><Edit size={20} className="text-amber-600"/> Editando Item</>}
             {mode === 'idle' && <><LayoutGrid size={20} className="text-slate-400"/> Painel de Detalhes</>}
           </div>
           {mode !== 'idle' && (
@@ -214,33 +232,32 @@ export function IngredientForm() {
         <div className="flex-1 overflow-y-auto p-6 relative">
           {mode === 'idle' ? (
             <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-4 opacity-60">
-              <Package size={64} strokeWidth={1} />
+              <Wheat size={64} strokeWidth={1} />
               <p className="text-center text-sm max-w-[200px]">
-                Selecione um ingrediente na lista ou clique em "Novo".
+                Selecione um ingrediente ou clique em "Novo".
               </p>
-              <button onClick={handleNew} className="mt-4 px-6 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-full font-bold shadow-lg transition">
+              <button onClick={handleNew} className={`mt-4 px-6 py-2 text-white rounded-full font-bold shadow-lg transition ${theme.btn}`}>
                 Criar Novo
               </button>
             </div>
           ) : (
             <form onSubmit={handleSave} className="space-y-5 animate-in slide-in-from-left-4 fade-in duration-300">
-              {/* Card de Custo */}
+              
               <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-4 text-white shadow-lg relative overflow-hidden group">
                 <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition">
                   <TrendingDown size={48} />
                 </div>
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Custo Base Calculado</label>
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Custo Base (Uso)</label>
                 <div className="flex items-baseline gap-1.5">
                   <span className="text-3xl font-black tracking-tight text-amber-400">
                     {formatCurrency(costKPI)}
                   </span>
                   <span className="text-lg font-bold text-slate-500/80">/ {formData.baseUnit}</span>
                 </div>
-                <div className="text-[10px] text-slate-400 mt-1">Usado automaticamente nas receitas</div>
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-500 uppercase">Nome</label>
+                <label className="text-xs font-bold text-slate-500 uppercase">Nome do Ingrediente</label>
                 <input 
                   autoFocus
                   value={formData.name}
@@ -250,34 +267,45 @@ export function IngredientForm() {
                 />
               </div>
 
+              {/* CAMPO DE CÓDIGO DE BARRAS NOVO */}
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1"><Barcode size={14} /> Código de Barras (Opcional)</label>
+                <input 
+                  value={formData.barcode}
+                  onChange={e => setFormData({...formData, barcode: e.target.value})}
+                  placeholder="Bipe ou digite o código..."
+                  className="w-full mt-1 px-3 py-3 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none text-slate-700"
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-bold text-slate-500 uppercase">Preço Pago (R$)</label>
                   <input 
                     type="number" step="0.01"
-                    value={formData.packagePrice}
-                    onChange={e => setFormData({...formData, packagePrice: e.target.value})}
+                    value={formData.price}
+                    onChange={e => setFormData({...formData, price: e.target.value})}
                     placeholder="0.00"
                     className="w-full mt-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
                   />
                 </div>
                 <div>
-                   <label className="text-xs font-bold text-slate-500 uppercase">Qtd. Embalagem</label>
+                   <label className="text-xs font-bold text-slate-500 uppercase">Qtd. da Embalagem</label>
                    <div className="flex mt-1">
                     <input 
                       type="number" step="0.001"
-                      value={formData.packageAmount}
-                      onChange={e => setFormData({...formData, packageAmount: e.target.value})}
+                      value={formData.amount}
+                      onChange={e => setFormData({...formData, amount: e.target.value})}
                       className="w-full px-3 py-2 border-l border-t border-b rounded-l-lg focus:ring-2 focus:ring-amber-500 outline-none"
                     />
                     <select 
-                      value={formData.packageUnit}
-                      onChange={e => setFormData({...formData, packageUnit: e.target.value})}
+                      value={formData.unit}
+                      onChange={e => setFormData({...formData, unit: e.target.value})}
                       className="px-2 border rounded-r-lg bg-slate-100 text-slate-700 outline-none text-sm font-bold"
                     >
                       <option value="kg">kg</option>
+                      <option value="l">l</option>
                       <option value="g">g</option>
-                      <option value="l">L</option>
                       <option value="ml">ml</option>
                       <option value="un">un</option>
                     </select>
@@ -286,7 +314,7 @@ export function IngredientForm() {
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-500 uppercase">Usar nas Receitas em:</label>
+                <label className="text-xs font-bold text-slate-500 uppercase">Unidade de Uso (Receita):</label>
                 <div className="flex gap-2 mt-1">
                   {['g', 'ml', 'un'].map(u => (
                     <button
@@ -303,7 +331,7 @@ export function IngredientForm() {
 
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
                 <h4 className="text-xs font-bold text-slate-700 uppercase flex items-center gap-2">
-                  <Package size={14}/> Controle de Estoque
+                  <Scale size={14}/> Estoque
                 </h4>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -317,34 +345,34 @@ export function IngredientForm() {
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold text-slate-400 uppercase">Mínimo</label>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase">Mínimo ({formData.baseUnit})</label>
                     <input 
                       type="number"
                       value={formData.minStock}
                       onChange={e => setFormData({...formData, minStock: e.target.value})}
                       className="w-full mt-1 px-2 py-1.5 border rounded bg-white text-sm"
-                      placeholder="10"
+                      placeholder="1000"
                     />
                   </div>
                 </div>
               </div>
 
-              <button type="submit" className="w-full py-3 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition flex items-center justify-center gap-2">
+              <button type="submit" className={`w-full py-3 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition flex items-center justify-center gap-2 ${theme.btn}`}>
                 <Save size={20} />
-                {mode === 'edit' ? 'Atualizar Dados' : 'Cadastrar Item'}
+                {mode === 'edit' ? 'Atualizar' : 'Cadastrar'}
               </button>
             </form>
           )}
         </div>
       </div>
 
-      {/* 🟦 LISTA (DIREITA) */}
+      {/* 📋 LISTA */}
       <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
         <div className="p-4 border-b border-slate-100 flex gap-4 bg-white z-20">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
             <input 
-              placeholder="Buscar ingrediente..."
+              placeholder="Buscar ingrediente ou código..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border rounded-lg text-sm outline-none focus:border-amber-500 bg-slate-50 focus:bg-white transition"
@@ -362,57 +390,48 @@ export function IngredientForm() {
             <table className="w-full text-sm text-left border-collapse">
               <thead className="sticky top-0 z-30 bg-white shadow-sm text-slate-500 font-bold uppercase text-xs">
                 <tr>
-                  <th className="p-4 border-b whitespace-nowrap">Ingrediente</th>
-                  <th className="p-4 border-b whitespace-nowrap">Compra</th>
+                  <th className="p-4 border-b whitespace-nowrap">Item</th>
                   <th className="p-4 border-b whitespace-nowrap">Custo Base</th>
                   <th className="p-4 border-b text-center whitespace-nowrap">Estoque</th>
                   <th className="p-4 border-b text-right whitespace-nowrap">Ação</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {filteredIngredients.map(ing => (
+                {filteredItems.map(item => (
                   <tr 
-                    key={ing.id} 
-                    onClick={() => handleSelect(ing)}
+                    key={item.id} 
+                    onClick={() => handleSelect(item)}
                     className={`
                       group cursor-pointer transition-colors duration-150
                       odd:bg-white even:bg-slate-50/50 hover:bg-amber-50
-                      ${currentId === ing.id && mode === 'edit' ? 'bg-amber-100 ring-1 ring-inset ring-amber-300' : ''}
+                      ${currentId === item.id && mode === 'edit' ? theme.selected : ''}
                     `}
                   >
                     <td className="p-4 font-bold text-slate-700 whitespace-nowrap">
-                      {ing.name}
-                      {currentId === ing.id && mode === 'edit' && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-amber-200 text-amber-800">EDITANDO</span>}
+                      <div>{item.name}</div>
+                      {item.barcode && <div className="text-[10px] text-slate-400 flex items-center gap-1"><Barcode size={10}/> {item.barcode}</div>}
+                      {currentId === item.id && mode === 'edit' && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-200 text-amber-800 mt-1 inline-block">EDITANDO</span>}
                     </td>
                     
                     <td className="p-4 whitespace-nowrap">
-                      <div className="flex flex-col">
-                        <span className="font-bold text-slate-700">R$ {Number(ing.package_price || ing.price).toFixed(2)}</span>
-                        <span className="text-[10px] text-slate-400 font-medium">
-                          por {ing.package_amount || 1} {ing.package_unit || ing.unit}
-                        </span>
-                      </div>
-                    </td>
-                    
-                    <td className="p-4 whitespace-nowrap">
-                      <div className="flex flex-col text-amber-700">
-                        <span className="font-bold">{formatCurrency(ing.unit_cost_base || ing.price)}</span>
-                        <span className="text-[10px] text-slate-400 font-medium">/ {ing.base_unit || ing.unit}</span>
+                      <div className={`flex flex-col text-amber-700`}>
+                        <span className="font-bold">{formatCurrency(item.unit_cost_base)}</span>
+                        <span className="text-[10px] text-slate-400 font-medium">/ {item.base_unit}</span>
                       </div>
                     </td>
 
                     <td className="p-4 text-center whitespace-nowrap">
                         <span className={`text-xs font-bold px-2 py-1 rounded-full ${
-                          (ing.current_stock || 0) <= (ing.min_stock || 0) 
+                          (item.current_stock || 0) <= (item.min_stock || 0) 
                           ? 'bg-red-100 text-red-700' 
                           : 'bg-green-100 text-green-700'
                         }`}>
-                          {ing.current_stock || 0} {ing.base_unit || ing.unit}
+                          {item.current_stock || 0} {item.base_unit}
                         </span>
                     </td>
                     <td className="p-4 text-right whitespace-nowrap">
                       <button 
-                        onClick={(e) => confirmDelete(e, ing)}
+                        onClick={(e) => confirmDelete(e, item)}
                         className="p-2 text-slate-300 hover:text-red-600 hover:bg-white rounded-full transition relative z-10"
                       >
                         <Trash2 size={16} />
@@ -420,13 +439,6 @@ export function IngredientForm() {
                     </td>
                   </tr>
                 ))}
-                {filteredIngredients.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="p-12 text-center text-slate-400">
-                      Nenhum ingrediente encontrado.
-                    </td>
-                  </tr>
-                )}
               </tbody>
             </table>
           )}
@@ -436,20 +448,11 @@ export function IngredientForm() {
       {deleteConfirmation.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 animate-in zoom-in-95">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center text-red-600">
-                <AlertTriangle size={24} />
-              </div>
-              <div>
-                <h3 className="font-bold text-lg text-slate-800">Excluir Item?</h3>
-                <p className="text-sm text-slate-500">
-                  Isso removerá <span className="font-bold text-slate-800">"{deleteConfirmation.name}"</span> da base.
-                </p>
-              </div>
-            </div>
-            <div className="flex justify-end gap-3 mt-6">
-              <button onClick={() => setDeleteConfirmation({ isOpen: false, id: null, name: '' })} className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition">Cancelar</button>
-              <button onClick={executeDelete} className="px-4 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition">Sim, Excluir</button>
+            <h3 className="font-bold text-lg text-slate-800 mb-2">Excluir Ingrediente?</h3>
+            <p className="text-sm text-slate-500 mb-6">Confirma a exclusão de "{deleteConfirmation.name}"?</p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setDeleteConfirmation({ isOpen: false, id: null, name: '' })} className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg">Cancelar</button>
+              <button onClick={executeDelete} className="px-4 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700">Sim, Excluir</button>
             </div>
           </div>
         </div>

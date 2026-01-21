@@ -9,9 +9,11 @@ import {
   TrendingUp, 
   CreditCard, 
   Wallet, 
-  Clock,     // Ícone de Relógio
-  QrCode,    // Ícone para Pix
-  Banknote   // Ícone para Dinheiro
+  Clock,     
+  QrCode,    
+  Banknote,
+  AlertTriangle, // Ícone para o modal
+  Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -24,7 +26,7 @@ interface Sale {
   payment_method?: string;
   fee_amount?: number;
   net_amount?: number;
-  created_at: string; // Adicionado para pegar o horário
+  created_at: string;
 }
 
 export function SalesView() {
@@ -39,6 +41,11 @@ export function SalesView() {
     category: 'Encomenda',
     date: new Date().toISOString().split('T')[0],
     payment_method: 'Pix'
+  });
+
+  // ESTADO DO MODAL DE EXCLUSÃO (NOVO)
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string | null; desc: string }>({
+    isOpen: false, id: null, desc: ''
   });
 
   useEffect(() => {
@@ -63,17 +70,24 @@ export function SalesView() {
     }
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm('Tem certeza que deseja excluir esta venda?')) return;
+  // LÓGICA DE EXCLUSÃO NOVA (COM MODAL)
+  const requestDelete = (sale: Sale) => {
+    setDeleteModal({ isOpen: true, id: sale.id, desc: sale.description });
+  };
+
+  const executeDelete = async () => {
+    if (!deleteModal.id) return;
     try {
-      const { error } = await supabase.from('sales').delete().eq('id', id);
+      const { error } = await supabase.from('sales').delete().eq('id', deleteModal.id);
       if (error) throw error;
+      
       toast.success('Venda removida');
-      loadSales();
+      setSales(sales.filter(s => s.id !== deleteModal.id)); // Atualiza localmente para ser mais rápido
+      setDeleteModal({ isOpen: false, id: null, desc: '' });
     } catch (error) {
       toast.error('Erro ao excluir');
     }
-  }
+  };
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -102,7 +116,6 @@ export function SalesView() {
     }
   }
 
-  // Helper para escolher o ícone do pagamento
   const getPaymentIcon = (method?: string) => {
     if (!method) return <CreditCard size={10} />;
     const m = method.toLowerCase();
@@ -125,7 +138,7 @@ export function SalesView() {
   const totalNet = filteredSales.reduce((acc, curr) => acc + (curr.net_amount || curr.amount), 0);
 
   return (
-    <div className="animate-fade-in space-y-6">
+    <div className="animate-fade-in space-y-6 relative">
       
       {/* Cabeçalho */}
       <div className="flex flex-col gap-4">
@@ -234,7 +247,7 @@ export function SalesView() {
       {/* Tabela de Vendas */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         {loading ? (
-          <div className="p-8 text-center text-slate-400">Carregando vendas...</div>
+          <div className="p-8 text-center text-slate-400 flex justify-center"><Loader2 className="animate-spin text-emerald-600"/></div>
         ) : filteredSales.length === 0 ? (
           <div className="p-12 text-center text-slate-400">
             <DollarSign size={48} className="mx-auto mb-2 opacity-20" />
@@ -256,7 +269,6 @@ export function SalesView() {
               <tbody className="divide-y divide-slate-100">
                 {filteredSales.map((sale) => {
                   const hasFee = sale.fee_amount && sale.fee_amount > 0;
-                  // Formatação de Hora
                   const timeString = sale.created_at 
                     ? new Date(sale.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
                     : '--:--';
@@ -264,7 +276,6 @@ export function SalesView() {
                   return (
                     <tr key={sale.id} className="hover:bg-slate-50 transition group">
                       
-                      {/* COLUNA DATA E HORA */}
                       <td className="p-4 text-sm text-slate-500">
                         <div className="flex items-center gap-2 mb-1">
                           <Calendar size={14} />
@@ -278,8 +289,6 @@ export function SalesView() {
 
                       <td className="p-4 font-medium text-slate-800">
                         {sale.description}
-                        
-                        {/* MÉTODO DE PAGAMENTO (AGORA COM ÍCONES ESPECÍFICOS) */}
                         {sale.payment_method && (
                            <div className="text-[11px] text-slate-500 uppercase mt-1 flex items-center gap-1.5 font-semibold">
                              {getPaymentIcon(sale.payment_method)}
@@ -316,7 +325,11 @@ export function SalesView() {
                         )}
                       </td>
                       <td className="p-4 text-right">
-                        <button onClick={() => handleDelete(sale.id)} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition" title="Excluir Venda">
+                        <button 
+                            onClick={() => requestDelete(sale)} // CHAMA O MODAL AQUI
+                            className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition" 
+                            title="Excluir Venda"
+                        >
                           <Trash2 size={18} />
                         </button>
                       </td>
@@ -328,6 +341,39 @@ export function SalesView() {
           </div>
         )}
       </div>
+
+      {/* MODAL DE EXCLUSÃO (ADICIONADO NO FINAL) */}
+      {deleteModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6 animate-in zoom-in-95">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center text-red-600 shrink-0">
+                <AlertTriangle size={24} />
+              </div>
+              <div>
+                <h3 className="font-bold text-lg text-slate-800">Excluir Lançamento?</h3>
+                <p className="text-sm text-slate-500 leading-tight mt-1">
+                  Confirma a exclusão de <strong>"{deleteModal.desc}"</strong>? O valor será removido do caixa.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button 
+                onClick={() => setDeleteModal({ isOpen: false, id: null, desc: '' })} 
+                className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={executeDelete} 
+                className="px-4 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition shadow-lg shadow-red-600/20"
+              >
+                Sim, Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
