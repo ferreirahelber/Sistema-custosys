@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { RecipeService } from '../services/recipeService';
 import { PosService } from '../services/posService';
 import { CashModal } from './CashModal';
+import { PaymentModal } from './PaymentModal'; // <--- IMPORT NOVO
 import { CartItem, CashSession } from '../types';
 import {
   ShoppingCart, Trash2, CreditCard, Banknote, QrCode, Plus, Minus, Search,
@@ -21,7 +22,10 @@ export function PosView() {
   const [loadingSession, setLoadingSession] = useState(true);
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [closingSummary, setClosingSummary] = useState<any>(null);
+  const [closingSummary, setClosingSummary] = useState<any>(null); 
+
+  // --- NOVO: Estado para o modal de pagamento em dinheiro ---
+  const [showCashModal, setShowCashModal] = useState(false);
 
   // Estados de Dados
   const [sellableItems, setSellableItems] = useState<any[]>([]);
@@ -37,6 +41,8 @@ export function PosView() {
     paymentMethod: string;
     date: Date;
     id?: string;
+    change?: number; // Adicionei troco aqui para imprimir se quiser no futuro
+    received?: number;
   } | null>(null);
 
   // 1. Verificar Caixa
@@ -101,11 +107,7 @@ export function PosView() {
       setCart([]);
       setShowCloseModal(false);
       toast.success('Caixa fechado com sucesso!');
-
-      // CORREÇÃO CRÍTICA DO TRAVAMENTO:
-      // Redireciona para o Dashboard imediatamente após fechar.
-      navigate('/');
-
+      navigate('/'); 
     } catch (error) {
       toast.error('Erro ao fechar caixa');
     } finally {
@@ -151,16 +153,37 @@ export function PosView() {
 
   const cartTotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
 
-  // 5. Checkout
+  // 5. Checkout (Lógica Principal)
   const handleCheckout = async (paymentMethod: string) => {
     if (cart.length === 0 || !session) return;
+
+    // Se for Dinheiro, ABRE O MODAL de Troco e para por aqui
+    if (paymentMethod === 'Dinheiro') {
+      setShowCashModal(true);
+      return;
+    }
+
+    // Se for outros (Pix, Cartão), processa direto sem troco
+    await processSaleComplete(paymentMethod, 0, cartTotal);
+  };
+
+  // Função chamada quando confirma o modal de dinheiro
+  const handleConfirmCash = async (received: number, change: number) => {
+    setShowCashModal(false);
+    await processSaleComplete('Dinheiro', change, received);
+  };
+
+  // Função unificada que grava no banco
+  const processSaleComplete = async (method: string, changeAmount: number, receivedAmount: number) => {
+    if (!session) return;
+
     try {
       const newOrder = await PosService.processSale({
         session_id: session.id,
         total_amount: cartTotal,
         discount: 0,
-        change_amount: 0,
-        payment_method: paymentMethod,
+        change_amount: changeAmount, // Salva o troco no banco
+        payment_method: method,
         status: 'completed'
       }, cart.map(item => ({
         product_id: item.id,
@@ -174,10 +197,13 @@ export function PosView() {
       const orderData = {
         items: [...cart],
         total: cartTotal,
-        paymentMethod,
+        paymentMethod: method,
         date: new Date(),
-        id: newOrder.id
+        id: newOrder.id,
+        change: changeAmount, // Passa para o recibo/modal
+        received: receivedAmount
       };
+
       setLastOrder(orderData);
       setCart([]);
       setShowSuccessModal(true);
@@ -231,7 +257,7 @@ export function PosView() {
         <CashModal
           type="open"
           onConfirm={handleOpenSession}
-          onCancel={() => navigate('/')} // Garante que o botão Cancelar funcione aqui também
+          onCancel={() => navigate('/')}
           isProcessing={isProcessing}
         />
         <div className="text-center opacity-50">
@@ -248,6 +274,15 @@ export function PosView() {
 
   return (
     <div className="flex flex-col md:flex-row h-[calc(100vh-100px)] gap-4 animate-fade-in relative">
+      
+      {/* NOVO: MODAL DE PAGAMENTO EM DINHEIRO */}
+      {showCashModal && (
+        <PaymentModal 
+          total={cartTotal}
+          onConfirm={handleConfirmCash}
+          onCancel={() => setShowCashModal(false)}
+        />
+      )}
 
       {showSuccessModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] animate-in fade-in zoom-in-95 duration-200">
@@ -256,7 +291,16 @@ export function PosView() {
               <CheckCircle size={48} />
             </div>
             <h2 className="text-2xl font-bold text-slate-800 mb-2">Venda Realizada!</h2>
-            <p className="text-slate-500 mb-8">O pedido foi salvo com sucesso.</p>
+            <p className="text-slate-500 mb-4">O pedido foi salvo com sucesso.</p>
+            
+            {/* Mostra Troco se houver */}
+            {lastOrder?.change && lastOrder.change > 0 ? (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-6">
+                <p className="text-xs text-amber-700 font-bold uppercase">Troco a Devolver</p>
+                <p className="text-2xl font-black text-amber-600">R$ {lastOrder.change.toFixed(2)}</p>
+              </div>
+            ) : null}
+
             <div className="space-y-3">
               <button
                 onClick={handlePrintReceipt}
@@ -387,9 +431,7 @@ export function PosView() {
             <span className="text-4xl font-bold text-emerald-600">R$ {cartTotal.toFixed(2)}</span>
           </div>
 
-          <div className="grid grid-cols-2 gap-2"> {/* Mudei para grid-cols-2 para caber melhor 4 botões */}
-
-            {/* Botão Dinheiro */}
+          <div className="grid grid-cols-2 gap-2">
             <button
               onClick={() => handleCheckout('Dinheiro')}
               disabled={cart.length === 0}
@@ -398,8 +440,6 @@ export function PosView() {
               <Banknote size={24} />
               <span className="text-xs font-bold uppercase">Dinheiro</span>
             </button>
-
-            {/* Botão PIX */}
             <button
               onClick={() => handleCheckout('PIX')}
               disabled={cart.length === 0}
@@ -408,8 +448,6 @@ export function PosView() {
               <QrCode size={24} />
               <span className="text-xs font-bold uppercase">PIX</span>
             </button>
-
-            {/* Botão Débito */}
             <button
               onClick={() => handleCheckout('Débito')}
               disabled={cart.length === 0}
@@ -418,8 +456,6 @@ export function PosView() {
               <CreditCard size={24} />
               <span className="text-xs font-bold uppercase">Débito</span>
             </button>
-
-            {/* Botão Crédito */}
             <button
               onClick={() => handleCheckout('Crédito')}
               disabled={cart.length === 0}
@@ -428,7 +464,6 @@ export function PosView() {
               <CreditCard size={24} />
               <span className="text-xs font-bold uppercase">Crédito</span>
             </button>
-
           </div>
         </div>
       </div>

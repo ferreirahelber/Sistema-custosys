@@ -22,6 +22,8 @@ export interface Settings {
   estimated_monthly_revenue: number;
   default_tax_rate?: number;
   default_card_fee?: number;
+  card_debit_rate: number;  // Novo
+  card_credit_rate: number;
 }
 
 // NOVA INTERFACE PARA CONVERSÕES
@@ -108,6 +110,8 @@ export interface Sale {
   category: string;
   date: string;
   created_at: string;
+  fee_amount?: number; 
+  net_amount?: number;
 }
 
 export interface Expense {

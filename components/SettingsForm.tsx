@@ -20,7 +20,8 @@ import {
   AlertTriangle,
   Percent,
   Info,
-  Briefcase // Icone para o MEI
+  Briefcase,
+  CreditCard // Icone Novo
 } from 'lucide-react';
 import { Settings } from '../types';
 import { toast } from 'sonner';
@@ -47,7 +48,10 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
 
   // Estados novos (Taxas de Venda)
   const [defaultTaxRate, setDefaultTaxRate] = useState(4.5);
-  const [defaultCardFee, setDefaultCardFee] = useState(3.99);
+  
+  // --- ALTERAÇÃO AQUI: NOVOS ESTADOS PARA CARTÃO ---
+  const [cardDebitRate, setCardDebitRate] = useState(1.60);
+  const [cardCreditRate, setCardCreditRate] = useState(4.39);
 
   // NOVO: Estado para controlar a interface MEI
   const [isMei, setIsMei] = useState(false);
@@ -73,10 +77,11 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
 
       const tax = settingsData.default_tax_rate ?? 4.5;
       setDefaultTaxRate(tax);
-      setDefaultCardFee(settingsData.default_card_fee ?? 3.99);
+      
+      // --- ALTERAÇÃO AQUI: CARREGAR TAXAS DO BANCO ---
+      setCardDebitRate(settingsData.card_debit_rate ?? 1.60);
+      setCardCreditRate(settingsData.card_credit_rate ?? 4.39);
 
-      // Se a taxa salva for 0, podemos supor que talvez seja MEI ou isento, 
-      // mas deixamos o usuário decidir explicitamente pelo toggle.
       if (tax === 0) setIsMei(true);
 
       setFixedOverheadRate(settingsData.fixed_overhead_rate || 0);
@@ -104,10 +109,6 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
     }
   };
 
-  // ... (MANTENHA TODAS AS FUNÇÕES DE CÁLCULO E SALVAMENTO IGUAIS) ...
-  // ... (handleSaveMember, handleRemoveMember, handleEditCost, etc...) ...
-
-  // Apenas para manter o contexto no código encurtado:
   const calculateMemberCPH = (salary: number, hours: number) => (hours > 0 ? salary / hours : 0);
   const calculateMemberCPM = (salary: number, hours: number) => hours > 0 ? salary / (hours * 60) : 0;
   const totalLaborCost = team.reduce((acc, curr) => acc + Number(curr.salary), 0);
@@ -117,10 +118,10 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
   const totalFixedExpenses = fixedCosts.reduce((acc, curr) => acc + Number(curr.value), 0);
   const calculatedRate = estimatedRevenue > 0 ? (totalFixedExpenses / estimatedRevenue) * 100 : 0;
 
-  // --- AÇÕES EQUIPE (Copie do arquivo anterior) ---
+  // --- AÇÕES EQUIPE ---
   const handleEditClick = (member: TeamMember) => { setEditingId(member.id!); setFormData({ name: member.name, salary: member.salary.toString(), hours: member.hours_monthly.toString() }); };
   const handleCancelEdit = () => { setEditingId(null); setFormData({ name: '', salary: '', hours: '' }); };
-  const handleSaveMember = async () => { /* ... logica anterior ... */
+  const handleSaveMember = async () => {
     if (!formData.name || !formData.salary || !formData.hours) { toast.warning('Preencha todos os campos.'); return; }
     try {
       setSaving(true); const payload = { name: formData.name, salary: parseFloat(formData.salary), hours_monthly: parseFloat(formData.hours) };
@@ -141,7 +142,6 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
             await TeamService.delete(id);
             const newTeam = await TeamService.getAll();
             setTeam(newTeam);
-            // Se estava editando este item, limpa o form
             if (editingId === id) handleCancelEdit();
             toast.success('Colaborador removido.');
           } catch (e) {
@@ -155,10 +155,10 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
     });
   };
 
-  // --- AÇÕES CUSTOS (Copie do arquivo anterior) ---
+  // --- AÇÕES CUSTOS ---
   const handleEditCost = (cost: FixedCost) => { setEditingCostId(cost.id!); setNewCost({ name: cost.name, value: cost.value.toString() }); };
   const handleCancelCostEdit = () => { setEditingCostId(null); setNewCost({ name: '', value: '' }); };
-  const handleSaveCost = async () => { /* ... logica anterior ... */
+  const handleSaveCost = async () => {
     if (!newCost.name || !newCost.value) { toast.warning('Preencha os campos.'); return; }
     try {
       setSaving(true); const payload = { name: newCost.name, value: parseFloat(newCost.value) };
@@ -179,7 +179,6 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
             await FixedCostService.delete(id);
             const newCosts = await FixedCostService.getAll();
             setFixedCosts(newCosts);
-            // Se estava editando este item, limpa o form
             if (editingCostId === id) handleCancelCostEdit();
             toast.success('Custo removido com sucesso.');
           } catch (e) {
@@ -205,7 +204,9 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
         cost_per_minute: globalCPM,
         estimated_monthly_revenue: estimatedRevenue,
         default_tax_rate: defaultTaxRate,
-        default_card_fee: defaultCardFee,
+        // --- ALTERAÇÃO AQUI: SALVAR AS NOVAS TAXAS ---
+        card_debit_rate: cardDebitRate,
+        card_credit_rate: cardCreditRate,
       };
       await SettingsService.save(settingsToSave);
       toast.success('Configurações salvas!');
@@ -213,8 +214,34 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
     } catch (error) { toast.error('Erro ao salvar.'); } finally { setSaving(false); }
   };
 
-  const handleExport = async () => { /* ... logica anterior ... */ };
-  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => { /* ... logica anterior ... */ };
+  const handleExport = async () => { 
+    try {
+        const data = await BackupService.exportData();
+        const blob = new Blob([data], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `custosys_backup_${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } catch (error) {
+        toast.error('Erro ao exportar dados');
+      }
+   };
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => { 
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      await BackupService.importData(text);
+      toast.success('Dados restaurados com sucesso!');
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (error) {
+      toast.error('Erro ao importar arquivo');
+    }
+  };
 
   if (loading) return <div className="flex justify-center py-12"><Loader2 className="animate-spin text-amber-600" /></div>;
 
@@ -230,7 +257,6 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
           <p className="text-sm text-slate-500">Adicione quem trabalha na produção para compor o custo do minuto.</p>
         </div>
         <div className="p-6 space-y-6">
-          {/* ... (Todo o conteúdo do form e tabela de equipe - igual ao anterior) ... */}
           <div className={`grid grid-cols-1 md:grid-cols-7 gap-4 items-end p-4 rounded-lg border transition-colors ${editingId ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-100'}`}>
             <div className="md:col-span-3">
               <label className="text-xs font-bold text-slate-500 uppercase">Nome</label>
@@ -251,7 +277,7 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
               {editingId && <button onClick={handleCancelEdit} className="p-2.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-600"><X size={20} /></button>}
             </div>
           </div>
-          {/* ... Tabela Equipe (igual) ... */}
+          {/* Tabela Equipe */}
           <div className="border border-slate-100 rounded-lg overflow-hidden overflow-x-auto">
             <table className="w-full text-sm text-left">
               <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs">
@@ -321,7 +347,6 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
                   </button>
                   {editingCostId && <button onClick={handleCancelCostEdit} className="p-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-600"><X size={18} /></button>}
                 </div>
-                {/* Lista de custos */}
                 <div className="border border-slate-100 rounded-lg overflow-y-auto max-h-60 bg-slate-50">
                   {fixedCosts.length === 0 ? <p className="p-4 text-center text-xs text-slate-400">Nenhuma conta adicionada.</p> : fixedCosts.map((cost) => (
                     <div key={cost.id} className={`flex justify-between items-center p-3 border-b border-slate-100 last:border-0 hover:bg-slate-50 transition ${editingCostId === cost.id ? 'bg-amber-50' : 'bg-white'}`}>
@@ -363,7 +388,7 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
         </div>
       </div>
 
-      {/* SEÇÃO 2.5: TAXAS DE VENDA (COM LÓGICA MEI INTELIGENTE) */}
+      {/* SEÇÃO 2.5: TAXAS DE VENDA (COM LÓGICA DE DÉBITO E CRÉDITO ADICIONADA) */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="p-6 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
           <div>
@@ -374,7 +399,6 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
             <p className="text-sm text-slate-500">Taxas que incidem sobre o preço de venda para cálculo do Lucro Líquido.</p>
           </div>
 
-          {/* TOGGLE MEI */}
           <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-lg border border-slate-200 shadow-sm">
             <span className={`text-xs font-bold uppercase ${isMei ? 'text-slate-400' : 'text-blue-700'}`}>Simples/Outros</span>
             <button
@@ -391,7 +415,6 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
 
         <div className="p-6">
           {isMei ? (
-            // VISÃO MEI (EDUCATIVA)
             <div className="bg-purple-50 p-4 rounded-lg border border-purple-100 mb-6 flex gap-3 animate-fade-in">
               <Info className="text-purple-700 shrink-0 mt-0.5" size={18} />
               <div className="text-sm text-purple-800">
@@ -405,7 +428,6 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
               </div>
             </div>
           ) : (
-            // VISÃO PADRÃO (SIMPLES/OUTROS)
             <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 mb-6 flex gap-3 animate-fade-in">
               <Info className="text-blue-700 shrink-0 mt-0.5" size={18} />
               <div className="text-sm text-blue-800">
@@ -418,28 +440,56 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* --- ALTERAÇÃO AQUI: GRID COM 3 COLUNAS PARA INCLUIR DÉBITO E CRÉDITO --- */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className={isMei ? "opacity-50 pointer-events-none grayscale" : ""}>
               <label className="text-xs font-bold text-slate-500 uppercase flex justify-between">
                 Impostos (Sobre Venda) %
                 {isMei && <span className="text-[10px] text-purple-600 font-bold">Isento no MEI</span>}
               </label>
-              <input
-                type="number"
-                value={defaultTaxRate}
-                onChange={e => setDefaultTaxRate(parseFloat(e.target.value))}
-                className="w-full mt-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none bg-white"
-                disabled={isMei}
-              />
+              <div className="relative mt-1">
+                <input
+                  type="number"
+                  step="0.01"
+                  value={defaultTaxRate}
+                  onChange={e => setDefaultTaxRate(parseFloat(e.target.value))}
+                  className="w-full pl-3 pr-8 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none bg-white"
+                  disabled={isMei}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">%</span>
+              </div>
             </div>
+
             <div>
-              <label className="text-xs font-bold text-slate-500 uppercase">Taxa Média do Cartão %</label>
-              <input
-                type="number"
-                value={defaultCardFee}
-                onChange={e => setDefaultCardFee(parseFloat(e.target.value))}
-                className="w-full mt-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
-              />
+              <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1">
+                 <CreditCard size={14} className="text-purple-500"/> Taxa Débito %
+              </label>
+              <div className="relative mt-1">
+                <input
+                  type="number"
+                  step="0.01"
+                  value={cardDebitRate}
+                  onChange={e => setCardDebitRate(parseFloat(e.target.value))}
+                  className="w-full pl-3 pr-8 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">%</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1">
+                 <CreditCard size={14} className="text-orange-500"/> Taxa Crédito %
+              </label>
+              <div className="relative mt-1">
+                <input
+                  type="number"
+                  step="0.01"
+                  value={cardCreditRate}
+                  onChange={e => setCardCreditRate(parseFloat(e.target.value))}
+                  className="w-full pl-3 pr-8 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">%</span>
+              </div>
             </div>
           </div>
         </div>
