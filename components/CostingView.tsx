@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Recipe } from '../types';
 import { RecipeService } from '../services/recipeService';
-import { SettingsService } from '../services/settingsService'; // Importando serviço de configurações
+import { SettingsService } from '../services/settingsService';
 import { calculateSellingPrice, calculateMargin } from '../utils/calculations';
 import {
   DollarSign,
@@ -20,7 +20,7 @@ export const CostingView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Inputs do Simulador - Iniciam zerados até carregar as configs
+  // Inputs do Simulador
   const [taxRate, setTaxRate] = useState(0); 
   const [cardFee, setCardFee] = useState(0);
   const [desiredMargin, setDesiredMargin] = useState(25);
@@ -33,20 +33,17 @@ export const CostingView: React.FC = () => {
 
   const loadData = async () => {
     try {
-      // CORREÇÃO: Carrega Receitas E Configurações Globais ao mesmo tempo
       const [recipesData, settingsData] = await Promise.all([
         RecipeService.getAll(),
         SettingsService.get(),
       ]);
       
-      setRecipes(recipesData);
+      setRecipes(recipesData || []);
 
-      // CORREÇÃO: Aplica as taxas padrão salvas nas configurações
       if (settingsData) {
         setTaxRate(settingsData.default_tax_rate ?? 4.5);
         setCardFee(settingsData.default_card_fee ?? 3.99);
       } else {
-        // Fallback caso não tenha config salva
         setTaxRate(4.5);
         setCardFee(3.99);
       }
@@ -71,7 +68,7 @@ export const CostingView: React.FC = () => {
         setManualPrice('');
       }
     }
-  }, [selectedRecipeId]);
+  }, [selectedRecipeId, recipes]); // Adicionado recipes para garantir atualização
 
   // Validações Matemáticas
   const totalTaxAndFees = taxRate + cardFee;
@@ -96,7 +93,7 @@ export const CostingView: React.FC = () => {
         realMargin = desiredMargin;
       }
     } else {
-      const priceVal = manualPrice === '' ? 0 : parseFloat(manualPrice); // Proteção extra
+      const priceVal = manualPrice === '' ? 0 : parseFloat(manualPrice);
       sellingPrice = priceVal || 0;
       realMargin = calculateMargin(selectedRecipe.unit_cost, sellingPrice, taxRate, cardFee);
     }
@@ -110,16 +107,22 @@ export const CostingView: React.FC = () => {
 
     try {
       setSaving(true);
-      await RecipeService.update(selectedRecipe.id, {
+      
+      // --- CORREÇÃO AQUI ---
+      // Usamos .save e passamos o objeto completo, pois o .update foi removido
+      await RecipeService.save({
+        ...selectedRecipe,
         selling_price: parseFloat(sellingPrice.toFixed(2)),
       });
 
+      // Atualiza estado local
       const updatedRecipes = recipes.map((r) =>
         r.id === selectedRecipe.id
           ? { ...r, selling_price: parseFloat(sellingPrice.toFixed(2)) }
           : r
       );
       setRecipes(updatedRecipes);
+      
       toast.success(`Preço de venda atualizado!`);
     } catch (error) {
       toast.error('Erro ao salvar.');
@@ -128,13 +131,11 @@ export const CostingView: React.FC = () => {
     }
   };
 
-  // CORREÇÃO: Função auxiliar para inputs numéricos evitarem NaN
   const handleNumberInput = (
     e: React.ChangeEvent<HTMLInputElement>,
     setter: (val: number) => void
   ) => {
     const value = e.target.value;
-    // Se estiver vazio, define como 0. Se for número, converte.
     setter(value === '' ? 0 : parseFloat(value));
   };
 
@@ -287,7 +288,6 @@ export const CostingView: React.FC = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-bold text-slate-500 uppercase">Impostos (%)</label>
-                  {/* CORREÇÃO: Input tratado para não gerar NaN */}
                   <input
                     type="number"
                     value={taxRate}
@@ -299,7 +299,6 @@ export const CostingView: React.FC = () => {
                   <label className="text-xs font-bold text-slate-500 uppercase">
                     Taxa Cartão (%)
                   </label>
-                  {/* CORREÇÃO: Input tratado para não gerar NaN */}
                   <input
                     type="number"
                     value={cardFee}

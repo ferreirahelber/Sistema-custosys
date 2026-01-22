@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PosService } from '../services/posService';
+import { CategoryService } from '../services/categoryService';
 import { CashModal } from './CashModal';
 import { PaymentModal } from './PaymentModal';
-import { CartItem, CashSession } from '../types';
+import { CartItem, CashSession, Category } from '../types';
 import {
   ShoppingCart, Trash2, CreditCard, Banknote, QrCode, Plus, Minus, Search,
-  ChefHat, LogOut, Printer, CheckCircle, History, ShoppingBag
+  ChefHat, LogOut, Printer, CheckCircle, History, ShoppingBag, Tag
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Receipt } from './Receipt';
@@ -28,6 +29,8 @@ export function PosView() {
 
   // Estados de Dados
   const [sellableItems, setSellableItems] = useState<any[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState('Todas');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loadingCatalog, setLoadingCatalog] = useState(true);
@@ -44,9 +47,10 @@ export function PosView() {
     received?: number;
   } | null>(null);
 
-  // 1. Verificar Caixa
+  // 1. Verificar Caixa e Carregar Categorias
   useEffect(() => {
     checkSession();
+    loadCategories();
   }, []);
 
   async function checkSession() {
@@ -58,6 +62,15 @@ export function PosView() {
       toast.error('Erro ao verificar caixa');
     } finally {
       setLoadingSession(false);
+    }
+  }
+
+  async function loadCategories() {
+    try {
+      const cats = await CategoryService.getAll();
+      setCategories(cats);
+    } catch (error) {
+      console.error(error);
     }
   }
 
@@ -219,7 +232,7 @@ export function PosView() {
       if (!term) return;
       
       // Busca exata (pode ser código de barras ou nome)
-      const itemByBarcode = sellableItems.find(i => String(i.name).toLowerCase() === term.toLowerCase());
+      const itemByBarcode = filteredItems.find(i => String(i.name).toLowerCase() === term.toLowerCase());
       
       if (itemByBarcode) {
         addToCart(itemByBarcode);
@@ -229,7 +242,7 @@ export function PosView() {
       }
 
       // Busca parcial
-      const filtered = sellableItems.filter(i => i.name.toLowerCase().includes(term.toLowerCase()));
+      const filtered = filteredItems.filter(i => i.name.toLowerCase().includes(term.toLowerCase()));
       if (filtered.length === 1) {
         addToCart(filtered[0]);
         setSearchTerm('');
@@ -239,6 +252,13 @@ export function PosView() {
       }
     }
   };
+
+  // --- FILTRAGEM ---
+  const filteredItems = sellableItems.filter(i => {
+    const matchesSearch = i.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = selectedCategory === 'Todas' || i.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
 
   // --- RENDERIZAÇÃO ---
 
@@ -259,10 +279,6 @@ export function PosView() {
       </div>
     );
   }
-
-  const filteredItems = sellableItems.filter(i =>
-    i.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
   return (
     <div className="flex flex-col md:flex-row h-[calc(100vh-100px)] gap-4 animate-fade-in relative">
@@ -321,6 +337,8 @@ export function PosView() {
 
       {/* LADO ESQUERDO: CATÁLOGO */}
       <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
+        
+        {/* Barra de Busca */}
         <div className="p-4 border-b border-slate-100 flex gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
@@ -337,6 +355,34 @@ export function PosView() {
           </div>
         </div>
 
+        {/* BARRA DE CATEGORIAS (NOVA) */}
+        <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex gap-2 overflow-x-auto scrollbar-hide">
+          <button 
+            onClick={() => setSelectedCategory('Todas')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition ${
+              selectedCategory === 'Todas' 
+                ? 'bg-slate-800 text-white shadow-md' 
+                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+            }`}
+          >
+            <Tag size={12} className="inline mr-1" /> Todas
+          </button>
+          {categories.map(cat => (
+            <button 
+              key={cat.id}
+              onClick={() => setSelectedCategory(cat.name)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition ${
+                selectedCategory === cat.name 
+                  ? 'bg-slate-800 text-white shadow-md' 
+                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+              }`}
+            >
+              {cat.name}
+            </button>
+          ))}
+        </div>
+
+        {/* Grid de Produtos */}
         <div className="flex-1 overflow-y-auto p-4 bg-slate-50/50">
           {loadingCatalog ? (
             <p className="text-center text-slate-400 mt-10">Carregando catálogo...</p>
@@ -353,10 +399,10 @@ export function PosView() {
                   className={`
                     bg-white border p-4 rounded-xl cursor-pointer transition group flex flex-col justify-between h-32 relative overflow-hidden
                     ${item.type === 'resale' ? 'border-emerald-200 hover:border-emerald-500' : 'border-slate-200 hover:border-amber-500'}
-                    hover:shadow-md
+                    hover:shadow-md active:scale-95
                   `}
                 >
-                  <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20">
+                  <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
                     {/* ÍCONE DINÂMICO: Se for revenda usa Sacola, senão usa Chapéu de Chef */}
                     {item.type === 'resale' ? (
                        <ShoppingBag size={40} className="text-emerald-500" />
@@ -383,7 +429,7 @@ export function PosView() {
         <div className="p-4 bg-slate-800 text-white rounded-t-xl flex justify-between items-center">
           <div>
             <h3 className="font-bold flex items-center gap-2"><ShoppingCart size={20} /> PDV Aberto</h3>
-            <p className="text-xs text-slate-400">...</p>
+            <p className="text-xs text-slate-400">Session ID: {session?.id.slice(0, 8)}...</p>
           </div>
           <div className="flex gap-2">
             <Link to="/cash-history" className="p-2 hover:bg-slate-700 rounded-lg text-slate-300 hover:text-white transition" title="Histórico">
@@ -411,7 +457,11 @@ export function PosView() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     {/* Indicador visual no carrinho também */}
-                    {item.type === 'resale' ? <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div> : <div className="w-1.5 h-1.5 rounded-full bg-amber-500"></div>}
+                    {item.type === 'resale' ? (
+                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                    ) : (
+                      <div className="w-1.5 h-1.5 rounded-full bg-amber-500"></div>
+                    )}
                     <p className="text-sm font-bold text-slate-700 line-clamp-1">{item.name}</p>
                   </div>
                   <p className="text-xs text-slate-500">{item.quantity} x R$ {item.price.toFixed(2)}</p>

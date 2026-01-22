@@ -133,15 +133,15 @@ async function cascadeUpdateRecipes(ingredientId: string, ingredientName: string
         .map((i: any) => ({
           ...i,
           // Mapeia e força conversão para número para evitar erros de cálculo
-          quantity_used: Number(i.quantity), 
+          quantity_used: Number(i.quantity),
           quantity_input: Number(i.quantity_input || i.quantity),
           unit_input: i.unit_input || i.ingredient?.base_unit || 'un',
           ingredient_name: i.ingredient?.name,
           ingredient: {
-             ...i.ingredient,
-             package_price: Number(i.ingredient.package_price),
-             package_amount: Number(i.ingredient.package_amount),
-             unit_cost_base: Number(i.ingredient.unit_cost_base)
+            ...i.ingredient,
+            package_price: Number(i.ingredient.package_price),
+            package_amount: Number(i.ingredient.package_amount),
+            unit_cost_base: Number(i.ingredient.unit_cost_base)
           }
         }));
 
@@ -164,16 +164,15 @@ async function cascadeUpdateRecipes(ingredientId: string, ingredientName: string
 
       // Se mudou mais que 1 centavo
       if (Math.abs(diff) > 0.01) {
-        
+
         // 1. Cria o histórico
-        await PriceHistoryService.add({
+        await PriceHistoryService.addEntry({
           recipe_id: recipeData.id,
           old_cost: oldCost,
           new_cost: newCost,
           old_price: Number(recipeData.selling_price || 0),
           new_price: Number(recipeData.selling_price || 0),
-          change_reason: `Alteração no insumo: ${ingredientName}`,
-          // user_id é injetado pelo default do banco ou RLS
+          change_reason: `Alteração no insumo: ${ingredientName}`
         });
 
         // 2. Atualiza a receita
@@ -187,7 +186,7 @@ async function cascadeUpdateRecipes(ingredientId: string, ingredientName: string
             unit_cost: financials.unit_cost,
           })
           .eq('id', recipeData.id);
-          
+
         console.log(`✅ Receita ${recipeData.name} atualizada com sucesso.`);
       } else {
         console.log(`⏸️ Sem mudança de valor significativa para ${recipeData.name}.`);

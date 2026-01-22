@@ -71,6 +71,7 @@ export interface Product {
   package_amount?: number;
   profit_margin?: number;
   barcode?: string;
+  category?: string;
 }
 
 export interface PriceHistory {
@@ -110,6 +111,7 @@ export interface Recipe {
   unit_cost: number;
   selling_price?: number;
   barcode?: string;
+  category?: string;
 }
 
 export interface SimulationParams {
@@ -210,4 +212,9 @@ export interface OrderItem {
   total_price: number;
   // Atualizado para aceitar 'resale'
   type?: 'recipe' | 'product' | 'resale';
+}
+
+export interface Category {
+  id: number;
+  name: string;
 }

@@ -60,39 +60,44 @@ export const PosService = {
     if (error) throw error;
   },
 
-  // === NOVA FUNÇÃO: BUSCAR TUDO (RECEITAS + REVENDA) ===
+  // === NOVA FUNÇÃO: BUSCAR TUDO (RECEITAS + REVENDA) COM CATEGORY E BARCODE ===
   async getAllProductsForPOS() {
     // 1. Busca Receitas (Bolos, Doces)
     const { data: recipes, error: recipesError } = await supabase
       .from('recipes')
-      .select('id, name, selling_price');
+      .select('id, name, selling_price, category, barcode');
     
     if (recipesError) throw recipesError;
 
     // 2. Busca Produtos de Revenda (Coca, Velas)
     const { data: products, error: productsError } = await supabase
       .from('products')
-      .select('id, name, price')
-      .eq('type', 'resale'); // Garante que é revenda
+      .select('id, name, price, category, barcode')
+      .eq('type', 'resale');
 
     if (productsError) throw productsError;
 
-    // 3. Padroniza e Junta as listas
+    // 3. Padroniza Receitas
     const formattedRecipes = (recipes || []).map(r => ({
       id: r.id,
       name: r.name,
       price: Number(r.selling_price),
+      category: r.category || 'Sem categoria',
+      barcode: r.barcode || null,
       type: 'recipe'
     }));
 
+    // 4. Padroniza Produtos de Revenda
     const formattedProducts = (products || []).map(p => ({
       id: p.id,
       name: p.name,
       price: Number(p.price),
-      type: 'resale' // Marca como revenda (útil se quiser por ícones diferentes no futuro)
+      category: p.category || 'Sem categoria',
+      barcode: p.barcode || null,
+      type: 'resale'
     }));
 
-    // Retorna tudo junto ordenado por nome
+    // 5. Retorna tudo junto ordenado por nome
     return [...formattedRecipes, ...formattedProducts].sort((a, b) => a.name.localeCompare(b.name));
   },
 

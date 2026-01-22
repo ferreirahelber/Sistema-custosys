@@ -1,16 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../services/supabase';
-import { Recipe } from '../types';
+import { Recipe, Category } from '../types';
+import { CategoryService } from '../services/categoryService';
 import { 
   Plus, Search, ChefHat, Clock, Users, Trash2, Edit, Printer, 
-  Barcode, TrendingUp, DollarSign, AlertTriangle, FileText, X, Loader2 
+  Barcode, TrendingUp, DollarSign, AlertTriangle, FileText, X, Loader2, Tag, 
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 // --- COMPONENTE DE IMPRESSÃO ---
 const PrintableRecipe = ({ recipe, mode }: { recipe: Recipe | null, mode: 'kitchen' | 'manager' | null }) => {
-  // Se não tiver receita ou modo, retornamos null (não renderiza nada no DOM)
   if (!recipe || !mode) return null;
 
   return (
@@ -106,6 +106,8 @@ const PrintableRecipe = ({ recipe, mode }: { recipe: Recipe | null, mode: 'kitch
 
 export function RecipeList() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>('Todas');
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -119,20 +121,34 @@ export function RecipeList() {
   });
 
   useEffect(() => {
-    loadRecipes();
+    loadData();
   }, []);
 
-  async function loadRecipes() {
+  async function loadData() {
+    setLoading(true);
     try {
-      const { data, error } = await supabase
+      // 1. Tenta buscar Receitas (Crítico - sem isto, não carrega nada)
+      const { data: recipesData, error: recipeError } = await supabase
         .from('recipes')
         .select('*')
         .order('name');
       
-      if (error) throw error;
-      setRecipes(data || []);
+      if (recipeError) throw recipeError;
+      setRecipes(recipesData || []);
+
+      // 2. Tenta buscar Categorias (Não-crítico - Se falhar, não quebra a tela inteira)
+      try {
+        const categoriesData = await CategoryService.getAll();
+        setCategories(categoriesData || []);
+      } catch (catError) {
+        console.error("Erro ao carregar categorias:", catError);
+        // Não jogamos throw aqui para permitir que as receitas apareçam sem categorias
+        toast.warning('Categorias indisponíveis no momento');
+      }
+
     } catch (error) {
-      toast.error('Erro ao carregar receitas');
+      console.error(error);
+      toast.error('Erro ao carregar lista de receitas');
     } finally {
       setLoading(false);
     }
@@ -182,10 +198,8 @@ export function RecipeList() {
 
         setPrintConfig({ open: false, recipe: formattedRecipe, mode });
 
-        // Aguarda renderização para garantir que o CSS capture o conteúdo
         setTimeout(() => {
             window.print();
-            // Limpa após imprimir (dá tempo do diálogo abrir)
             setTimeout(() => setPrintConfig({ open: false, recipe: null, mode: null }), 1000);
         }, 500);
 
@@ -194,24 +208,24 @@ export function RecipeList() {
     }
   };
 
-  const filteredRecipes = recipes.filter(r => 
-    r.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (r.barcode && r.barcode.includes(searchTerm))
-  );
+  const filteredRecipes = recipes.filter(r => {
+    const matchesSearch = r.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (r.barcode && r.barcode.includes(searchTerm));
+    const matchesCategory = selectedCategory === 'Todas' || r.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
 
   return (
     <div className="space-y-6 animate-fade-in relative">
       
       <style>
         {`
-          /* 1. NA TELA NORMAL: Esconde a receita de impressão */
           @media screen {
             #printable-content {
               display: none !important;
             }
           }
 
-          /* 2. NA IMPRESSÃO: Esconde o site e mostra a receita */
           @media print {
             body * {
               visibility: hidden;
@@ -234,7 +248,6 @@ export function RecipeList() {
               z-index: 9999;
             }
 
-            /* Utilitários de quebra de página */
             .break-inside-avoid, .page-break-inside-avoid {
                 break-inside: avoid;
                 page-break-inside: avoid;
@@ -245,22 +258,27 @@ export function RecipeList() {
               margin: 1cm;
             }
             
-            /* Reseta o corpo para não cortar conteúdo */
             html, body {
               height: auto !important;
               overflow: visible !important;
               background: white !important;
             }
 
-            /* Força o desaparecimento de elementos flutuantes */
             nav, aside, header, footer, .toaster, .fixed {
               display: none !important;
             }
           }
+
+          .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+          }
+          .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+          }
         `}
       </style>
 
-      {/* Componente de Impressão (Agora controlado apenas pelo CSS acima) */}
       <PrintableRecipe recipe={printConfig.recipe} mode={printConfig.mode} />
 
       {/* Barra de Ferramentas */}
@@ -281,6 +299,33 @@ export function RecipeList() {
         >
           <Plus size={20} /> Nova Receita
         </Link>
+      </div>
+
+      {/* Filtro de Categorias */}
+      <div className="flex gap-2 overflow-x-auto pb-2 print:hidden scrollbar-hide bg-white p-3 rounded-xl shadow-sm border border-slate-200">
+        <button 
+          onClick={() => setSelectedCategory('Todas')}
+          className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition ${
+            selectedCategory === 'Todas' 
+              ? 'bg-amber-600 text-white shadow-md' 
+              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+        >
+          <Tag size={14} className="inline mr-1" /> Todas
+        </button>
+        {categories.map(cat => (
+          <button 
+            key={cat.id}
+            onClick={() => setSelectedCategory(cat.name)}
+            className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition ${
+              selectedCategory === cat.name 
+                ? 'bg-amber-600 text-white shadow-md' 
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            {cat.name}
+          </button>
+        ))}
       </div>
 
       {/* Grid de Cards */}
@@ -306,13 +351,16 @@ export function RecipeList() {
                     <h3 className="font-bold text-lg text-slate-800 leading-tight group-hover:text-amber-600 transition-colors">
                       {recipe.name}
                     </h3>
+                    {recipe.category && (
+                      <div className="inline-flex items-center gap-1 mt-2 px-2 py-1 bg-amber-100 text-amber-700 text-[10px] font-bold uppercase tracking-wider rounded-full border border-amber-200">
+                        <Tag size={10} /> {recipe.category}
+                      </div>
+                    )}
                     {recipe.barcode ? (
-                      <div className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 bg-slate-100 text-slate-500 text-[10px] font-bold uppercase tracking-wider rounded border border-slate-200">
+                      <div className="inline-flex items-center gap-1 mt-2 ml-2 px-2 py-1 bg-slate-100 text-slate-500 text-[10px] font-bold uppercase tracking-wider rounded border border-slate-200">
                         <Barcode size={10} /> {recipe.barcode}
                       </div>
-                    ) : (
-                      <div className="mt-1 h-5"></div>
-                    )}
+                    ) : null}
                   </div>
                   <div className="bg-amber-50 p-2 rounded-lg text-amber-600 shadow-sm">
                     <ChefHat size={22} />
