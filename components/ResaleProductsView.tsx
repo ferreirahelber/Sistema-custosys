@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import { CategoryService } from '../services/categoryService'; // Importando serviço de categorias
 import { Category } from '../types'; // Importando tipo
+import { CategoryManager } from './CategoryManager';
 import {
   ShoppingBag,
   Plus,
@@ -16,7 +17,8 @@ import {
   Calculator,
   Barcode,
   Tag,
-  X
+  X,
+  Settings as SettingsIcon
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -43,13 +45,15 @@ export function ResaleProductsView() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [mode, setMode] = useState<'idle' | 'create' | 'edit'>('idle');
-  
+
   const [currentId, setCurrentId] = useState<string | null>(null);
-  
+
   // Estados para Modal de Categoria
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [creatingCategory, setCreatingCategory] = useState(false);
+
+  const [showManager, setShowManager] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -82,7 +86,7 @@ export function ResaleProductsView() {
       ]);
 
       if (productsResponse.error) throw productsResponse.error;
-      
+
       setItems(productsResponse.data || []);
       setCategories(categoriesData || []);
 
@@ -139,7 +143,7 @@ export function ResaleProductsView() {
     const sell = parseFloat(formData.sellingPrice) || 0;
     return sell - cost;
   };
-  
+
   const unitCostKPI = calculateUnitCost();
   const marginKPI = calculateMargin();
 
@@ -225,8 +229,8 @@ export function ResaleProductsView() {
     }
   };
 
-  const filteredItems = items.filter(i => 
-    i.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+  const filteredItems = items.filter(i =>
+    i.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (i.barcode && i.barcode.includes(searchTerm))
   );
 
@@ -240,14 +244,14 @@ export function ResaleProductsView() {
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-140px)] min-h-[600px] animate-fade-in">
-      
+
       {/* 🟩 PAINEL DE EDIÇÃO */}
       <div className="lg:w-1/3 bg-white rounded-xl shadow-lg border border-slate-200 flex flex-col overflow-hidden">
         <div className={`p-4 border-b flex justify-between items-center ${mode === 'create' ? theme.bg : mode === 'edit' ? 'bg-amber-50' : 'bg-slate-50'}`}>
           <div className="flex items-center gap-2 font-bold text-slate-700">
-            {mode === 'create' && <><Plus size={20} className={theme.text}/> Novo Produto</>}
-            {mode === 'edit' && <><Edit size={20} className="text-amber-600"/> Editando Item</>}
-            {mode === 'idle' && <><LayoutGrid size={20} className="text-slate-400"/> Painel de Detalhes</>}
+            {mode === 'create' && <><Plus size={20} className={theme.text} /> Novo Produto</>}
+            {mode === 'edit' && <><Edit size={20} className="text-amber-600" /> Editando Item</>}
+            {mode === 'idle' && <><LayoutGrid size={20} className="text-slate-400" /> Painel de Detalhes</>}
           </div>
           {mode !== 'idle' && (
             <button onClick={handleCancel} className="text-xs text-slate-500 hover:text-red-500 underline">Cancelar</button>
@@ -267,7 +271,7 @@ export function ResaleProductsView() {
             </div>
           ) : (
             <form onSubmit={handleSave} className="space-y-5 animate-in slide-in-from-left-4 fade-in duration-300">
-              
+
               <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-4 text-white shadow-lg relative overflow-hidden group">
                 <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition">
                   <TrendingUp size={48} />
@@ -279,17 +283,17 @@ export function ResaleProductsView() {
                   </span>
                 </div>
                 <div className="text-[10px] text-slate-400 mt-1 flex justify-between">
-                   <span>Venda: {formatCurrency(parseFloat(formData.sellingPrice) || 0)}</span>
-                   <span>Custo: {formatCurrency(unitCostKPI)}</span>
+                  <span>Venda: {formatCurrency(parseFloat(formData.sellingPrice) || 0)}</span>
+                  <span>Custo: {formatCurrency(unitCostKPI)}</span>
                 </div>
               </div>
 
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase">Nome do Produto</label>
-                <input 
+                <input
                   autoFocus
                   value={formData.name}
-                  onChange={e => setFormData({...formData, name: e.target.value})}
+                  onChange={e => setFormData({ ...formData, name: e.target.value })}
                   placeholder="Ex: Coca-Cola Lata 350ml"
                   className="w-full mt-1 px-3 py-3 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none font-medium text-slate-700"
                 />
@@ -299,9 +303,9 @@ export function ResaleProductsView() {
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1"><Tag size={14} /> Categoria</label>
                 <div className="flex gap-2 mt-1">
-                  <select 
-                    value={formData.category} 
-                    onChange={(e) => setFormData({...formData, category: e.target.value})}
+                  <select
+                    value={formData.category}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                     className="flex-1 px-3 py-3 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white text-slate-700"
                   >
                     <option value="">Selecione...</option>
@@ -309,22 +313,31 @@ export function ResaleProductsView() {
                       <option key={cat.id} value={cat.name}>{cat.name}</option>
                     ))}
                   </select>
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     onClick={() => setShowCategoryModal(true)}
                     className="p-3 bg-slate-100 border border-slate-200 rounded-lg text-slate-600 hover:bg-emerald-100 hover:text-emerald-700 hover:border-emerald-300 transition"
                     title="Criar nova categoria"
                   >
                     <Plus size={20} />
                   </button>
+                  {/* NOVO BOTÃO DE GERENCIAR */}
+                  <button
+                    type="button"
+                    onClick={() => setShowManager(true)}
+                    className="p-3 bg-slate-100 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-200 transition"
+                    title="Gerenciar Categorias (Editar/Excluir)"
+                  >
+                    <SettingsIcon size={20} />
+                  </button>
                 </div>
               </div>
 
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1"><Barcode size={14} /> Código de Barras (Opcional)</label>
-                <input 
+                <input
                   value={formData.barcode}
-                  onChange={e => setFormData({...formData, barcode: e.target.value})}
+                  onChange={e => setFormData({ ...formData, barcode: e.target.value })}
                   placeholder="Bipe ou digite o código..."
                   className="w-full mt-1 px-3 py-3 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-slate-700"
                 />
@@ -332,52 +345,52 @@ export function ResaleProductsView() {
 
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3 relative">
                 <div className="absolute top-3 right-3 text-slate-300">
-                    <Calculator size={16} />
+                  <Calculator size={16} />
                 </div>
                 <h4 className="text-xs font-bold text-slate-700 uppercase flex items-center gap-2">
-                  <Package size={14}/> Dados de Compra (Fardo/Pacote)
+                  <Package size={14} /> Dados de Compra (Fardo/Pacote)
                 </h4>
-                
+
                 <div className="grid grid-cols-2 gap-4">
-                    <div>
+                  <div>
                     <label className="text-[10px] font-bold text-slate-400 uppercase">Valor Pago (Fardo)</label>
-                    <input 
-                        type="number" step="0.01"
-                        value={formData.packagePrice}
-                        onChange={e => setFormData({...formData, packagePrice: e.target.value})}
-                        placeholder="Ex: 30.00"
-                        className="w-full mt-1 px-2 py-2 border rounded bg-white text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                    <input
+                      type="number" step="0.01"
+                      value={formData.packagePrice}
+                      onChange={e => setFormData({ ...formData, packagePrice: e.target.value })}
+                      placeholder="Ex: 30.00"
+                      className="w-full mt-1 px-2 py-2 border rounded bg-white text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
                     />
-                    </div>
-                    <div>
+                  </div>
+                  <div>
                     <label className="text-[10px] font-bold text-slate-400 uppercase">Qtd no Pacote</label>
-                    <input 
-                        type="number"
-                        value={formData.packageAmount}
-                        onChange={e => setFormData({...formData, packageAmount: e.target.value})}
-                        placeholder="Ex: 12"
-                        className="w-full mt-1 px-2 py-2 border rounded bg-white text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                    <input
+                      type="number"
+                      value={formData.packageAmount}
+                      onChange={e => setFormData({ ...formData, packageAmount: e.target.value })}
+                      placeholder="Ex: 12"
+                      className="w-full mt-1 px-2 py-2 border rounded bg-white text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
                     />
-                    </div>
+                  </div>
                 </div>
-                
+
                 <div className="pt-2 border-t border-slate-200 flex justify-between items-center">
-                    <span className="text-xs text-slate-500 font-bold">Custo Unitário Calculado:</span>
-                    <span className="text-sm font-black text-slate-700 bg-white px-2 py-1 rounded border border-slate-200">
-                        {formatCurrency(unitCostKPI)}
-                    </span>
+                  <span className="text-xs text-slate-500 font-bold">Custo Unitário Calculado:</span>
+                  <span className="text-sm font-black text-slate-700 bg-white px-2 py-1 rounded border border-slate-200">
+                    {formatCurrency(unitCostKPI)}
+                  </span>
                 </div>
               </div>
 
               <div>
-                   <label className="text-xs font-bold text-emerald-700 uppercase">Preço de Venda Unitário (R$)</label>
-                   <input 
-                     type="number" step="0.01"
-                     value={formData.sellingPrice}
-                     onChange={e => setFormData({...formData, sellingPrice: e.target.value})}
-                     placeholder="0.00"
-                     className="w-full mt-1 px-3 py-3 border border-emerald-300 bg-emerald-50 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-emerald-800 text-lg"
-                   />
+                <label className="text-xs font-bold text-emerald-700 uppercase">Preço de Venda Unitário (R$)</label>
+                <input
+                  type="number" step="0.01"
+                  value={formData.sellingPrice}
+                  onChange={e => setFormData({ ...formData, sellingPrice: e.target.value })}
+                  placeholder="0.00"
+                  className="w-full mt-1 px-3 py-3 border border-emerald-300 bg-emerald-50 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-emerald-800 text-lg"
+                />
               </div>
 
               <button type="submit" className={`w-full py-3 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition flex items-center justify-center gap-2 ${theme.btn}`}>
@@ -394,7 +407,7 @@ export function ResaleProductsView() {
         <div className="p-4 border-b border-slate-100 flex gap-4 bg-white z-20">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
-            <input 
+            <input
               placeholder="Buscar por nome ou código..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
@@ -408,7 +421,7 @@ export function ResaleProductsView() {
 
         <div className="flex-1 overflow-auto bg-slate-50 relative">
           {loading ? (
-            <div className="flex items-center justify-center h-full"><Loader2 className="animate-spin text-slate-600"/></div>
+            <div className="flex items-center justify-center h-full"><Loader2 className="animate-spin text-slate-600" /></div>
           ) : (
             <table className="w-full text-sm text-left border-collapse">
               <thead className="sticky top-0 z-30 bg-white shadow-sm text-slate-500 font-bold uppercase text-xs">
@@ -422,8 +435,8 @@ export function ResaleProductsView() {
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {filteredItems.map(item => (
-                  <tr 
-                    key={item.id} 
+                  <tr
+                    key={item.id}
                     onClick={() => handleSelect(item)}
                     className={`
                       group cursor-pointer transition-colors duration-150
@@ -433,26 +446,26 @@ export function ResaleProductsView() {
                   >
                     <td className="p-4 font-bold text-slate-700 whitespace-nowrap">
                       <div>{item.name}</div>
-                      {item.barcode && <div className="text-[10px] text-slate-400 flex items-center gap-1"><Barcode size={10}/> {item.barcode}</div>}
+                      {item.barcode && <div className="text-[10px] text-slate-400 flex items-center gap-1"><Barcode size={10} /> {item.barcode}</div>}
                       {currentId === item.id && mode === 'edit' && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-200 text-emerald-800 mt-1 inline-block">EDITANDO</span>}
                     </td>
 
                     <td className="p-4 whitespace-nowrap">
-                       <span className="text-xs font-bold px-2 py-1 rounded bg-slate-100 text-slate-600 border border-slate-200">
-                         {item.category || 'Geral'}
-                       </span>
+                      <span className="text-xs font-bold px-2 py-1 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                        {item.category || 'Geral'}
+                      </span>
                     </td>
-                    
+
                     <td className="p-4 whitespace-nowrap text-slate-500">
-                       {formatCurrency(item.cost_price)}
+                      {formatCurrency(item.cost_price)}
                     </td>
 
                     <td className="p-4 whitespace-nowrap font-bold text-emerald-600">
-                       {formatCurrency(item.price)}
+                      {formatCurrency(item.price)}
                     </td>
 
                     <td className="p-4 text-right whitespace-nowrap">
-                      <button 
+                      <button
                         onClick={(e) => confirmDelete(e, item)}
                         className="p-2 text-slate-300 hover:text-red-600 hover:bg-white rounded-full transition relative z-10"
                       >
@@ -483,46 +496,56 @@ export function ResaleProductsView() {
       {/* MODAL DE NOVA CATEGORIA */}
       {showCategoryModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in">
-           <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-0 overflow-hidden animate-in zoom-in-95">
-              
-              <div className="p-4 bg-gradient-to-r from-emerald-500 to-emerald-600 flex justify-between items-center">
-                 <div className="flex items-center gap-3">
-                    <div className="bg-white/20 p-2 rounded-lg text-white"><Tag size={20} /></div>
-                    <h3 className="font-bold text-lg text-white">Nova Categoria</h3>
-                 </div>
-                 <button onClick={() => setShowCategoryModal(false)} className="text-white/70 hover:text-white transition p-1"><X size={20} /></button>
-              </div>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-0 overflow-hidden animate-in zoom-in-95">
 
-              <form onSubmit={handleSaveCategory} className="p-6">
-                <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Nome da Categoria</label>
-                <input 
-                   autoFocus
-                   type="text" 
-                   value={newCategoryName} 
-                   onChange={e => setNewCategoryName(e.target.value)}
-                   className="w-full p-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 mb-6 text-slate-800"
-                   placeholder="Ex: Bebidas, Bomboniere..." 
-                />
-                
-                <div className="flex justify-end gap-3">
-                   <button 
-                      type="button"
-                      onClick={() => setShowCategoryModal(false)}
-                      className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition"
-                   >
-                      Cancelar
-                   </button>
-                   <button 
-                      type="submit"
-                      disabled={!newCategoryName.trim() || creatingCategory}
-                      className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold hover:bg-emerald-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                   >
-                      {creatingCategory ? <Loader2 size={16} className="animate-spin" /> : 'Salvar Categoria'}
-                   </button>
-                </div>
-              </form>
-           </div>
+            <div className="p-4 bg-gradient-to-r from-emerald-500 to-emerald-600 flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="bg-white/20 p-2 rounded-lg text-white"><Tag size={20} /></div>
+                <h3 className="font-bold text-lg text-white">Nova Categoria</h3>
+              </div>
+              <button onClick={() => setShowCategoryModal(false)} className="text-white/70 hover:text-white transition p-1"><X size={20} /></button>
+            </div>
+
+            <form onSubmit={handleSaveCategory} className="p-6">
+              <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Nome da Categoria</label>
+              <input
+                autoFocus
+                type="text"
+                value={newCategoryName}
+                onChange={e => setNewCategoryName(e.target.value)}
+                className="w-full p-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 mb-6 text-slate-800"
+                placeholder="Ex: Bebidas, Bomboniere..."
+              />
+
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowCategoryModal(false)}
+                  className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={!newCategoryName.trim() || creatingCategory}
+                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold hover:bg-emerald-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {creatingCategory ? <Loader2 size={16} className="animate-spin" /> : 'Salvar Categoria'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
+      )}
+
+      {/* MODAL GERENCIADOR DE CATEGORIAS */}
+      {showManager && (
+        <CategoryManager
+          onClose={() => setShowManager(false)}
+          onUpdate={() => {
+            CategoryService.getAll().then(setCategories);
+          }}
+        />
       )}
 
     </div>
