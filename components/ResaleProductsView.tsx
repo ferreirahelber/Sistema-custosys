@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
+import { CategoryService } from '../services/categoryService'; // Importando serviço de categorias
+import { Category } from '../types'; // Importando tipo
 import {
   ShoppingBag,
   Plus,
@@ -12,7 +14,9 @@ import {
   Loader2,
   Package,
   Calculator,
-  Barcode // Icone Novo
+  Barcode,
+  Tag,
+  X
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -23,7 +27,8 @@ interface Product {
   cost_price: number;
   package_price?: number;
   package_amount?: number;
-  barcode?: string; // NOVO CAMPO
+  barcode?: string;
+  category?: string; // NOVO CAMPO
   type: string;
 }
 
@@ -34,15 +39,22 @@ const formatCurrency = (value: number) => {
 
 export function ResaleProductsView() {
   const [items, setItems] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]); // Estado de categorias
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [mode, setMode] = useState<'idle' | 'create' | 'edit'>('idle');
   
   const [currentId, setCurrentId] = useState<string | null>(null);
   
+  // Estados para Modal de Categoria
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [creatingCategory, setCreatingCategory] = useState(false);
+
   const [formData, setFormData] = useState({
     name: '',
-    barcode: '', // NOVO CAMPO
+    barcode: '',
+    category: '', // NOVO CAMPO NO FORM
     packagePrice: '',
     packageAmount: '1',
     sellingPrice: ''
@@ -59,16 +71,23 @@ export function ResaleProductsView() {
   const loadItems = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .eq('type', 'resale')
-        .order('name');
+      // Carrega Produtos e Categorias em paralelo
+      const [productsResponse, categoriesData] = await Promise.all([
+        supabase
+          .from('products')
+          .select('*')
+          .eq('type', 'resale')
+          .order('name'),
+        CategoryService.getAll().catch(() => []) // Se falhar categoria, não trava tudo
+      ]);
 
-      if (error) throw error;
-      setItems(data || []);
+      if (productsResponse.error) throw productsResponse.error;
+      
+      setItems(productsResponse.data || []);
+      setCategories(categoriesData || []);
+
     } catch (error) {
-      toast.error('Erro ao carregar produtos');
+      toast.error('Erro ao carregar dados');
     } finally {
       setLoading(false);
     }
@@ -79,6 +98,7 @@ export function ResaleProductsView() {
     setFormData({
       name: '',
       barcode: '',
+      category: '',
       packagePrice: '',
       packageAmount: '1',
       sellingPrice: ''
@@ -100,7 +120,8 @@ export function ResaleProductsView() {
     setCurrentId(item.id);
     setFormData({
       name: item.name,
-      barcode: item.barcode || '', // Carrega o código
+      barcode: item.barcode || '',
+      category: item.category || 'Geral', // Carrega categoria
       packagePrice: item.package_price?.toString() || item.cost_price?.toString() || '0',
       packageAmount: item.package_amount?.toString() || '1',
       sellingPrice: item.price?.toString() || '0'
@@ -133,7 +154,8 @@ export function ResaleProductsView() {
 
     const payload = {
       name: formData.name,
-      barcode: formData.barcode, // SALVA O CÓDIGO
+      barcode: formData.barcode,
+      category: formData.category || 'Geral', // Salva categoria
       price: parseFloat(formData.sellingPrice) || 0,
       cost_price: costCalculated,
       package_price: parseFloat(formData.packagePrice) || 0,
@@ -157,6 +179,26 @@ export function ResaleProductsView() {
       loadItems();
     } catch (error) {
       toast.error('Erro ao salvar');
+    }
+  };
+
+  // --- LÓGICA DE CRIAR CATEGORIA ---
+  const handleSaveCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCategoryName.trim()) return;
+
+    setCreatingCategory(true);
+    try {
+      const newCat = await CategoryService.create(newCategoryName);
+      setCategories([...categories, newCat]);
+      setFormData({ ...formData, category: newCat.name }); // Seleciona a nova categoria
+      toast.success(`Categoria "${newCat.name}" criada!`);
+      setShowCategoryModal(false);
+      setNewCategoryName('');
+    } catch (error) {
+      toast.error('Erro ao criar categoria.');
+    } finally {
+      setCreatingCategory(false);
     }
   };
 
@@ -188,7 +230,6 @@ export function ResaleProductsView() {
     (i.barcode && i.barcode.includes(searchTerm))
   );
 
-  // Theme Emerald
   const theme = {
     text: 'text-emerald-600',
     bg: 'bg-emerald-50',
@@ -252,6 +293,31 @@ export function ResaleProductsView() {
                   placeholder="Ex: Coca-Cola Lata 350ml"
                   className="w-full mt-1 px-3 py-3 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none font-medium text-slate-700"
                 />
+              </div>
+
+              {/* SELETOR DE CATEGORIA (NOVO) */}
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1"><Tag size={14} /> Categoria</label>
+                <div className="flex gap-2 mt-1">
+                  <select 
+                    value={formData.category} 
+                    onChange={(e) => setFormData({...formData, category: e.target.value})}
+                    className="flex-1 px-3 py-3 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white text-slate-700"
+                  >
+                    <option value="">Selecione...</option>
+                    {categories.map(cat => (
+                      <option key={cat.id} value={cat.name}>{cat.name}</option>
+                    ))}
+                  </select>
+                  <button 
+                    type="button" 
+                    onClick={() => setShowCategoryModal(true)}
+                    className="p-3 bg-slate-100 border border-slate-200 rounded-lg text-slate-600 hover:bg-emerald-100 hover:text-emerald-700 hover:border-emerald-300 transition"
+                    title="Criar nova categoria"
+                  >
+                    <Plus size={20} />
+                  </button>
+                </div>
               </div>
 
               <div>
@@ -348,6 +414,7 @@ export function ResaleProductsView() {
               <thead className="sticky top-0 z-30 bg-white shadow-sm text-slate-500 font-bold uppercase text-xs">
                 <tr>
                   <th className="p-4 border-b whitespace-nowrap">Produto</th>
+                  <th className="p-4 border-b whitespace-nowrap">Categoria</th>
                   <th className="p-4 border-b whitespace-nowrap">Custo Unit.</th>
                   <th className="p-4 border-b whitespace-nowrap">Venda</th>
                   <th className="p-4 border-b text-right whitespace-nowrap">Ação</th>
@@ -368,6 +435,12 @@ export function ResaleProductsView() {
                       <div>{item.name}</div>
                       {item.barcode && <div className="text-[10px] text-slate-400 flex items-center gap-1"><Barcode size={10}/> {item.barcode}</div>}
                       {currentId === item.id && mode === 'edit' && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-200 text-emerald-800 mt-1 inline-block">EDITANDO</span>}
+                    </td>
+
+                    <td className="p-4 whitespace-nowrap">
+                       <span className="text-xs font-bold px-2 py-1 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                         {item.category || 'Geral'}
+                       </span>
                     </td>
                     
                     <td className="p-4 whitespace-nowrap text-slate-500">
@@ -406,6 +479,52 @@ export function ResaleProductsView() {
           </div>
         </div>
       )}
+
+      {/* MODAL DE NOVA CATEGORIA */}
+      {showCategoryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in">
+           <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-0 overflow-hidden animate-in zoom-in-95">
+              
+              <div className="p-4 bg-gradient-to-r from-emerald-500 to-emerald-600 flex justify-between items-center">
+                 <div className="flex items-center gap-3">
+                    <div className="bg-white/20 p-2 rounded-lg text-white"><Tag size={20} /></div>
+                    <h3 className="font-bold text-lg text-white">Nova Categoria</h3>
+                 </div>
+                 <button onClick={() => setShowCategoryModal(false)} className="text-white/70 hover:text-white transition p-1"><X size={20} /></button>
+              </div>
+
+              <form onSubmit={handleSaveCategory} className="p-6">
+                <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Nome da Categoria</label>
+                <input 
+                   autoFocus
+                   type="text" 
+                   value={newCategoryName} 
+                   onChange={e => setNewCategoryName(e.target.value)}
+                   className="w-full p-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 mb-6 text-slate-800"
+                   placeholder="Ex: Bebidas, Bomboniere..." 
+                />
+                
+                <div className="flex justify-end gap-3">
+                   <button 
+                      type="button"
+                      onClick={() => setShowCategoryModal(false)}
+                      className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition"
+                   >
+                      Cancelar
+                   </button>
+                   <button 
+                      type="submit"
+                      disabled={!newCategoryName.trim() || creatingCategory}
+                      className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold hover:bg-emerald-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                   >
+                      {creatingCategory ? <Loader2 size={16} className="animate-spin" /> : 'Salvar Categoria'}
+                   </button>
+                </div>
+              </form>
+           </div>
+        </div>
+      )}
+
     </div>
   );
 }
