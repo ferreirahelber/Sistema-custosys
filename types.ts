@@ -73,6 +73,10 @@ export interface Product {
   profit_margin?: number;
   barcode?: string;
   category?: string;
+
+  // --- NOVOS CAMPOS DE ESTOQUE ---
+  current_stock?: number;
+  min_stock?: number;
 }
 
 export interface PriceHistory {

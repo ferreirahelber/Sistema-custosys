@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
-import { CategoryService } from '../services/categoryService'; // Importando serviço de categorias
-import { Category } from '../types'; // Importando tipo
+import { CategoryService } from '../services/categoryService';
+import { Category } from '../types';
 import { CategoryManager } from './CategoryManager';
 import {
   ShoppingBag,
@@ -18,10 +18,12 @@ import {
   Barcode,
   Tag,
   X,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  Box // Adicionei Box para o ícone de estoque
 } from 'lucide-react';
 import { toast } from 'sonner';
 
+// Atualizando a interface local para incluir estoque
 interface Product {
   id: string;
   name: string;
@@ -30,8 +32,10 @@ interface Product {
   package_price?: number;
   package_amount?: number;
   barcode?: string;
-  category?: string; // NOVO CAMPO
+  category?: string;
   type: string;
+  current_stock?: number; // Novo
+  min_stock?: number;     // Novo
 }
 
 const formatCurrency = (value: number) => {
@@ -41,7 +45,7 @@ const formatCurrency = (value: number) => {
 
 export function ResaleProductsView() {
   const [items, setItems] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]); // Estado de categorias
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [mode, setMode] = useState<'idle' | 'create' | 'edit'>('idle');
@@ -58,10 +62,12 @@ export function ResaleProductsView() {
   const [formData, setFormData] = useState({
     name: '',
     barcode: '',
-    category: '', // NOVO CAMPO NO FORM
+    category: '',
     packagePrice: '',
     packageAmount: '1',
-    sellingPrice: ''
+    sellingPrice: '',
+    currentStock: '0', // Novo Estado
+    minStock: '5'      // Novo Estado
   });
 
   const [deleteConfirmation, setDeleteConfirmation] = useState<{ isOpen: boolean; id: string | null; name: string }>({
@@ -75,14 +81,13 @@ export function ResaleProductsView() {
   const loadItems = async () => {
     setLoading(true);
     try {
-      // Carrega Produtos e Categorias em paralelo
       const [productsResponse, categoriesData] = await Promise.all([
         supabase
           .from('products')
           .select('*')
           .eq('type', 'resale')
           .order('name'),
-        CategoryService.getAll().catch(() => []) // Se falhar categoria, não trava tudo
+        CategoryService.getAll().catch(() => [])
       ]);
 
       if (productsResponse.error) throw productsResponse.error;
@@ -105,7 +110,9 @@ export function ResaleProductsView() {
       category: '',
       packagePrice: '',
       packageAmount: '1',
-      sellingPrice: ''
+      sellingPrice: '',
+      currentStock: '0',
+      minStock: '5'
     });
   };
 
@@ -125,10 +132,12 @@ export function ResaleProductsView() {
     setFormData({
       name: item.name,
       barcode: item.barcode || '',
-      category: item.category || 'Geral', // Carrega categoria
+      category: item.category || 'Geral',
       packagePrice: item.package_price?.toString() || item.cost_price?.toString() || '0',
       packageAmount: item.package_amount?.toString() || '1',
-      sellingPrice: item.price?.toString() || '0'
+      sellingPrice: item.price?.toString() || '0',
+      currentStock: item.current_stock?.toString() || '0', // Carrega estoque
+      minStock: item.min_stock?.toString() || '5'          // Carrega estoque min
     });
   };
 
@@ -159,13 +168,15 @@ export function ResaleProductsView() {
     const payload = {
       name: formData.name,
       barcode: formData.barcode,
-      category: formData.category || 'Geral', // Salva categoria
+      category: formData.category || 'Geral',
       price: parseFloat(formData.sellingPrice) || 0,
       cost_price: costCalculated,
       package_price: parseFloat(formData.packagePrice) || 0,
       package_amount: parseFloat(formData.packageAmount) || 1,
       type: 'resale',
-      profit_margin: marginKPI
+      profit_margin: marginKPI,
+      current_stock: parseFloat(formData.currentStock) || 0, // Salva estoque
+      min_stock: parseFloat(formData.minStock) || 0          // Salva estoque min
     };
 
     try {
@@ -186,7 +197,6 @@ export function ResaleProductsView() {
     }
   };
 
-  // --- LÓGICA DE CRIAR CATEGORIA ---
   const handleSaveCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCategoryName.trim()) return;
@@ -195,7 +205,7 @@ export function ResaleProductsView() {
     try {
       const newCat = await CategoryService.create(newCategoryName);
       setCategories([...categories, newCat]);
-      setFormData({ ...formData, category: newCat.name }); // Seleciona a nova categoria
+      setFormData({ ...formData, category: newCat.name });
       toast.success(`Categoria "${newCat.name}" criada!`);
       setShowCategoryModal(false);
       setNewCategoryName('');
@@ -299,7 +309,6 @@ export function ResaleProductsView() {
                 />
               </div>
 
-              {/* SELETOR DE CATEGORIA (NOVO) */}
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1"><Tag size={14} /> Categoria</label>
                 <div className="flex gap-2 mt-1">
@@ -321,7 +330,6 @@ export function ResaleProductsView() {
                   >
                     <Plus size={20} />
                   </button>
-                  {/* NOVO BOTÃO DE GERENCIAR */}
                   <button
                     type="button"
                     onClick={() => setShowManager(true)}
@@ -343,12 +351,13 @@ export function ResaleProductsView() {
                 />
               </div>
 
+              {/* DADOS DE COMPRA */}
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3 relative">
                 <div className="absolute top-3 right-3 text-slate-300">
                   <Calculator size={16} />
                 </div>
                 <h4 className="text-xs font-bold text-slate-700 uppercase flex items-center gap-2">
-                  <Package size={14} /> Dados de Compra (Fardo/Pacote)
+                  <Package size={14} /> Dados de Compra
                 </h4>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -375,10 +384,41 @@ export function ResaleProductsView() {
                 </div>
 
                 <div className="pt-2 border-t border-slate-200 flex justify-between items-center">
-                  <span className="text-xs text-slate-500 font-bold">Custo Unitário Calculado:</span>
+                  <span className="text-xs text-slate-500 font-bold">Custo Unitário:</span>
                   <span className="text-sm font-black text-slate-700 bg-white px-2 py-1 rounded border border-slate-200">
                     {formatCurrency(unitCostKPI)}
                   </span>
+                </div>
+              </div>
+
+              {/* CONTROLE DE ESTOQUE (NOVO BLOCO) */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3 relative">
+                <div className="absolute top-3 right-3 text-slate-300">
+                  <Box size={16} />
+                </div>
+                <h4 className="text-xs font-bold text-slate-700 uppercase flex items-center gap-2">
+                  <Box size={14} /> Controle de Estoque
+                </h4>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase">Estoque Atual</label>
+                    <input
+                      type="number"
+                      value={formData.currentStock}
+                      onChange={e => setFormData({ ...formData, currentStock: e.target.value })}
+                      className="w-full mt-1 px-2 py-2 border rounded bg-white text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase">Estoque Mínimo</label>
+                    <input
+                      type="number"
+                      value={formData.minStock}
+                      onChange={e => setFormData({ ...formData, minStock: e.target.value })}
+                      className="w-full mt-1 px-2 py-2 border rounded bg-white text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -427,7 +467,7 @@ export function ResaleProductsView() {
               <thead className="sticky top-0 z-30 bg-white shadow-sm text-slate-500 font-bold uppercase text-xs">
                 <tr>
                   <th className="p-4 border-b whitespace-nowrap">Produto</th>
-                  <th className="p-4 border-b whitespace-nowrap">Categoria</th>
+                  <th className="p-4 border-b whitespace-nowrap">Estoque</th>
                   <th className="p-4 border-b whitespace-nowrap">Custo Unit.</th>
                   <th className="p-4 border-b whitespace-nowrap">Venda</th>
                   <th className="p-4 border-b text-right whitespace-nowrap">Ação</th>
@@ -450,10 +490,15 @@ export function ResaleProductsView() {
                       {currentId === item.id && mode === 'edit' && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-200 text-emerald-800 mt-1 inline-block">EDITANDO</span>}
                     </td>
 
+                    {/* Exibição do Estoque na Lista */}
                     <td className="p-4 whitespace-nowrap">
-                      <span className="text-xs font-bold px-2 py-1 rounded bg-slate-100 text-slate-600 border border-slate-200">
-                        {item.category || 'Geral'}
-                      </span>
+                       <div className={`text-xs font-bold px-2 py-1 rounded inline-block border ${
+                         (item.current_stock || 0) <= (item.min_stock || 5) 
+                         ? 'bg-red-100 text-red-700 border-red-200' 
+                         : 'bg-green-100 text-green-700 border-green-200'
+                       }`}>
+                         {item.current_stock || 0} un
+                       </div>
                     </td>
 
                     <td className="p-4 whitespace-nowrap text-slate-500">
