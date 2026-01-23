@@ -24,6 +24,7 @@ export interface Settings {
   default_card_fee?: number;
   card_debit_rate: number;
   card_credit_rate: number;
+  role?: 'admin' | 'cashier';
 }
 
 export interface MeasureConversion {

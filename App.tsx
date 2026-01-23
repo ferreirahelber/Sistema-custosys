@@ -18,6 +18,7 @@ import { CashHistory } from './components/CashHistory';
 import { PosReports } from './components/PosReports';
 import { PackagingView } from './components/PackagingView';
 import { ResaleProductsView } from './components/ResaleProductsView';
+import { supabase } from './services/supabase'; // Importante para checar a role
 import {
   Settings as SettingsIcon,
   ChefHat,
@@ -33,7 +34,9 @@ import {
   Tags,
   History,
   Store,
-  PieChart
+  PieChart,
+  LogOut,
+  ShieldAlert
 } from 'lucide-react';
 import { Toaster } from 'sonner';
 import './index.css';
@@ -43,31 +46,55 @@ export function AppContent() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  // Estados de Configuração
   const [isConfigured, setIsConfigured] = useState(false);
   const [checkingConfig, setCheckingConfig] = useState(true);
+  
+  // Estados de Permissão (Novo)
+  const [userRole, setUserRole] = useState<'admin' | 'cashier' | null>(null);
+  const [loadingRole, setLoadingRole] = useState(true);
 
+  // 1. Verifica Configurações e Role do Usuário
   useEffect(() => {
-    const checkSettings = async () => {
-      if (session) {
+    const initApp = async () => {
+      if (session?.user?.id) {
         try {
+          // A. Verifica Configuração (Mantido do seu código)
           const settings = await SettingsService.get();
           if (settings.labor_monthly_cost > 0) {
             setIsConfigured(true);
           }
+
+          // B. Busca Role do Usuário (Novo)
+          const { data: roleData } = await supabase
+            .from('user_settings')
+            .select('role')
+            .eq('user_id', session.user.id)
+            .single();
+
+          if (roleData?.role) {
+            setUserRole(roleData.role as 'admin' | 'cashier');
+          } else {
+            setUserRole('admin'); // Padrão seguro para o dono
+          }
+
         } catch (error) {
-          console.error('Erro ao verificar configs', error);
+          console.error('Erro na inicialização:', error);
+          setUserRole('admin'); // Fallback
         } finally {
           setCheckingConfig(false);
+          setLoadingRole(false);
         }
       } else if (!loading) {
         setCheckingConfig(false);
+        setLoadingRole(false);
       }
     };
 
-    checkSettings();
+    initApp();
   }, [session, loading]);
 
-  if (loading || checkingConfig) {
+  if (loading || checkingConfig || loadingRole) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <Loader2 className="animate-spin text-amber-600 w-8 h-8" />
@@ -101,15 +128,11 @@ export function AppContent() {
 
   const currentView = getCurrentView();
 
-  // CORREÇÃO: Lógica de NavItem aprimorada para evitar conflito de rotas parecidas
   const NavItem = ({ to, label, icon: Icon }: { to: string; label: string; icon: LucideIcon }) => (
     <NavLink
       to={to}
       className={({ isActive }) => {
-        // Verifica se é ativo OU se é uma sub-rota real (ex: /recipes/123)
-        // O `${to}/` garante que /resale não ative com /resale-products
         const isPathActive = isActive || (to !== '/' && location.pathname.startsWith(`${to}/`));
-        
         return `flex items-center gap-3 px-4 py-2 rounded-lg w-full text-left transition-all ${
           isPathActive
           ? 'bg-amber-100 text-amber-900 font-medium'
@@ -139,43 +162,63 @@ export function AppContent() {
             C
           </div>
           <h1 className="text-xl font-bold text-slate-800 tracking-tight">Custosys</h1>
+          {userRole === 'cashier' && (
+            <span className="ml-auto text-xs font-bold bg-green-100 text-green-700 px-2 py-1 rounded-full border border-green-200">
+              PDV
+            </span>
+          )}
         </div>
 
         <nav className="space-y-1 flex-1 overflow-y-auto">
-          <NavItem to="/" label="Visão Geral" icon={LayoutDashboard} />
+          {/* MENU: Dashboard (Só Admin) */}
+          {userRole === 'admin' && (
+            <NavItem to="/" label="Visão Geral" icon={LayoutDashboard} />
+          )}
           
           <div className="pt-2 pb-2">
             <p className="px-4 text-xs font-bold text-slate-400 uppercase mb-1">Vendas & Caixa</p>
+            {/* O PDV é o único acesso do Caixa */}
             <NavItem to="/pos" label="PDV | Frente de Caixa" icon={Store} />
-            <NavItem to="/cash-history" label="Histórico de Caixa" icon={History} />
-            <NavItem to="/reports" label="Relatórios de Vendas" icon={PieChart} />
-            <NavItem to="/sales" label="Financeiro (Entradas)" icon={TrendingUp} />
-            <NavItem to="/expenses" label="Despesas (Saídas)" icon={TrendingDown} />
-          </div>
-
-          <div className="pt-2 pb-2">
-            <p className="px-4 text-xs font-bold text-slate-400 uppercase mb-1">Produção</p>
-            <NavItem to="/recipes" label="Minhas Receitas" icon={ChefHat} />
-            <NavItem to="/ingredients" label="Meus Ingredientes" icon={Package} />
-            <NavItem to="/packaging" label="Embalagens" icon={Box} />
-            <NavItem to="/resale-products" label="Produtos Revenda" icon={ShoppingBag} />
-          </div>
-
-          <div className="pt-2 pb-2">
-            <p className="px-4 text-xs font-bold text-slate-400 uppercase mb-1">Ferramentas</p>
-            <NavItem to="/costs" label="Simulador & Custos" icon={DollarSign} />
-            <NavItem to="/resale" label="Cálculo de Revenda" icon={Tags} />
             
+            {/* Históricos e Relatórios (Só Admin) */}
+            {userRole === 'admin' && (
+              <>
+                <NavItem to="/cash-history" label="Histórico de Caixa" icon={History} />
+                <NavItem to="/reports" label="Relatórios de Vendas" icon={PieChart} />
+                <NavItem to="/sales" label="Financeiro (Entradas)" icon={TrendingUp} />
+                <NavItem to="/expenses" label="Despesas (Saídas)" icon={TrendingDown} />
+              </>
+            )}
           </div>
 
-          <div className="pt-4 mt-4 border-t border-slate-100">
-            <NavItem to="/settings" label="Configurações" icon={SettingsIcon} />
-          </div>
+          {/* Seções exclusivas de Admin */}
+          {userRole === 'admin' && (
+            <>
+              <div className="pt-2 pb-2">
+                <p className="px-4 text-xs font-bold text-slate-400 uppercase mb-1">Produção</p>
+                <NavItem to="/recipes" label="Minhas Receitas" icon={ChefHat} />
+                <NavItem to="/ingredients" label="Meus Ingredientes" icon={Package} />
+                <NavItem to="/packaging" label="Embalagens" icon={Box} />
+                <NavItem to="/resale-products" label="Produtos Revenda" icon={ShoppingBag} />
+              </div>
+
+              <div className="pt-2 pb-2">
+                <p className="px-4 text-xs font-bold text-slate-400 uppercase mb-1">Ferramentas</p>
+                <NavItem to="/costs" label="Simulador & Custos" icon={DollarSign} />
+                <NavItem to="/resale" label="Cálculo de Revenda" icon={Tags} />
+              </div>
+
+              <div className="pt-4 mt-4 border-t border-slate-100">
+                <NavItem to="/settings" label="Configurações" icon={SettingsIcon} />
+              </div>
+            </>
+          )}
         </nav>
 
-        {!isConfigured && currentView !== 'settings' && (
+        {/* Aviso de Configuração (Só Admin precisa ver isso) */}
+        {!isConfigured && currentView !== 'settings' && userRole === 'admin' && (
           <div className="mt-auto bg-amber-50 p-4 rounded-xl border border-amber-100 text-sm text-amber-800 mb-4 animate-pulse">
-            <p className="font-bold mb-1">Atenção:</p>
+            <p className="font-bold mb-1 flex items-center gap-2"><ShieldAlert size={16}/> Atenção:</p>
             <p>Configure seus custos fixos e mão de obra para os cálculos funcionarem.</p>
           </div>
         )}
@@ -183,16 +226,18 @@ export function AppContent() {
         <div className="mt-auto px-2 space-y-3">
           <button
             onClick={signOut}
-            className="w-full text-sm text-red-600 hover:text-red-700 border border-red-200 hover:border-red-300 rounded-lg py-2 transition hover:bg-red-50"
+            className="w-full text-sm text-red-600 hover:text-red-700 border border-red-200 hover:border-red-300 rounded-lg py-2 transition hover:bg-red-50 flex items-center justify-center gap-2"
           >
+            <LogOut size={16} />
             Sair
           </button>
-          <p className="text-xs text-slate-400 text-center">Versão 2.3.1 • Effitech</p>
+          <p className="text-xs text-slate-400 text-center">Versão 2.4.0 (RBAC) • Effitech</p>
         </div>
       </aside>
 
       <main className="flex-1 p-6 md:p-12 overflow-y-auto h-screen bg-slate-50/50">
         <div className="max-w-6xl mx-auto">
+          {/* Header dinâmico - Esconde para Dashboard e Relatórios, mostra para o resto */}
           {currentView !== 'dashboard' && currentView !== 'reports' && (
             <header className="mb-8 animate-in fade-in slide-in-from-top-4 duration-500">
               <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
@@ -212,38 +257,46 @@ export function AppContent() {
 
           <div className="animate-fade-in">
             <Routes>
-              <Route path="/" element={<Dashboard onNavigate={(view) => {
-                const routes: Record<string, string> = {
-                  'settings': '/settings',
-                  'ingredients': '/ingredients',
-                  'products': '/resale-products',
-                  'recipes': '/recipes',
-                  'costs': '/costs',
-                  'sales': '/sales',
-                  'expenses': '/expenses'
-                };
-                if (routes[view]) navigate(routes[view]);
-              }} />} />
-              <Route path="/settings" element={<SettingsForm onSave={handleSettingsSaved} />} />
-              <Route path="/ingredients" element={<IngredientForm />} />
-              <Route path="/packaging" element={<PackagingView />} />
-              <Route path="/resale-products" element={<ResaleProductsView />} />
-              <Route path="/recipes" element={<RecipeList />} />
-              <Route path="/recipes/new" element={<RecipeForm />} />
-              <Route path="/recipes/:id" element={<RecipeForm />} />
-              <Route path="/costs" element={<CostingView />} />
-              
-              <Route path="/calculator" element={<PricingSimulator />} /> 
-              <Route path="/resale" element={<ResaleCalculator />} />
-
-              <Route path="/sales" element={<SalesView />} />
-              <Route path="/expenses" element={<ExpensesView />} />
-
+              {/* Rota Pública (Acessível a Todos) */}
               <Route path="/pos" element={<PosView />} />
-              <Route path="/cash-history" element={<CashHistory />} />
-              <Route path="/reports" element={<PosReports />} />
 
-              <Route path="*" element={<Navigate to="/" replace />} />
+              {/* Rotas de Admin - Bloqueadas para Caixa */}
+              {userRole === 'admin' ? (
+                <>
+                  <Route path="/" element={<Dashboard onNavigate={(view) => {
+                    const routes: Record<string, string> = {
+                      'settings': '/settings',
+                      'ingredients': '/ingredients',
+                      'products': '/resale-products',
+                      'recipes': '/recipes',
+                      'costs': '/costs',
+                      'sales': '/sales',
+                      'expenses': '/expenses'
+                    };
+                    if (routes[view]) navigate(routes[view]);
+                  }} />} />
+                  <Route path="/settings" element={<SettingsForm onSave={handleSettingsSaved} />} />
+                  <Route path="/ingredients" element={<IngredientForm />} />
+                  <Route path="/packaging" element={<PackagingView />} />
+                  <Route path="/resale-products" element={<ResaleProductsView />} />
+                  <Route path="/recipes" element={<RecipeList />} />
+                  <Route path="/recipes/new" element={<RecipeForm />} />
+                  <Route path="/recipes/:id" element={<RecipeForm />} />
+                  <Route path="/costs" element={<CostingView />} />
+                  <Route path="/calculator" element={<PricingSimulator />} /> 
+                  <Route path="/resale" element={<ResaleCalculator />} />
+                  <Route path="/sales" element={<SalesView />} />
+                  <Route path="/expenses" element={<ExpensesView />} />
+                  <Route path="/cash-history" element={<CashHistory />} />
+                  <Route path="/reports" element={<PosReports />} />
+                </>
+              ) : (
+                // Se for Caixa e tentar acessar qualquer outra rota, joga pro PDV
+                <Route path="*" element={<Navigate to="/pos" replace />} />
+              )}
+
+              {/* Redirecionamento padrão para rota inválida */}
+              <Route path="*" element={<Navigate to={userRole === 'admin' ? "/" : "/pos"} replace />} />
             </Routes>
           </div>
         </div>

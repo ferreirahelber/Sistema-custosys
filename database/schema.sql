@@ -1,20 +1,21 @@
 -- ARQUIVO: database/schema.sql
--- VERSÃO: 2.0 (Atualizado com Módulo Financeiro, PDV e Performance)
+-- VERSÃO: 2.1 (RBAC + Correção de Erro 500 + Admin Global)
 
 -- ==========================================
 -- 1. CONFIGURAÇÕES GERAIS E EQUIPE
 -- ==========================================
 
--- Tabela de Configurações Globais
+-- Tabela de Configurações Globais (Agora com Role)
 create table if not exists user_settings (
   user_id uuid references auth.users not null primary key,
+  role text default 'admin', -- 'admin' ou 'cashier'
   labor_monthly_cost numeric default 0,
   work_hours_monthly numeric default 160,
   fixed_overhead_rate numeric default 0,
   cost_per_minute numeric default 0,
   estimated_monthly_revenue numeric default 0,
   
-  -- Novas taxas configuráveis (ESSENCIAIS PARA O NOVO PDV)
+  -- Taxas configuráveis
   default_tax_rate numeric default 0,
   default_card_fee numeric default 0,
   card_debit_rate numeric default 1.60,
@@ -22,14 +23,32 @@ create table if not exists user_settings (
   
   updated_at timestamp with time zone default timezone('utc'::text, now()),
 
-  -- VALIDAÇÕES DE BACKEND
+  -- VALIDAÇÕES
   constraint check_labor_positive check (labor_monthly_cost >= 0),
   constraint check_hours_valid check (work_hours_monthly > 0),
   constraint check_overhead_positive check (fixed_overhead_rate >= 0),
   constraint check_cost_minute_positive check (cost_per_minute >= 0)
 );
 alter table user_settings enable row level security;
-create policy "Gerenciar minhas configs" on user_settings for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- Política de Segurança Simplificada (Evita Erro 500)
+-- Todo autenticado pode LER configs (necessário para checar roles)
+create policy "Leitura Pública para Autenticados" on user_settings for select to authenticated using (true);
+-- Apenas o dono pode EDITAR sua linha
+create policy "Edição apenas pelo Dono" on user_settings for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- Função Auxiliar de Segurança (IsAdmin)
+create or replace function is_admin()
+returns boolean as $$
+begin
+  return exists (
+    select 1 from user_settings 
+    where user_id = auth.uid() 
+    and role = 'admin'
+  );
+end;
+$$ language plpgsql security definer;
+
 
 -- Tabela de Equipe
 create table if not exists team_members (
@@ -46,6 +65,7 @@ create table if not exists team_members (
 );
 alter table team_members enable row level security;
 create policy "Gerenciar minha equipe" on team_members for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
 
 -- Tabela de Custos Fixos
 create table if not exists fixed_costs (
@@ -85,7 +105,7 @@ create table if not exists ingredients (
   min_stock numeric default 10,
   
   conversions jsonb default '[]'::jsonb,
-  category text default 'food', -- 'food' | 'packaging' | 'product' (revenda)
+  category text default 'food', 
   
   created_at timestamp with time zone default timezone('utc'::text, now()),
 
@@ -96,7 +116,8 @@ create table if not exists ingredients (
   constraint check_ing_cost_positive check (unit_cost_base >= 0)
 );
 alter table ingredients enable row level security;
-create policy "Gerenciar meus ingredientes" on ingredients for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+-- Admin vê tudo (para gerenciar estoque), Vendedor vê para vender
+create policy "Admin vê tudo, User vê o seu" on ingredients for all to authenticated using (auth.uid() = user_id or is_admin());
 
 
 -- ==========================================
@@ -133,7 +154,7 @@ create table if not exists recipes (
   constraint check_selling_price_positive check (selling_price >= 0)
 );
 alter table recipes enable row level security;
-create policy "Gerenciar minhas receitas" on recipes for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "Admin vê tudo, User vê o seu" on recipes for all to authenticated using (auth.uid() = user_id or is_admin());
 
 
 -- Tabela de Itens da Receita
@@ -141,28 +162,28 @@ create table if not exists recipe_items (
   id uuid default gen_random_uuid() primary key,
   recipe_id uuid references recipes(id) on delete cascade not null,
   ingredient_id uuid references ingredients(id) on delete set null,
-  
   quantity numeric not null default 0,
-  
   created_at timestamp with time zone default timezone('utc'::text, now()),
 
   constraint check_item_qty_valid check (quantity > 0)
 );
 alter table recipe_items enable row level security;
 
--- Política via JOIN (Nota: Considere desnormalizar user_id aqui para performance futura)
-create policy "Gerenciar itens da receita" on recipe_items for all to authenticated using (
-  exists (select 1 from recipes r where r.id = recipe_items.recipe_id and r.user_id = auth.uid())
-) with check (
-  exists (select 1 from recipes r where r.id = recipe_items.recipe_id and r.user_id = auth.uid())
+-- Política via JOIN segura
+create policy "Admin vê tudo, User vê o seu" on recipe_items for all to authenticated using (
+  exists (
+    select 1 from recipes r 
+    where r.id = recipe_items.recipe_id 
+    and (r.user_id = auth.uid() or is_admin())
+  )
 );
 
 
 -- ==========================================
--- 4. MÓDULO FINANCEIRO E PDV (NOVO - FALTAVA NO SEU ARQUIVO)
+-- 4. MÓDULO FINANCEIRO E PDV (SEGURANÇA REFORÇADA)
 -- ==========================================
 
--- 4.1 Tabela de Vendas (Sales - Dashboard Financeiro)
+-- 4.1 Tabela de Vendas (Sales)
 create table if not exists sales (
   id uuid default gen_random_uuid() primary key,
   user_id uuid references auth.users not null,
@@ -176,7 +197,7 @@ create table if not exists sales (
   net_amount numeric default 0
 );
 alter table sales enable row level security;
-create policy "Gerenciar minhas vendas" on sales for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "Admin vê tudo, User vê o seu" on sales for all to authenticated using (auth.uid() = user_id or is_admin());
 
 -- 4.2 Tabela de Despesas (Expenses)
 create table if not exists expenses (
@@ -189,7 +210,7 @@ create table if not exists expenses (
   created_at timestamp with time zone default timezone('utc'::text, now())
 );
 alter table expenses enable row level security;
-create policy "Gerenciar minhas despesas" on expenses for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "Admin vê tudo, User vê o seu" on expenses for all to authenticated using (auth.uid() = user_id or is_admin());
 
 -- 4.3 Sessões de Caixa (Cash Sessions)
 create table if not exists cash_sessions (
@@ -200,13 +221,13 @@ create table if not exists cash_sessions (
   initial_balance numeric default 0,
   final_balance numeric,
   calculated_balance numeric,
-  status text default 'open', -- 'open' ou 'closed'
+  status text default 'open',
   notes text
 );
 alter table cash_sessions enable row level security;
-create policy "Gerenciar meus caixas" on cash_sessions for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "Admin vê tudo, User vê o seu" on cash_sessions for all to authenticated using (auth.uid() = user_id or is_admin());
 
--- 4.4 Pedidos (Orders - Cabeçalho do PDV)
+-- 4.4 Pedidos (Orders)
 create table if not exists orders (
   id uuid default gen_random_uuid() primary key,
   session_id uuid references cash_sessions(id) on delete cascade,
@@ -222,37 +243,37 @@ create table if not exists orders (
   created_at timestamp with time zone default timezone('utc'::text, now())
 );
 alter table orders enable row level security;
-create policy "Gerenciar meus pedidos" on orders for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "Admin vê tudo, User vê o seu" on orders for all to authenticated using (auth.uid() = user_id or is_admin());
 
 -- 4.5 Itens do Pedido (Order Items)
 create table if not exists order_items (
   id uuid default gen_random_uuid() primary key,
   order_id uuid references orders(id) on delete cascade,
-  product_id uuid, -- Pode ser ID da receita ou do produto
+  product_id uuid,
   product_name text,
   quantity numeric default 0,
   unit_price numeric default 0,
   total_price numeric default 0,
-  type text -- 'recipe', 'product', 'resale'
+  type text 
 );
 alter table order_items enable row level security;
 
--- RLS via Join com Orders
-create policy "Gerenciar itens do pedido" on order_items for all to authenticated using (
-  exists (select 1 from orders o where o.id = order_items.order_id and o.user_id = auth.uid())
-) with check (
-  exists (select 1 from orders o where o.id = order_items.order_id and o.user_id = auth.uid())
+-- RLS via JOIN segura
+create policy "Admin vê tudo, User vê o seu" on order_items for all to authenticated using (
+  exists (
+    select 1 from orders o 
+    where o.id = order_items.order_id 
+    and (o.user_id = auth.uid() or is_admin())
+  )
 );
 
 
 -- ==========================================
--- 5. PERFORMANCE E OTIMIZAÇÃO (NOVO)
+-- 5. PERFORMANCE E ÍNDICES
 -- ==========================================
 
--- Índices para chaves estrangeiras que não são criados automaticamente
 create index if not exists idx_recipe_items_recipe_id on recipe_items(recipe_id);
 create index if not exists idx_recipe_items_ingredient_id on recipe_items(ingredient_id);
-
 create index if not exists idx_orders_session_id on orders(session_id);
 create index if not exists idx_orders_user_id on orders(user_id);
 create index if not exists idx_order_items_order_id on order_items(order_id);
