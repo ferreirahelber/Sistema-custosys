@@ -1,5 +1,5 @@
 -- ARQUIVO: database/schema.sql
--- ATUALIZADO: Com validações de segurança (Constraints)
+-- VERSÃO: 2.0 (Atualizado com Módulo Financeiro, PDV e Performance)
 
 -- ==========================================
 -- 1. CONFIGURAÇÕES GERAIS E EQUIPE
@@ -13,11 +13,18 @@ create table if not exists user_settings (
   fixed_overhead_rate numeric default 0,
   cost_per_minute numeric default 0,
   estimated_monthly_revenue numeric default 0,
+  
+  -- Novas taxas configuráveis (ESSENCIAIS PARA O NOVO PDV)
+  default_tax_rate numeric default 0,
+  default_card_fee numeric default 0,
+  card_debit_rate numeric default 1.60,
+  card_credit_rate numeric default 4.39,
+  
   updated_at timestamp with time zone default timezone('utc'::text, now()),
 
   -- VALIDAÇÕES DE BACKEND
   constraint check_labor_positive check (labor_monthly_cost >= 0),
-  constraint check_hours_valid check (work_hours_monthly > 0), -- Evita divisão por zero
+  constraint check_hours_valid check (work_hours_monthly > 0),
   constraint check_overhead_positive check (fixed_overhead_rate >= 0),
   constraint check_cost_minute_positive check (cost_per_minute >= 0)
 );
@@ -33,7 +40,6 @@ create table if not exists team_members (
   hours_monthly numeric not null default 160,
   created_at timestamp with time zone default timezone('utc'::text, now()),
 
-  -- VALIDAÇÕES
   constraint check_team_salary_positive check (salary >= 0),
   constraint check_team_hours_valid check (hours_monthly > 0),
   constraint check_team_name_not_empty check (length(trim(name)) > 0)
@@ -49,7 +55,6 @@ create table if not exists fixed_costs (
   value numeric not null default 0,
   created_at timestamp with time zone default timezone('utc'::text, now()),
 
-  -- VALIDAÇÕES
   constraint check_fixed_cost_positive check (value >= 0),
   constraint check_fixed_name_not_empty check (length(trim(name)) > 0)
 );
@@ -58,7 +63,7 @@ create policy "Gerenciar meus custos fixos" on fixed_costs for all to authentica
 
 
 -- ==========================================
--- 2. GESTÃO DE INGREDIENTES
+-- 2. GESTÃO DE INGREDIENTES E ESTOQUE
 -- ==========================================
 
 create table if not exists ingredients (
@@ -80,13 +85,13 @@ create table if not exists ingredients (
   min_stock numeric default 10,
   
   conversions jsonb default '[]'::jsonb,
+  category text default 'food', -- 'food' | 'packaging' | 'product' (revenda)
   
   created_at timestamp with time zone default timezone('utc'::text, now()),
 
-  -- VALIDAÇÕES DE BACKEND (CRÍTICAS PARA CÁLCULO)
   constraint check_ing_name_not_empty check (length(trim(name)) > 0),
   constraint check_ing_price_positive check (package_price >= 0),
-  constraint check_ing_amount_valid check (package_amount > 0), -- Pacote não pode ser zero
+  constraint check_ing_amount_valid check (package_amount > 0),
   constraint check_ing_stock_positive check (current_stock >= 0),
   constraint check_ing_cost_positive check (unit_cost_base >= 0)
 );
@@ -114,14 +119,15 @@ create table if not exists recipes (
   total_cost_final numeric default 0,
   unit_cost numeric default 0,
   
-  -- Novo: Preço de Venda
+  -- Venda
   selling_price numeric default 0,
+  barcode text,
+  category text,
   
   created_at timestamp with time zone default timezone('utc'::text, now()),
 
-  -- VALIDAÇÕES
   constraint check_recipe_name_not_empty check (length(trim(name)) > 0),
-  constraint check_yield_valid check (yield_units > 0), -- Rendimento tem que ser > 0
+  constraint check_yield_valid check (yield_units > 0),
   constraint check_prep_time_positive check (preparation_time_minutes >= 0),
   constraint check_final_cost_positive check (total_cost_final >= 0),
   constraint check_selling_price_positive check (selling_price >= 0)
@@ -140,13 +146,113 @@ create table if not exists recipe_items (
   
   created_at timestamp with time zone default timezone('utc'::text, now()),
 
-  -- VALIDAÇÕES
-  constraint check_item_qty_valid check (quantity > 0) -- Não faz sentido ingrediente com 0g
+  constraint check_item_qty_valid check (quantity > 0)
 );
 alter table recipe_items enable row level security;
 
+-- Política via JOIN (Nota: Considere desnormalizar user_id aqui para performance futura)
 create policy "Gerenciar itens da receita" on recipe_items for all to authenticated using (
   exists (select 1 from recipes r where r.id = recipe_items.recipe_id and r.user_id = auth.uid())
 ) with check (
   exists (select 1 from recipes r where r.id = recipe_items.recipe_id and r.user_id = auth.uid())
 );
+
+
+-- ==========================================
+-- 4. MÓDULO FINANCEIRO E PDV (NOVO - FALTAVA NO SEU ARQUIVO)
+-- ==========================================
+
+-- 4.1 Tabela de Vendas (Sales - Dashboard Financeiro)
+create table if not exists sales (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references auth.users not null,
+  description text not null,
+  amount numeric not null default 0,
+  category text,
+  date timestamp with time zone default timezone('utc'::text, now()),
+  created_at timestamp with time zone default timezone('utc'::text, now()),
+  payment_method text,
+  fee_amount numeric default 0,
+  net_amount numeric default 0
+);
+alter table sales enable row level security;
+create policy "Gerenciar minhas vendas" on sales for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- 4.2 Tabela de Despesas (Expenses)
+create table if not exists expenses (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references auth.users not null,
+  description text not null,
+  amount numeric not null default 0,
+  category text,
+  date timestamp with time zone default timezone('utc'::text, now()),
+  created_at timestamp with time zone default timezone('utc'::text, now())
+);
+alter table expenses enable row level security;
+create policy "Gerenciar minhas despesas" on expenses for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- 4.3 Sessões de Caixa (Cash Sessions)
+create table if not exists cash_sessions (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references auth.users not null,
+  opened_at timestamp with time zone default timezone('utc'::text, now()),
+  closed_at timestamp with time zone,
+  initial_balance numeric default 0,
+  final_balance numeric,
+  calculated_balance numeric,
+  status text default 'open', -- 'open' ou 'closed'
+  notes text
+);
+alter table cash_sessions enable row level security;
+create policy "Gerenciar meus caixas" on cash_sessions for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- 4.4 Pedidos (Orders - Cabeçalho do PDV)
+create table if not exists orders (
+  id uuid default gen_random_uuid() primary key,
+  session_id uuid references cash_sessions(id) on delete cascade,
+  user_id uuid references auth.users not null,
+  customer_name text,
+  total_amount numeric default 0,
+  discount numeric default 0,
+  change_amount numeric default 0,
+  payment_method text,
+  status text default 'completed',
+  fee_amount numeric default 0,
+  net_amount numeric default 0,
+  created_at timestamp with time zone default timezone('utc'::text, now())
+);
+alter table orders enable row level security;
+create policy "Gerenciar meus pedidos" on orders for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- 4.5 Itens do Pedido (Order Items)
+create table if not exists order_items (
+  id uuid default gen_random_uuid() primary key,
+  order_id uuid references orders(id) on delete cascade,
+  product_id uuid, -- Pode ser ID da receita ou do produto
+  product_name text,
+  quantity numeric default 0,
+  unit_price numeric default 0,
+  total_price numeric default 0,
+  type text -- 'recipe', 'product', 'resale'
+);
+alter table order_items enable row level security;
+
+-- RLS via Join com Orders
+create policy "Gerenciar itens do pedido" on order_items for all to authenticated using (
+  exists (select 1 from orders o where o.id = order_items.order_id and o.user_id = auth.uid())
+) with check (
+  exists (select 1 from orders o where o.id = order_items.order_id and o.user_id = auth.uid())
+);
+
+
+-- ==========================================
+-- 5. PERFORMANCE E OTIMIZAÇÃO (NOVO)
+-- ==========================================
+
+-- Índices para chaves estrangeiras que não são criados automaticamente
+create index if not exists idx_recipe_items_recipe_id on recipe_items(recipe_id);
+create index if not exists idx_recipe_items_ingredient_id on recipe_items(ingredient_id);
+
+create index if not exists idx_orders_session_id on orders(session_id);
+create index if not exists idx_orders_user_id on orders(user_id);
+create index if not exists idx_order_items_order_id on order_items(order_id);
