@@ -7,9 +7,10 @@ import { SettingsService } from '../services/settingsService';
 import { CategoryService } from '../services/categoryService';
 import { calculateRecipeFinancials } from '../utils/calculations';
 import { PriceHistoryViewer } from './PriceHistoryViewer';
+import { CategoryManager } from './CategoryManager';
 import {
   Clock, Layers, Plus, Trash2, Edit, Loader2, BookOpen, Save,
-  ArrowLeft, AlertTriangle, History, HelpCircle, Package, Barcode, Wand2, Tag, X
+  ArrowLeft, AlertTriangle, History, HelpCircle, Package, Barcode, Wand2, Tag, Settings as SettingsIcon, X
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -38,10 +39,13 @@ export const RecipeForm: React.FC = () => {
   const [recipeItems, setRecipeItems] = useState<RecipeItem[]>([]);
   const [currentSellingPrice, setCurrentSellingPrice] = useState(0);
 
-  // Estados para Modal de Categoria
+  // Estados para Modal de CRIAR Categoria (+)
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [creatingCategory, setCreatingCategory] = useState(false);
+
+  // Estado para Modal de GERENCIAR Categoria (Engrenagem)
+  const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
 
   // Estados de Ingredientes
   const [selectedIngId, setSelectedIngId] = useState('');
@@ -53,12 +57,20 @@ export const RecipeForm: React.FC = () => {
   const foodIngredients = ingredients.filter(i => i.category !== 'product' && i.category !== 'packaging');
   const packagingItems = ingredients.filter(i => i.category === 'packaging');
 
+  // Função para recarregar categorias
+  const refreshCategories = async () => {
+    try {
+      const allCats = await CategoryService.getAll();
+      setCategories(allCats || []);
+    } catch (catError) {
+      console.warn("Erro ao recarregar categorias.", catError);
+    }
+  };
+
   useEffect(() => {
     const init = async () => {
       setLoading(true);
       try {
-        // 1. Carrega o Essencial (Ingredientes e Configs)
-        // Isso não deve falhar por causa de categorias
         const [allIngs, mySettings] = await Promise.all([
           IngredientService.getAll(),
           SettingsService.get()
@@ -66,16 +78,8 @@ export const RecipeForm: React.FC = () => {
         setIngredients(allIngs);
         setSettings(mySettings);
 
-        // 2. Carrega Categorias (BLINDADO)
-        // Se falhar (404), apenas loga no console e segue a vida
-        try {
-          const allCats = await CategoryService.getAll();
-          setCategories(allCats || []);
-        } catch (catError) {
-          console.warn("Categorias não carregadas (tabela pode não existir ainda).", catError);
-        }
+        await refreshCategories();
 
-        // 3. Carrega a Receita (Se for edição)
         if (id) {
           try {
             const recipeToEdit = await RecipeService.getById(id);
@@ -86,7 +90,6 @@ export const RecipeForm: React.FC = () => {
               setYieldUnits(recipeToEdit.yield_units || 1);
               setPrepTime(recipeToEdit.preparation_time_minutes || 0);
               setPrepMethod(recipeToEdit.preparation_method || '');
-              // IMPORTANTE: Garante que items seja um array e mapeia corretamente
               setRecipeItems(recipeToEdit.items || []);
               setCurrentSellingPrice(recipeToEdit.selling_price || 0);
             } else {
@@ -125,7 +128,7 @@ export const RecipeForm: React.FC = () => {
     toast.success('Código gerado!');
   };
 
-  // --- FUNÇÃO SALVAR CATEGORIA (MODAL) ---
+  // --- FUNÇÃO SALVAR NOVA CATEGORIA (Botão +) ---
   const handleSaveCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCategoryName.trim()) return;
@@ -134,7 +137,7 @@ export const RecipeForm: React.FC = () => {
     try {
       const newCat = await CategoryService.create(newCategoryName);
       setCategories([...categories, newCat]);
-      setCategory(newCat.name);
+      setCategory(newCat.name); // Já seleciona a nova categoria
       toast.success(`Categoria "${newCat.name}" criada!`);
       setShowCategoryModal(false);
       setNewCategoryName('');
@@ -186,10 +189,7 @@ export const RecipeForm: React.FC = () => {
   const handleEditItem = (item: RecipeItem) => {
     const ingredient = ingredients.find(i => i.id === item.ingredient_id);
 
-    // Se o ingrediente não existe mais (foi excluído do cadastro)
     if (!ingredient) {
-        // Usa o modal customizado do sistema ou toast, aqui usaremos confirm simples
-        // para manter consistência, ou removemos direto.
         removeItem(item.id);
         toast.info("Item inválido removido.");
         return;
@@ -225,7 +225,6 @@ export const RecipeForm: React.FC = () => {
     
     try {
       setSaving(true);
-      // Prepara itens garantindo que tenham nome (para display rápido)
       const itemsWithNames = recipeItems.map(item => {
         const ing = ingredients.find(i => i.id === item.ingredient_id);
         return {
@@ -288,7 +287,7 @@ export const RecipeForm: React.FC = () => {
                     />
                 </div>
                 
-                {/* SELETOR DE CATEGORIA + BOTÃO */}
+                {/* SELETOR DE CATEGORIA + BOTÕES (+ e Engrenagem) */}
                 <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-1"><Tag size={14} /> Categoria</label>
                     <div className="flex gap-2">
@@ -302,13 +301,25 @@ export const RecipeForm: React.FC = () => {
                           <option key={cat.id} value={cat.name}>{cat.name}</option>
                         ))}
                       </select>
+                      
+                      {/* Botão ADICIONAR (Modal Rápido) */}
                       <button 
                         type="button" 
                         onClick={() => setShowCategoryModal(true)}
-                        className="p-2 bg-slate-100 border border-slate-200 rounded-lg text-slate-600 hover:bg-amber-100 hover:text-amber-700 hover:border-amber-300 transition"
-                        title="Criar nova categoria"
+                        className="p-2 bg-slate-100 border border-slate-200 rounded-lg text-slate-600 hover:bg-green-100 hover:text-green-700 hover:border-green-300 transition"
+                        title="Nova Categoria"
                       >
                         <Plus size={20} />
+                      </button>
+
+                      {/* Botão GERENCIAR (Lista Completa) */}
+                      <button 
+                        type="button" 
+                        onClick={() => setIsCategoryManagerOpen(true)}
+                        className="p-2 bg-slate-100 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-200 transition"
+                        title="Gerenciar Categorias"
+                      >
+                        <SettingsIcon size={20} />
                       </button>
                     </div>
                 </div>
@@ -581,13 +592,23 @@ export const RecipeForm: React.FC = () => {
         </div>
       </div>
 
-      {/* MODAL DE NOVA CATEGORIA (SUBSTITUIU O PROMPT) */}
+      {/* MODAL DE GERENCIAMENTO DE CATEGORIAS (ENGRENAGEM) */}
+      <CategoryManager
+        isOpen={isCategoryManagerOpen}
+        onClose={() => {
+          setIsCategoryManagerOpen(false);
+          refreshCategories();
+        }}
+        onUpdate={refreshCategories}
+      />
+
+      {/* MODAL DE CRIAÇÃO RÁPIDA DE CATEGORIA (BOTÃO +) */}
       {showCategoryModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in">
            <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-0 overflow-hidden animate-in zoom-in-95">
-              
-              {/* Header do Modal */}
-              <div className="p-4 bg-gradient-to-r from-amber-500 to-amber-600 flex justify-between items-center">
+             
+             {/* Header do Modal */}
+             <div className="p-4 bg-gradient-to-r from-amber-500 to-amber-600 flex justify-between items-center">
                  <div className="flex items-center gap-3">
                     <div className="bg-white/20 p-2 rounded-lg text-white">
                        <Tag size={20} />
@@ -600,43 +621,43 @@ export const RecipeForm: React.FC = () => {
                  >
                    <X size={20} />
                  </button>
-              </div>
+             </div>
 
-              {/* Conteúdo do Modal */}
-              <form onSubmit={handleSaveCategory} className="p-6">
-                <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Nome da Categoria</label>
-                <input 
-                   autoFocus
-                   type="text" 
-                   value={newCategoryName} 
-                   onChange={e => setNewCategoryName(e.target.value)}
-                   className="w-full p-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 mb-6 text-slate-800"
-                   placeholder="Ex: Tortas, Salgados, Bolos..." 
-                />
-                
-                <div className="flex justify-end gap-3">
-                   <button 
-                      type="button"
-                      onClick={() => setShowCategoryModal(false)}
-                      className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition"
-                   >
-                      Cancelar
-                   </button>
-                   <button 
-                      type="submit"
-                      disabled={!newCategoryName.trim() || creatingCategory}
-                      className="px-4 py-2 bg-amber-600 text-white rounded-lg font-bold hover:bg-amber-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                   >
-                      {creatingCategory ? (
-                        <>
-                          <Loader2 size={16} className="animate-spin" /> Salvando...
-                        </>
-                      ) : (
-                        <>Plus {newCategoryName.trim() ? `"${newCategoryName}"` : 'Categoria'}</>
-                      )}
-                   </button>
-                </div>
-              </form>
+             {/* Conteúdo do Modal */}
+             <form onSubmit={handleSaveCategory} className="p-6">
+               <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Nome da Categoria</label>
+               <input 
+                  autoFocus
+                  type="text" 
+                  value={newCategoryName} 
+                  onChange={e => setNewCategoryName(e.target.value)}
+                  className="w-full p-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 mb-6 text-slate-800"
+                  placeholder="Ex: Tortas, Salgados, Bolos..." 
+               />
+               
+               <div className="flex justify-end gap-3">
+                  <button 
+                     type="button"
+                     onClick={() => setShowCategoryModal(false)}
+                     className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition"
+                  >
+                     Cancelar
+                  </button>
+                  <button 
+                     type="submit"
+                     disabled={!newCategoryName.trim() || creatingCategory}
+                     className="px-4 py-2 bg-amber-600 text-white rounded-lg font-bold hover:bg-amber-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                     {creatingCategory ? (
+                       <>
+                         <Loader2 size={16} className="animate-spin" /> Salvando...
+                       </>
+                     ) : (
+                       <>Plus {newCategoryName.trim() ? `"${newCategoryName}"` : 'Categoria'}</>
+                     )}
+                  </button>
+               </div>
+             </form>
            </div>
         </div>
       )}

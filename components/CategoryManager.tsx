@@ -1,25 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { CategoryService } from '../services/categoryService';
 import { Category } from '../types';
-import { X, Trash2, Edit2, Save, Loader2, AlertTriangle, Check } from 'lucide-react';
+import { X, Trash2, Edit2, Check, Loader2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Props {
+  isOpen?: boolean;
   onClose: () => void;
-  onUpdate: () => void; // Para atualizar a lista no componente pai
+  onUpdate?: () => void;
 }
 
-export function CategoryManager({ onClose, onUpdate }: Props) {
+export function CategoryManager({ isOpen = true, onClose, onUpdate }: Props) {
+  // 1. Hooks de Estado (Sempre no topo, incondicionais)
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState('');
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
-  useEffect(() => {
-    loadCategories();
-  }, []);
-
+  // Função auxiliar de carregamento
   const loadCategories = async () => {
     setLoading(true);
     try {
@@ -31,6 +30,13 @@ export function CategoryManager({ onClose, onUpdate }: Props) {
       setLoading(false);
     }
   };
+
+  // 2. useEffect (Agora está ANTES de qualquer return, corrigindo o erro)
+  useEffect(() => {
+    if (isOpen) {
+      loadCategories();
+    }
+  }, [isOpen]);
 
   const startEdit = (cat: Category) => {
     setEditingId(cat.id);
@@ -45,7 +51,7 @@ export function CategoryManager({ onClose, onUpdate }: Props) {
       toast.success('Categoria atualizada!');
       setEditingId(null);
       loadCategories();
-      onUpdate(); // Atualiza a tela pai
+      if (onUpdate) onUpdate();
     } catch (error) {
       toast.error('Erro ao atualizar.');
     }
@@ -57,11 +63,15 @@ export function CategoryManager({ onClose, onUpdate }: Props) {
       toast.success('Categoria excluída!');
       setDeletingId(null);
       loadCategories();
-      onUpdate(); // Atualiza a tela pai
+      if (onUpdate) onUpdate();
     } catch (error: any) {
       toast.error(error.message || 'Erro ao excluir');
     }
   };
+
+  // 3. Verificação de Visibilidade (AGORA SIM, no final)
+  // Se isOpen for falso, não renderiza o visual, mas os hooks acima já rodaram.
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in">

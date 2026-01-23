@@ -199,7 +199,7 @@ export function AppContent() {
                 <NavItem to="/recipes" label="Minhas Receitas" icon={ChefHat} />
                 <NavItem to="/ingredients" label="Meus Ingredientes" icon={Package} />
                 <NavItem to="/packaging" label="Embalagens" icon={Box} />
-                <NavItem to="/resale-products" label="Produtos Revenda" icon={ShoppingBag} />
+                <NavItem to="/resale-products" label="Revenda" icon={ShoppingBag} />
               </div>
 
               <div className="pt-2 pb-2">
@@ -244,7 +244,7 @@ export function AppContent() {
                 {currentView === 'settings' && <><SettingsIcon className="text-amber-600" /> Configurações Globais</>}
                 {currentView === 'ingredients' && <><Package className="text-amber-600" /> Gestão de Ingredientes</>}
                 {currentView === 'packaging' && <><Box className="text-blue-600" /> Embalagens</>}
-                {currentView === 'resale_products' && <><ShoppingBag className="text-emerald-600" /> Produtos Revenda</>}
+                {currentView === 'resale_products' && <><ShoppingBag className="text-emerald-600" /> Produtos de Revenda</>}
                 {currentView === 'recipes' && <><ChefHat className="text-amber-600" /> Gerenciamento de Receitas</>}
                 {currentView === 'costs' && <><DollarSign className="text-amber-600" /> Simulador de Preços</>}
                 {currentView === 'sales' && <><TrendingUp className="text-emerald-600" /> Controle de Vendas</>}
