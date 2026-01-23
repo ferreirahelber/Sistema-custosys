@@ -10,27 +10,22 @@ export default defineConfig(({ mode }) => {
       host: '0.0.0.0',
     },
     plugins: [react()],
-    define: {
-      'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-    },
+    // REMOVIDO O BLOCO 'define' QUE EXPUNHA A API KEY
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
       },
     },
-    
     test: {
       globals: true,
       environment: 'jsdom',
       setupFiles: './test/setup.ts',
-      // CORREÇÃO: Ignorar TODA a pasta 'tests' (onde o Playwright mora)
       exclude: [
         '**/node_modules/**', 
         '**/dist/**', 
         '**/cypress/**', 
         '**/.{idea,git,cache,output,temp}/**', 
-        './tests/**' // Alterado de './tests/e2e/**' para './tests/**'
+        './tests/**' 
       ],
     },
   };

@@ -1,6 +1,42 @@
 import { Unit, Ingredient, RecipeItem, Settings, Recipe } from '../types';
 import Decimal from 'decimal.js';
 
+// --- NOVA FUNÇÃO DE CONVERSÃO CENTRALIZADA (PEDIDO DO MANUS) ---
+/**
+ * Converte uma quantidade de entrada (ex: 1 Xícara) para a unidade base do ingrediente (ex: 120g).
+ */
+export const convertInputToUnitBase = (
+  quantityInput: number,
+  unitInput: string,
+  ingredient: Ingredient
+): number => {
+  const qtyDec = new Decimal(quantityInput || 0);
+
+  // 1. Unidades padrão (kg -> g, l -> ml)
+  if (unitInput === 'kg' || unitInput === 'l') {
+    return qtyDec.times(1000).toNumber();
+  }
+  if (unitInput === 'g' || unitInput === 'ml' || unitInput === 'un') {
+    return qtyDec.toNumber();
+  }
+
+  // 2. Unidades Caseiras (Xícara, Colher)
+  // Procura no array de conversões do ingrediente
+  if (ingredient.conversions && ingredient.conversions.length > 0) {
+    const conversion = ingredient.conversions.find(
+      (c) => c.name.toLowerCase() === unitInput.toLowerCase()
+    );
+
+    if (conversion) {
+      // Ex: 2 Xícaras (120g cada) = 2 * 120 = 240g
+      return qtyDec.times(conversion.value).toNumber();
+    }
+  }
+
+  // Fallback: Se não achar nada, retorna o próprio valor (assumindo que já está na base)
+  return qtyDec.toNumber();
+};
+
 /**
  * Normaliza unidades para a base (kg->g, l->ml) e calcula o custo por unidade base.
  */
@@ -35,12 +71,10 @@ export const calculateBaseCost = (
       break;
   }
 
-  // CÁLCULO PRECISO COM DECIMAL.JS
   const amountDec = new Decimal(amount || 0);
   const totalBaseUnits = amountDec.times(multiplier);
   const priceDec = new Decimal(price || 0);
 
-  // CORREÇÃO: Usando .greaterThan() em vez de .isGreaterThan()
   const baseCost = totalBaseUnits.greaterThan(0)
     ? priceDec.dividedBy(totalBaseUnits)
     : new Decimal(0);
@@ -68,10 +102,12 @@ export const calculateRecipeFinancials = (
   items.forEach((item) => {
     const ingredient = ingredients.find((i) => i.id === item.ingredient_id);
     const costBase = ingredient ? ingredient.unit_cost_base : (item as any).price || 0;
+    
+    // CORREÇÃO: Usa quantity_used que já deve estar convertido
     const qty = item.quantity_used || 0;
     const itemCost = new Decimal(qty).times(costBase);
 
-    if (ingredient?.category === 'product') {
+    if (ingredient?.category === 'product') { // Assumindo 'product' como embalagem na lógica antiga
       costPackaging = costPackaging.plus(itemCost);
     } else {
       costIngredients = costIngredients.plus(itemCost);
@@ -86,7 +122,6 @@ export const calculateRecipeFinancials = (
   const total_cost_labor_dec = prepTimeDec.times(costPerMinuteDec);
 
   // 3. Custos Fixos (Overhead)
-  // O Overhead incide sobre Materiais + Mão de Obra (Prime Cost)
   const prime_cost_dec = total_cost_material_dec.plus(total_cost_labor_dec);
   const overheadRateDec = new Decimal(settings.fixed_overhead_rate || 0);
   const total_cost_overhead_dec = prime_cost_dec.times(overheadRateDec.dividedBy(100));

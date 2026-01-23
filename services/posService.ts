@@ -1,9 +1,12 @@
 import { supabase } from './supabase';
-import { CashSession, Order, OrderItem } from '../types';
+import { CashSession, Order, OrderItem, CartItem } from '../types';
 import { SettingsService } from './settingsService';
+import Decimal from 'decimal.js';
 
 export const PosService = {
-  // === CONTROLE DE CAIXA (MANTIDO IGUAL) ===
+  // =================================================================
+  // 1. CONTROLE DE CAIXA (MANTIDO DO SEU CÓDIGO ORIGINAL)
+  // =================================================================
   async getCurrentSession() {
     const { data, error } = await supabase
       .from('cash_sessions')
@@ -60,7 +63,9 @@ export const PosService = {
     if (error) throw error;
   },
 
-  // === NOVA FUNÇÃO: BUSCAR TUDO (RECEITAS + REVENDA) COM CATEGORY E BARCODE ===
+  // =================================================================
+  // 2. BUSCAR PRODUTOS (MANTIDO DO SEU CÓDIGO ORIGINAL)
+  // =================================================================
   async getAllProductsForPOS() {
     // 1. Busca Receitas (Bolos, Doces)
     const { data: recipes, error: recipesError } = await supabase
@@ -84,7 +89,7 @@ export const PosService = {
       price: Number(r.selling_price),
       category: r.category || 'Sem categoria',
       barcode: r.barcode || null,
-      type: 'recipe'
+      type: 'recipe' as const
     }));
 
     // 4. Padroniza Produtos de Revenda
@@ -94,16 +99,18 @@ export const PosService = {
       price: Number(p.price),
       category: p.category || 'Sem categoria',
       barcode: p.barcode || null,
-      type: 'resale'
+      type: 'resale' as const
     }));
 
     // 5. Retorna tudo junto ordenado por nome
     return [...formattedRecipes, ...formattedProducts].sort((a, b) => a.name.localeCompare(b.name));
   },
 
-  // === PROCESSAMENTO DA VENDA (MANTIDO IGUAL) ===
-  async processSale(order: Omit<Order, 'id' | 'created_at'>, items: OrderItem[]) {
-    // 1. Busca configurações
+  // =================================================================
+  // 3. PROCESSAMENTO DA VENDA (ATUALIZADO COM BAIXA DE ESTOQUE E DECIMAL)
+  // =================================================================
+  async processSale(orderData: Omit<Order, 'id' | 'created_at'>, items: OrderItem[]) {
+    // A. Busca configurações
     let settings;
     try {
       settings = await SettingsService.get();
@@ -111,42 +118,42 @@ export const PosService = {
       settings = null;
     }
     
-    // Taxas padrão caso falhe
-    const debitRate = settings?.card_debit_rate ?? 1.60;
-    const creditRate = settings?.card_credit_rate ?? 4.39;
+    // B. Cálculos Financeiros (USANDO DECIMAL.JS PARA PRECISÃO)
+    const totalDec = new Decimal(orderData.total_amount || 0);
+    const method = (orderData.payment_method || '').toLowerCase();
     
-    let fee = 0;
-    const total = Number(order.total_amount);
-    const method = (order.payment_method || '').toLowerCase();
+    const debitRate = new Decimal(settings?.card_debit_rate ?? 1.60);
+    const creditRate = new Decimal(settings?.card_credit_rate ?? 4.39);
+    
+    let feeDec = new Decimal(0);
 
-    // 2. Calcula Taxa
+    // Calcula Taxa
     if (method.includes('débito') || method.includes('debito')) {
-      fee = total * (debitRate / 100);
+      feeDec = totalDec.times(debitRate.dividedBy(100));
     } 
     else if (method.includes('crédito') || method.includes('credito')) {
-      fee = total * (creditRate / 100);
+      feeDec = totalDec.times(creditRate.dividedBy(100));
     }
 
-    fee = Number(fee.toFixed(2));
-    const netAmount = Number((total - fee).toFixed(2));
+    const netAmountDec = totalDec.minus(feeDec);
 
-    // 3. Salva PEDIDO
+    // C. Salva PEDIDO (Order)
     const cleanOrderPayload = {
-      session_id: order.session_id,
-      customer_id: order.customer_id || null,
-      total_amount: total,
-      discount: order.discount || 0,
-      change_amount: order.change_amount || 0,
-      payment_method: order.payment_method,
+      session_id: orderData.session_id,
+      customer_id: orderData.customer_id || null,
+      total_amount: totalDec.toNumber(),
+      discount: Number(orderData.discount || 0),
+      change_amount: Number(orderData.change_amount || 0),
+      payment_method: orderData.payment_method,
       status: 'completed',
-      fee_amount: fee,       
-      net_amount: netAmount 
+      fee_amount: feeDec.toNumber(),       
+      net_amount: netAmountDec.toNumber() 
     };
 
     const { data: newOrder, error: orderError } = await supabase.from('orders').insert([cleanOrderPayload]).select().single();
     if (orderError) throw orderError;
 
-    // 4. Salva ITENS
+    // D. Salva ITENS DO PEDIDO
     const itemsWithOrderId = items.map(item => ({
       order_id: newOrder.id,
       product_id: item.product_id,
@@ -160,34 +167,80 @@ export const PosService = {
     const { error: itemsError } = await supabase.from('order_items').insert(itemsWithOrderId);
     if (itemsError) throw itemsError;
 
-    // 5. Salva FINANCEIRO
+    // =================================================================
+    // E. BAIXA DE ESTOQUE (A GRANDE MELHORIA)
+    // =================================================================
+    for (const item of items) {
+      if (item.type === 'recipe') {
+        // Se for receita, baixa os ingredientes
+        const { data: recipeIngredients } = await supabase
+          .from('recipe_items')
+          .select('ingredient_id, quantity')
+          .eq('recipe_id', item.product_id);
+
+        if (recipeIngredients) {
+          for (const ri of recipeIngredients) {
+            if (ri.ingredient_id) {
+              const qtyToDeduct = new Decimal(ri.quantity).times(item.quantity);
+
+              // Busca estoque atual
+              const { data: currentIng } = await supabase
+                .from('ingredients')
+                .select('current_stock')
+                .eq('id', ri.ingredient_id)
+                .single();
+
+              if (currentIng) {
+                const currentStock = new Decimal(currentIng.current_stock || 0);
+                const newStock = currentStock.minus(qtyToDeduct);
+
+                // Atualiza ingrediente
+                await supabase
+                  .from('ingredients')
+                  .update({ current_stock: newStock.toNumber() })
+                  .eq('id', ri.ingredient_id);
+              }
+            }
+          }
+        }
+      } 
+      // Opcional: Se você controla estoque de revenda na tabela 'products', adicione lógica aqui
+    }
+
+    // F. Salva FINANCEIRO (Mantém compatibilidade com seu Dashboard atual)
     const salePayload = {
+      user_id: (await supabase.auth.getUser()).data.user?.id, // Garante user_id
       description: `PDV #${newOrder.id.substring(0,6)}`,
-      amount: total,          
-      fee_amount: fee,        
-      net_amount: netAmount,  
+      amount: totalDec.toNumber(),          
+      fee_amount: feeDec.toNumber(),        
+      net_amount: netAmountDec.toNumber(),  
       category: 'Venda PDV',
-      payment_method: order.payment_method,
+      payment_method: orderData.payment_method,
       date: new Date().toISOString().split('T')[0]
     };
 
     const { error: salesError } = await supabase.from('sales').insert([salePayload]);
     if (salesError) {
-       console.error("Erro ao salvar financeiro", salesError);
-       // Tenta salvar sem as colunas novas caso elas não existam (fallback)
-       await supabase.from('sales').insert([{
-          description: `PDV #${newOrder.id.substring(0,6)}`,
-          amount: total,
-          category: 'Venda PDV',
-          payment_method: order.payment_method,
-          date: new Date().toISOString().split('T')[0]
-       }]);
+       console.error("Erro ao salvar financeiro (sales)", salesError);
+    }
+    
+    // G. Opcional: Salvar Taxa na tabela expenses (para ficar perfeito)
+    if (feeDec.greaterThan(0)) {
+       await supabase.from('expenses').insert({
+         user_id: (await supabase.auth.getUser()).data.user?.id,
+         description: `Taxa Cartão - Pedido #${newOrder.id.slice(0, 8)}`,
+         amount: feeDec.toNumber(),
+         category: 'Taxas Financeiras',
+         date: new Date().toISOString(),
+       });
     }
 
     return newOrder;
   },
 
-  // === RELATÓRIOS (MANTIDO IGUAL) ===
+  // =================================================================
+  // 4. RELATÓRIOS (MANTIDO DO SEU CÓDIGO ORIGINAL)
+  // =================================================================
   async getSalesReport(startDate: string, endDate: string) {
     const { data: orders, error: ordersError } = await supabase
       .from('orders')

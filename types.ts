@@ -55,7 +55,7 @@ export interface Ingredient {
   unit?: string; 
 
   // --- Outros ---
-  conversions?: any[];
+  conversions?: MeasureConversion[];
 }
 
 // --- NOVA INTERFACE QUE FALTAVA ---
@@ -207,7 +207,7 @@ export interface OrderItem {
   order_id?: string;
   product_id: string;
   product_name: string;
-  quantity: number;
+  quantity: number;conversions
   unit_price: number;
   total_price: number;
   // Atualizado para aceitar 'resale'
