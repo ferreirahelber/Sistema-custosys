@@ -5,14 +5,20 @@ export const RecipeService = {
   async getAll(): Promise<Recipe[]> {
     const { data, error } = await supabase
       .from('recipes')
-      .select(`*, items:recipe_items (*, ingredient:ingredients (*))`)
+      .select(`
+        *, 
+        items:recipe_items!recipe_items_recipe_id_fkey (
+          *, 
+          ingredient:ingredients (*)
+        )
+      `) // ADICIONADO !recipe_items_recipe_id_fkey para resolver o erro PGRST201
       .order('created_at', { ascending: false });
 
     if (error) throw error;
 
     return (data || []).map((r) => ({
       ...r,
-      items: r.items.map((i: RecipeItemResponse) => ({
+      items: (r.items || []).map((i: RecipeItemResponse) => ({
         ...i,
         quantity_used: i.quantity,
         quantity_input: i.quantity_input || i.quantity,
@@ -51,22 +57,16 @@ export const RecipeService = {
   async save(recipe: Recipe) {
     const { data: { user } } = await supabase.auth.getUser();
     
-    // Separa os itens da receita (cabeçalho)
     const { items, ...recipeData } = recipe;
 
-    // --- CORREÇÃO DO ERRO 22P02 ---
-    // Se o ID for string vazia "", transformamos em undefined.
-    // Assim o Supabase entende que é um INSERT e gera o UUID sozinho.
     const payload = {
       ...recipeData,
       id: recipeData.id || undefined, 
       user_id: user?.id || (recipeData as any).user_id 
     };
 
-    // Remove campos que não existem na tabela ou são automáticos
     delete (payload as any).created_at; 
     
-    // Salva a Receita
     const { data: savedRecipe, error: recipeError } = await supabase
       .from('recipes')
       .upsert(payload)
@@ -78,9 +78,7 @@ export const RecipeService = {
       throw recipeError;
     }
 
-    // Salva os Itens
     if (items && items.length > 0) {
-      // Remove itens antigos para regravar
       await supabase.from('recipe_items').delete().eq('recipe_id', savedRecipe.id);
       
       const itemsToInsert = items.map((item) => ({
