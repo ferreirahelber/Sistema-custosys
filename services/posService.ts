@@ -70,8 +70,9 @@ export const PosService = {
     // 1. Busca Receitas (Bolos, Doces)
     const { data: recipes, error: recipesError } = await supabase
       .from('recipes')
-      .select('id, name, selling_price, category, barcode');
-    
+      .select('id, name, selling_price, category, barcode')
+      .eq('is_base', false);
+
     if (recipesError) throw recipesError;
 
     // 2. Busca Produtos de Revenda (Coca, Velas)

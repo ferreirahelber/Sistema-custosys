@@ -104,6 +104,7 @@ export interface RecipeItem {
 export interface Recipe {
   id: string;
   name: string;
+  is_base: boolean;
   yield_units: number;
   preparation_time_minutes: number;
   preparation_method?: string;
