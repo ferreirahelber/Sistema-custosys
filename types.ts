@@ -93,6 +93,8 @@ export interface PriceHistory {
 export interface RecipeItem {
   id: string;
   ingredient_id: string;
+  item_id?: string;             // Adicionado para a nova arquitetura
+  item_type: 'ingredient' | 'recipe'; // Adicionado para distinguir base de ingrediente
   quantity_used: number;
   quantity_input?: number;
   unit_input?: string;
@@ -105,7 +107,9 @@ export interface Recipe {
   id: string;
   name: string;
   is_base: boolean;
-  yield_units: number;
+  yield_units:number; // Mantido por compatibilidade
+  yield_quantity: number;        // Quantidade total produzida (ex: 1200)
+  yield_unit: 'g' | 'ml' | 'un'; // NOVO: Unidade do rendimento
   preparation_time_minutes: number;
   preparation_method?: string;
   items: RecipeItem[];

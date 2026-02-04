@@ -91,6 +91,7 @@ export const calculateBaseCost = (
 export const calculateRecipeFinancials = (
   items: RecipeItem[],
   ingredients: Ingredient[],
+  baseRecipes: Recipe[], // Garante que este parâmetro existe
   prepTimeMinutes: number,
   yieldUnits: number,
   settings: Settings
@@ -101,13 +102,25 @@ export const calculateRecipeFinancials = (
 
   items.forEach((item) => {
     const ingredient = ingredients.find((i) => i.id === item.ingredient_id);
-    const costBase = ingredient ? ingredient.unit_cost_base : (item as any).price || 0;
-    
-    // CORREÇÃO: Usa quantity_used que já deve estar convertido
-    const qty = item.quantity_used || 0;
-    const itemCost = new Decimal(qty).times(costBase);
+    const baseRecipe = baseRecipes.find((r) => r.id === item.ingredient_id);
 
-    if (ingredient?.category === 'product') { // Assumindo 'product' como embalagem na lógica antiga
+    let itemCost = new Decimal(0);
+
+    if (item.item_type === 'recipe' && baseRecipe) {
+      // Lógica para Base: (Custo Total / Peso Total de Produção) * Quantidade Usada
+      const totalBaseWeight = new Decimal(baseRecipe.yield_quantity || 1);
+      const totalBaseCost = new Decimal(baseRecipe.total_cost_final || 0);
+      const qtyUsed = new Decimal(item.quantity_used || 0);
+
+      itemCost = totalBaseCost.dividedBy(totalBaseWeight).times(qtyUsed);
+    } else if (ingredient) {
+      // Lógica para Ingrediente Comum (já existente)
+      const costBase = new Decimal(ingredient.unit_cost_base || 0);
+      const qty = new Decimal(item.quantity_used || 0);
+      itemCost = qty.times(costBase);
+    }
+
+    if (ingredient?.category === 'packaging') {
       costPackaging = costPackaging.plus(itemCost);
     } else {
       costIngredients = costIngredients.plus(itemCost);

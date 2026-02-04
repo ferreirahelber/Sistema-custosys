@@ -17,9 +17,11 @@ import { toast } from 'sonner';
 export const RecipeForm: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams();
+  const isBaseRoute = location.pathname.includes('production-bases');
   const isEditing = Boolean(id);
 
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
+  const [baseRecipes, setBaseRecipes] = useState<Recipe[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [settings, setSettings] = useState<Settings>({
     employees: [], labor_monthly_cost: 0, work_hours_monthly: 160, fixed_overhead_rate: 0, cost_per_minute: 0, estimated_monthly_revenue: 0, card_debit_rate: 1.99, card_credit_rate: 4.99
@@ -35,6 +37,8 @@ export const RecipeForm: React.FC = () => {
   const [category, setCategory] = useState('');
   const [isBase, setIsBase] = useState(false);
   const [yieldUnits, setYieldUnits] = useState(1);
+  const [yieldQuantity, setYieldQuantity] = useState(1);
+  const [yieldUnit, setYieldUnit] = useState<'g' | 'ml' | 'un'>('un');
   const [prepTime, setPrepTime] = useState(60);
   const [prepMethod, setPrepMethod] = useState('');
   const [recipeItems, setRecipeItems] = useState<RecipeItem[]>([]);
@@ -52,8 +56,12 @@ export const RecipeForm: React.FC = () => {
   const [selectedIngId, setSelectedIngId] = useState('');
   const [selectedUnit, setSelectedUnit] = useState('');
   const [itemQuantity, setItemQuantity] = useState('');
+  const [baseQuantity, setBaseQuantity] = useState('');
   const [selectedExtraId, setSelectedExtraId] = useState('');
   const [extraCost, setExtraCost] = useState(0);
+
+  // Lógica de Parsing para diferenciar Ingredient de Recipe
+  const [selectedType, selectedRealId] = selectedIngId ? selectedIngId.split(':') : [];
 
   const foodIngredients = ingredients.filter(i => i.category !== 'product' && i.category !== 'packaging');
   const packagingItems = ingredients.filter(i => i.category === 'packaging');
@@ -72,12 +80,16 @@ export const RecipeForm: React.FC = () => {
     const init = async () => {
       setLoading(true);
       try {
-        const [allIngs, mySettings] = await Promise.all([
+        const [allIngs, mySettings, allRecipes] = await Promise.all([
           IngredientService.getAll(),
-          SettingsService.get()
+          SettingsService.get(),
+          RecipeService.getAll()
         ]);
+
         setIngredients(allIngs);
         setSettings(mySettings);
+        // Filtra receitas base, excluindo a própria em caso de edição
+        setBaseRecipes(allRecipes.filter(r => r.is_base && r.id !== id));
 
         await refreshCategories();
 
@@ -90,6 +102,8 @@ export const RecipeForm: React.FC = () => {
               setCategory(recipeToEdit.category || 'Geral');
               setIsBase(recipeToEdit.is_base || false);
               setYieldUnits(recipeToEdit.yield_units || 1);
+              setYieldQuantity(recipeToEdit.yield_quantity || 1);
+              setYieldUnit(recipeToEdit.yield_unit || 'un');
               setPrepTime(recipeToEdit.preparation_time_minutes || 0);
               setPrepMethod(recipeToEdit.preparation_method || '');
               setRecipeItems(recipeToEdit.items || []);
@@ -113,12 +127,20 @@ export const RecipeForm: React.FC = () => {
     init();
   }, [id, navigate]);
 
-  const selectedIngredientDetails = ingredients.find((i) => i.id === selectedIngId);
+  const selectedIngredientDetails = selectedType === 'ingredient' ? ingredients.find(i => i.id === selectedRealId) : null;
+  const selectedBaseDetails = selectedType === 'recipe' ? baseRecipes.find(r => r.id === selectedRealId) : null;
+
   useEffect(() => {
-    if (selectedIngredientDetails && !selectedUnit) {
+    // Se for um ingrediente comum e ainda não tiver unidade selecionada, usa a base do ingrediente
+    if (selectedType === 'ingredient' && selectedIngredientDetails && !selectedUnit) {
       setSelectedUnit(selectedIngredientDetails.base_unit || 'g');
     }
-  }, [selectedIngId, selectedIngredientDetails, selectedUnit]);
+    // Se for uma receita base e não tiver unidade, sugere 'un', mas deixa o usuário trocar
+    else if (selectedType === 'recipe' && !selectedUnit) {
+      setSelectedUnit('un');
+    }
+    // Removido o bloqueio que forçava 'un' fixo para permitir a troca manual
+  }, [selectedIngId, selectedIngredientDetails, selectedBaseDetails, selectedUnit, selectedType]);
 
   const selectedPackagingDetails = ingredients.find((i) => i.id === selectedExtraId);
   useEffect(() => {
@@ -130,7 +152,6 @@ export const RecipeForm: React.FC = () => {
     toast.success('Código gerado!');
   };
 
-  // --- FUNÇÃO SALVAR NOVA CATEGORIA (Botão +) ---
   const handleSaveCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCategoryName.trim()) return;
@@ -139,7 +160,7 @@ export const RecipeForm: React.FC = () => {
     try {
       const newCat = await CategoryService.create(newCategoryName);
       setCategories([...categories, newCat]);
-      setCategory(newCat.name); // Já seleciona a nova categoria
+      setCategory(newCat.name);
       toast.success(`Categoria "${newCat.name}" criada!`);
       setShowCategoryModal(false);
       setNewCategoryName('');
@@ -151,23 +172,58 @@ export const RecipeForm: React.FC = () => {
   };
 
   const addIngredientItem = () => {
-    if (!selectedIngId || !itemQuantity || !selectedUnit) return;
-    const qtyInput = parseFloat(itemQuantity);
-    let qtyBase = qtyInput;
-    if (selectedIngredientDetails && selectedUnit !== selectedIngredientDetails.base_unit) {
-      const conversion = selectedIngredientDetails.conversions?.find((c: MeasureConversion) => c.name === selectedUnit);
-      if (conversion) qtyBase = qtyInput * conversion.value;
+    // 1. Identifica qual variável de quantidade usar com base no seletor
+    const currentQty = selectedType === 'recipe' ? baseQuantity : itemQuantity;
+
+    // 2. Validação: Agora ele olha para a variável certa
+    if (!selectedIngId || !currentQty) {
+      toast.warning("Selecione um item e informe a quantidade.");
+      return;
     }
-    const newItem: RecipeItem = {
-      id: Date.now().toString(),
-      ingredient_id: selectedIngId,
-      quantity_used: qtyBase,
-      quantity_input: qtyInput,
-      unit_input: selectedUnit,
-      ingredient_name: selectedIngredientDetails?.name
-    };
-    setRecipeItems([...recipeItems, newItem]);
-    setSelectedIngId(''); setItemQuantity(''); setSelectedUnit('');
+
+    const qtyInput = parseFloat(currentQty);
+    if (isNaN(qtyInput) || qtyInput <= 0) {
+      toast.warning("Informe uma quantidade válida.");
+      return;
+    }
+
+    // 3. Lógica para Ingredientes Comuns (Bloco A)
+    if (selectedType === 'ingredient' && selectedIngredientDetails) {
+      let qtyBase = qtyInput;
+      if (selectedUnit !== selectedIngredientDetails.base_unit) {
+        const conversion = selectedIngredientDetails.conversions?.find((c: any) => c.name === selectedUnit);
+        if (conversion) qtyBase = qtyInput * conversion.value;
+      }
+      const newItem: RecipeItem = {
+        id: Date.now().toString(),
+        ingredient_id: selectedRealId,
+        item_type: 'ingredient',
+        quantity_used: qtyBase,
+        quantity_input: qtyInput,
+        unit_input: selectedUnit || selectedIngredientDetails.base_unit,
+        ingredient_name: selectedIngredientDetails.name
+      };
+      setRecipeItems([...recipeItems, newItem]);
+    }
+    // 4. Lógica para Insumos Produzidos (Bloco B)
+    else if (selectedType === 'recipe' && selectedBaseDetails) {
+      const newItem: RecipeItem = {
+        id: Date.now().toString(),
+        ingredient_id: selectedRealId,
+        item_type: 'recipe',
+        quantity_used: qtyInput,
+        quantity_input: qtyInput,
+        unit_input: selectedUnit || 'un',
+        ingredient_name: selectedBaseDetails.name
+      };
+      setRecipeItems([...recipeItems, newItem]);
+    }
+
+    // 5. Limpeza de todos os campos
+    setSelectedIngId('');
+    setItemQuantity('');
+    setBaseQuantity('');
+    setSelectedUnit('');
   };
 
   const addPackagingItem = () => {
@@ -178,7 +234,8 @@ export const RecipeForm: React.FC = () => {
       quantity_used: extraCost,
       quantity_input: 1,
       unit_input: 'unit',
-      ingredient_name: selectedPackagingDetails?.name
+      ingredient_name: selectedPackagingDetails?.name,
+      item_type: 'ingredient'
     };
     setRecipeItems([...recipeItems, newItem]);
     setSelectedExtraId(''); setExtraCost(0);
@@ -189,33 +246,37 @@ export const RecipeForm: React.FC = () => {
   };
 
   const handleEditItem = (item: RecipeItem) => {
-    const ingredient = ingredients.find(i => i.id === item.ingredient_id);
-
-    if (!ingredient) {
-      removeItem(item.id);
-      toast.info("Item inválido removido.");
-      return;
-    }
-
-    if (ingredient.category === 'packaging') {
-      setSelectedExtraId(item.ingredient_id);
-      setExtraCost(item.quantity_used || 0);
-      toast.info('Embalagem movida para edição.');
+    if (item.item_type === 'recipe') {
+      setSelectedIngId(`recipe:${item.ingredient_id}`);
+      // CORREÇÃO: Devolve para a variável do Bloco B
+      setBaseQuantity(item.quantity_input?.toString() || '');
+      setSelectedUnit(item.unit_input || 'un');
     } else {
-      setSelectedIngId(item.ingredient_id);
-      setItemQuantity(item.quantity_input?.toString() || '');
-      setSelectedUnit(item.unit_input || '');
-      toast.info('Ingrediente movido para edição.');
+      const ingredient = ingredients.find(i => i.id === item.ingredient_id);
+      if (!ingredient) {
+        removeItem(item.id);
+        return;
+      }
+      if (ingredient.category === 'packaging') {
+        setSelectedExtraId(item.ingredient_id);
+        setExtraCost(item.quantity_used || 0);
+      } else {
+        setSelectedIngId(`ingredient:${item.ingredient_id}`);
+        // CORREÇÃO: Devolve para a variável do Bloco A
+        setItemQuantity(item.quantity_input?.toString() || '');
+        setSelectedUnit(item.unit_input || '');
+      }
     }
-
     removeItem(item.id);
   };
 
-  const financials = calculateRecipeFinancials(recipeItems, ingredients, prepTime, yieldUnits, settings);
+  const financials = calculateRecipeFinancials(recipeItems, ingredients, baseRecipes, prepTime, yieldUnits, settings);
+
   const packagingCost = recipeItems.reduce((acc, item) => {
     const ing = ingredients.find(i => i.id === item.ingredient_id);
-    return ing?.category === 'packaging' ? acc + ((ing.unit_cost_base || 0) * item.quantity_used) : acc;
+    return (item.item_type === 'ingredient' && ing?.category === 'packaging') ? acc + ((ing.unit_cost_base || 0) * item.quantity_used) : acc;
   }, 0);
+
   const materialsCostOnly = financials.total_cost_material - packagingCost;
   const totalFixedExpensesApprox = (settings.estimated_monthly_revenue * settings.fixed_overhead_rate) / 100;
   const showDetailedTooltip = settings.estimated_monthly_revenue > 0;
@@ -229,9 +290,10 @@ export const RecipeForm: React.FC = () => {
       setSaving(true);
       const itemsWithNames = recipeItems.map(item => {
         const ing = ingredients.find(i => i.id === item.ingredient_id);
+        const base = baseRecipes.find(r => r.id === item.ingredient_id);
         return {
           ...item,
-          ingredient_name: ing ? ing.name : (item.ingredient_name || 'Excluído')
+          ingredient_name: ing?.name || base?.name || item.ingredient_name || 'Excluído'
         };
       });
 
@@ -242,6 +304,8 @@ export const RecipeForm: React.FC = () => {
         category: category || 'Geral',
         is_base: isBase,
         yield_units: yieldUnits,
+        yield_quantity: yieldQuantity,
+        yield_unit: yieldUnit,
         preparation_time_minutes: prepTime,
         preparation_method: prepMethod,
         items: itemsWithNames,
@@ -254,7 +318,7 @@ export const RecipeForm: React.FC = () => {
       };
       await RecipeService.save(recipeData);
       toast.success('Receita salva!');
-      navigate('/recipes');
+      navigate(isBaseRoute || isBase ? '/production-bases' : '/recipes');
     } catch (error) {
       toast.error('Erro ao salvar.');
     } finally {
@@ -267,7 +331,9 @@ export const RecipeForm: React.FC = () => {
   return (
     <div className="space-y-6 relative">
       <div className="flex items-center gap-4 mb-6">
-        <Link to="/recipes" className="p-2 hover:bg-slate-100 rounded-full transition text-slate-500"><ArrowLeft size={24} /></Link>
+        <Link to={isBaseRoute ? "/production-bases" : "/recipes"} className="...">
+          <ArrowLeft size={24} />
+        </Link>
         <div>
           <h1 className="text-2xl font-bold text-slate-800">{isEditing ? 'Editar Receita' : 'Nova Receita'}</h1>
           <p className="text-slate-500">Ficha técnica e precificação</p>
@@ -290,7 +356,6 @@ export const RecipeForm: React.FC = () => {
                 />
               </div>
 
-              {/* SELETOR DE CATEGORIA + BOTÕES (+ e Engrenagem) */}
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-1"><Tag size={14} /> Categoria</label>
                 <div className="flex gap-2">
@@ -305,7 +370,6 @@ export const RecipeForm: React.FC = () => {
                     ))}
                   </select>
 
-                  {/* Botão ADICIONAR (Modal Rápido) */}
                   <button
                     type="button"
                     onClick={() => setShowCategoryModal(true)}
@@ -315,7 +379,6 @@ export const RecipeForm: React.FC = () => {
                     <Plus size={20} />
                   </button>
 
-                  {/* Botão GERENCIAR (Lista Completa) */}
                   <button
                     type="button"
                     onClick={() => setIsCategoryManagerOpen(true)}
@@ -366,7 +429,31 @@ export const RecipeForm: React.FC = () => {
                 />
               </div>
             </div>
-            {/* CONFIGURAÇÃO DE RECEITA BASE - ADIÇÃO VISUAL */}
+
+            {isBase && (
+              <div className="col-span-1">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Peso/Volume Total da Base</label>
+                <div className="flex gap-1">
+                  <input
+                    type="number"
+                    value={yieldQuantity}
+                    onChange={(e) => setYieldQuantity(parseFloat(e.target.value))}
+                    className="w-full px-2 py-2 border rounded-l-lg outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Ex: 1200"
+                  />
+                  <select
+                    value={yieldUnit}
+                    onChange={(e) => setYieldUnit(e.target.value as any)}
+                    className="bg-slate-100 border border-l-0 rounded-r-lg px-1 text-sm outline-none"
+                  >
+                    <option value="g">g</option>
+                    <option value="ml">ml</option>
+                    <option value="un">un</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
             <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-lg border border-amber-100 mt-4">
               <input
                 type="checkbox"
@@ -382,19 +469,21 @@ export const RecipeForm: React.FC = () => {
             </div>
           </div>
 
-          {/* Ingredientes */}
+          {/* Ingredientes Comprados */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
             <h3 className="text-lg font-bold text-slate-800 mb-4">Ingredientes</h3>
             <div className="flex flex-col md:flex-row gap-3 items-end mb-6 bg-slate-50 p-4 rounded-lg">
               <div className="flex-1 w-full">
                 <label className="text-xs font-bold text-slate-500 uppercase">Ingrediente</label>
                 <select
-                  value={selectedIngId}
+                  value={selectedType === 'ingredient' ? selectedIngId : ''}
                   onChange={(e) => setSelectedIngId(e.target.value)}
                   className="w-full mt-1 px-3 py-2 border rounded-lg bg-white focus:ring-2 focus:ring-amber-500 outline-none"
                 >
                   <option value="">Selecione...</option>
-                  {foodIngredients.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
+                  {foodIngredients.map((i) => (
+                    <option key={i.id} value={`ingredient:${i.id}`}>{i.name}</option>
+                  ))}
                 </select>
               </div>
               <div className="w-full md:w-24">
@@ -413,53 +502,132 @@ export const RecipeForm: React.FC = () => {
                   value={selectedUnit}
                   onChange={(e) => setSelectedUnit(e.target.value)}
                   className="w-full mt-1 px-3 py-2 border rounded-lg bg-white focus:ring-2 focus:ring-amber-500 outline-none"
-                  disabled={!selectedIngId}
+                  disabled={selectedType !== 'ingredient'}
                 >
                   {selectedIngredientDetails ? (
                     <>
                       <option value={selectedIngredientDetails.base_unit}>{selectedIngredientDetails.base_unit}</option>
-                      {selectedIngredientDetails.conversions?.map((c: any, idx: number) => <option key={idx} value={c.name}>{c.name}</option>)}
+                      {selectedIngredientDetails.conversions?.map((c: any, idx: number) => (
+                        <option key={idx} value={c.name}>{c.name}</option>
+                      ))}
                     </>
                   ) : <option>-</option>}
                 </select>
               </div>
               <button
                 onClick={addIngredientItem}
-                disabled={!selectedIngId}
+                disabled={selectedType !== 'ingredient'}
                 className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 transition font-bold"
               >
                 <Plus size={20} />
               </button>
             </div>
 
-            {recipeItems.filter(i => ingredients.find(ing => ing.id === i.ingredient_id)?.category !== 'packaging').length === 0 ? (
-              <div className="text-center py-6 text-slate-400 text-sm">Nenhum ingrediente adicionado.</div>
-            ) : (
-              <div className="space-y-2">
-                {recipeItems.filter(i => ingredients.find(ing => ing.id === i.ingredient_id)?.category !== 'packaging').map((item) => {
-                  const ing = ingredients.find(i => i.id === item.ingredient_id);
-                  const cost = (ing?.unit_cost_base || 0) * item.quantity_used;
-                  return (
-                    <div key={item.id} className={`flex justify-between items-center p-3 border-b hover:bg-slate-50 transition ${!ing ? 'bg-amber-50 border-amber-100' : ''}`}>
-                      <div>
-                        <div className="font-bold text-slate-800 flex items-center gap-2">
-                          {ing?.name || item.ingredient_name}
-                          {!ing && <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full flex items-center gap-1 border border-amber-200"><AlertTriangle size={10} /> Excluído</span>}
-                        </div>
-                        <span className="text-xs text-slate-500">{item.quantity_input} {item.unit_input}</span>
+            <div className="space-y-2">
+              {recipeItems.filter(i => (i.item_type === 'ingredient' || !i.item_type) && ingredients.find(ing => ing.id === i.ingredient_id)?.category !== 'packaging').map((item) => {
+                const ing = ingredients.find(i => i.id === item.ingredient_id);
+                const cost = (ing?.unit_cost_base || 0) * item.quantity_used;
+                return (
+                  <div key={item.id} className={`flex justify-between items-center p-3 border-b hover:bg-slate-50 transition ${!ing ? 'bg-amber-50 border-amber-100' : ''}`}>
+                    <div>
+                      <div className="font-bold text-slate-800 flex items-center gap-2">
+                        {ing?.name || item.ingredient_name}
+                        {!ing && <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full flex items-center gap-1 border border-amber-200"><AlertTriangle size={10} /> Excluído</span>}
                       </div>
-                      <div className="flex items-center gap-4">
-                        <span className="text-sm font-semibold text-slate-600">{ing ? `R$ ${cost.toFixed(2)}` : '--'}</span>
-                        <div className="flex gap-2">
-                          <button onClick={() => handleEditItem(item)} className="text-slate-400 hover:text-amber-600 transition"><Edit size={16} /></button>
-                          <button onClick={() => removeItem(item.id)} className="text-red-400 hover:text-red-600 transition"><Trash2 size={16} /></button>
-                        </div>
+                      <span className="text-xs text-slate-500">{item.quantity_input} {item.unit_input}</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <span className="text-sm font-semibold text-slate-600">{ing ? `R$ ${cost.toFixed(2)}` : '--'}</span>
+                      <div className="flex gap-2">
+                        <button onClick={() => handleEditItem(item)} className="text-slate-400 hover:text-amber-600 transition"><Edit size={16} /></button>
+                        <button onClick={() => removeItem(item.id)} className="text-red-400 hover:text-red-600 transition"><Trash2 size={16} /></button>
                       </div>
                     </div>
-                  )
-                })}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* BLOCO B: BASES PRODUZIDAS (PRODUÇÃO INTERNA) */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 border-l-4 border-l-blue-600">
+            <h3 className="font-bold text-slate-700 flex items-center gap-2 mb-2">
+              <Layers size={20} className="text-blue-600" />
+              Insumos Produzidos (Bases)
+            </h3>
+            <p className="text-xs text-slate-400 mb-4">Selecione uma base produzida internamente (ex: Massa, Recheio).</p>
+
+            <div className="flex flex-col md:flex-row gap-3 items-end mb-6 bg-blue-50 p-4 rounded-lg">
+              <div className="flex-1 w-full">
+                <label className="text-xs font-bold text-blue-500 uppercase">Base de Produção</label>
+                <select
+                  value={selectedType === 'recipe' ? selectedIngId : ''}
+                  onChange={(e) => setSelectedIngId(e.target.value)}
+                  className="w-full mt-1 px-3 py-2 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                >
+                  <option value="">Selecione uma base...</option>
+                  {baseRecipes.map((r) => (
+                    <option key={r.id} value={`recipe:${r.id}`}>
+                      {r.name} (Custo: R$ {r.unit_cost.toFixed(2)} / {r.yield_unit || 'un'})
+                    </option>
+                  ))}
+                </select>
               </div>
-            )}
+              <div className="w-full md:w-32">
+                <label className="text-xs font-bold text-blue-500 uppercase">Qtd Usada</label>
+                <input
+                  type="number"
+                  value={baseQuantity}
+                  onChange={(e) => setBaseQuantity(e.target.value)}
+                  className="w-full mt-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="w-full md:w-24">
+                <label className="text-xs font-bold text-blue-500 uppercase">Unidade</label>
+                <select
+                  value={selectedUnit}
+                  onChange={(e) => setSelectedUnit(e.target.value)}
+                  className="w-full mt-1 px-3 py-2 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                >
+                  <option value="g">g</option>
+                  <option value="ml">ml</option>
+                  <option value="un">un</option>
+                </select>
+              </div>
+              <button
+                onClick={addIngredientItem}
+                disabled={selectedType !== 'recipe'}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-bold"
+              >
+                <Plus size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {recipeItems.filter(i => i.item_type === 'recipe').map((item) => {
+                const base = baseRecipes.find(r => r.id === item.ingredient_id);
+                const cost = base ? (base.total_cost_final / (base.yield_quantity || 1)) * item.quantity_used : 0;
+                return (
+                  <div key={item.id} className="flex justify-between items-center p-3 border-b hover:bg-blue-50/30 transition">
+                    <div>
+                      <div className="font-bold text-slate-800 flex items-center gap-2">
+                        <Layers size={14} className="text-blue-500" />
+                        {base?.name || item.ingredient_name}
+                      </div>
+                      <span className="text-xs text-slate-500">{item.quantity_input} {item.unit_input}</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <span className="text-sm font-semibold text-slate-600">R$ {cost.toFixed(2)}</span>
+                      <div className="flex gap-2">
+                        <button onClick={() => handleEditItem(item)} className="text-slate-400 hover:text-blue-600 transition"><Edit size={16} /></button>
+                        <button onClick={() => removeItem(item.id)} className="text-red-400 hover:text-red-600 transition"><Trash2 size={16} /></button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           {/* Embalagens */}
@@ -609,7 +777,6 @@ export const RecipeForm: React.FC = () => {
         </div>
       </div>
 
-      {/* MODAL DE GERENCIAMENTO DE CATEGORIAS (ENGRENAGEM) */}
       <CategoryManager
         isOpen={isCategoryManagerOpen}
         onClose={() => {
@@ -619,12 +786,10 @@ export const RecipeForm: React.FC = () => {
         onUpdate={refreshCategories}
       />
 
-      {/* MODAL DE CRIAÇÃO RÁPIDA DE CATEGORIA (BOTÃO +) */}
       {showCategoryModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-0 overflow-hidden animate-in zoom-in-95">
 
-            {/* Header do Modal */}
             <div className="p-4 bg-gradient-to-r from-amber-500 to-amber-600 flex justify-between items-center">
               <div className="flex items-center gap-3">
                 <div className="bg-white/20 p-2 rounded-lg text-white">
@@ -640,7 +805,6 @@ export const RecipeForm: React.FC = () => {
               </button>
             </div>
 
-            {/* Conteúdo do Modal */}
             <form onSubmit={handleSaveCategory} className="p-6">
               <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Nome da Categoria</label>
               <input

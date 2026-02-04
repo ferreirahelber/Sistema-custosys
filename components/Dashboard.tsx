@@ -4,6 +4,7 @@ import { RecipeService } from '../services/recipeService';
 import { SettingsService } from '../services/settingsService';
 import { FixedCostService } from '../services/fixedCostService';
 import { FinancialService } from '../services/financialService';
+import { supabase } from '../services/supabase'; 
 import {
   ChefHat,
   Package,
@@ -18,7 +19,8 @@ import {
   Download,
   FileSpreadsheet,
   Calendar,
-  HelpCircle
+  HelpCircle,
+  Layers
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Recipe } from '../types';
@@ -59,7 +61,8 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
     ingredientCount: 0,
     monthlyCost: 0,
     avgMargin: 0,
-    breakEven: 0
+    breakEven: 0,
+    productionBasesValue: 0
   });
 
   // --- NOVO ESTADO FINANCEIRO ---
@@ -74,7 +77,21 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
   const [topProfitableRecipes, setTopProfitableRecipes] = useState<any[]>([]);
 
   useEffect(() => {
-    loadDashboardData();
+    const checkSession = async () => {
+      // Busca a sessão atual do Supabase
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        console.warn("Sessão expirada. Redirecionando ou aguardando login...");
+        setLoading(false);
+        return;
+      }
+
+      // Só carrega os dados se a sessão existir e for válida
+      loadDashboardData();
+    };
+
+    checkSession();
   }, []);
 
   // Função auxiliar para cálculo usando o estado atual (para exportação)
@@ -95,6 +112,31 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
         FinancialService.getSales(),    // <--- NOVO
         FinancialService.getExpenses()  // <--- NOVO
       ]);
+
+      // --- CÁLCULO DE VALOR DE INSUMOS PRODUZIDOS (BASES) ---
+      // 1. Filtra apenas o que é base (convertendo para booleano por segurança)
+      const baseRecipes = recipes.filter(r => Boolean(r.is_base) === true);
+
+      // 2. Soma o custo final de produção dessas bases
+      // --- CÁLCULO DE VALOR DE INSUMOS PRODUZIDOS (BASES) ---
+      const productionBasesValue = recipes.reduce((acc, r) => {
+        // Aceita true booleano ou 1 numérico
+        if (r.is_base === true || (r as any).is_base === 1) {
+          return acc + (Number(r.total_cost_final) || 0);
+        }
+        return acc;
+      }, 0);
+
+      // LOG PARA TESTE: Aperte F12 no navegador e veja se aparece o valor no Console
+      console.log("Valor total de bases identificado:", productionBasesValue);
+
+      // Atualiza as métricas (Importante usar o prev para não perder as outras métricas)
+      setMetrics(prev => ({
+        ...prev,
+        recipeCount: recipes.length,
+        ingredientCount: ingredients.length,
+        productionBasesValue: productionBasesValue
+      }));
 
       // --- CÁLCULO FINANCEIRO NOVO ---
       const totalSales = sales.reduce((acc, item) => acc + Number(item.amount), 0);
@@ -331,8 +373,8 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
 
         {/* CARD SALDO */}
         <div className={`p-6 rounded-xl shadow-sm border transition group relative overflow-hidden ${financials.balance >= 0
-            ? 'bg-gradient-to-br from-blue-600 to-blue-700 border-blue-600 text-white'
-            : 'bg-gradient-to-br from-red-600 to-red-700 border-red-600 text-white'
+          ? 'bg-gradient-to-br from-blue-600 to-blue-700 border-blue-600 text-white'
+          : 'bg-gradient-to-br from-red-600 to-red-700 border-red-600 text-white'
           }`}>
           <div className="flex justify-between items-start mb-2 relative z-10">
             <div className="p-2 bg-white/20 rounded-lg">
@@ -375,6 +417,23 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
           </div>
           <div className="text-3xl font-bold text-slate-800">{metrics.ingredientCount}</div>
           <div className="text-xs text-slate-500 font-medium uppercase tracking-wide">Insumos</div>
+        </div>
+
+        {/* CARD NOVO: VALOR DE BASES PRODUZIDAS */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-blue-100 hover:shadow-md transition group">
+          <div className="flex justify-between items-start mb-2">
+            <div className="p-2 bg-blue-600 text-white rounded-lg">
+              <Layers size={20} />
+            </div>
+            <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-full uppercase">Estoque Interno</span>
+          </div>
+          <div className="text-3xl font-bold text-blue-700">
+            {(metrics.productionBasesValue || 0).toLocaleString('pt-BR', {
+              style: 'currency',
+              currency: 'BRL'
+            })}
+          </div>
+          <div className="text-xs text-slate-500 font-medium uppercase tracking-wide">Valor em Bases</div>
         </div>
 
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 transition group relative">

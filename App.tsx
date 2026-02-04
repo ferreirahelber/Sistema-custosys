@@ -24,6 +24,7 @@ import {
   ChefHat,
   Package,
   Box,
+  Layers,
   LayoutDashboard,
   DollarSign,
   Loader2,
@@ -49,7 +50,7 @@ export function AppContent() {
   // Estados de Configuração
   const [isConfigured, setIsConfigured] = useState(false);
   const [checkingConfig, setCheckingConfig] = useState(true);
-  
+
   // Estados de Permissão (Novo)
   const [userRole, setUserRole] = useState<'admin' | 'cashier' | null>(null);
   const [loadingRole, setLoadingRole] = useState(true);
@@ -114,6 +115,7 @@ export function AppContent() {
     const path = location.pathname;
     if (path === '/settings') return 'settings';
     if (path === '/ingredients') return 'ingredients';
+    if (path === '/production-bases') return 'bases';
     if (path === '/packaging') return 'packaging';
     if (path === '/resale-products') return 'resale_products';
     if (path.startsWith('/recipes')) return 'recipes';
@@ -133,16 +135,15 @@ export function AppContent() {
       to={to}
       className={({ isActive }) => {
         const isPathActive = isActive || (to !== '/' && location.pathname.startsWith(`${to}/`));
-        return `flex items-center gap-3 px-4 py-2 rounded-lg w-full text-left transition-all ${
-          isPathActive
+        return `flex items-center gap-3 px-4 py-2 rounded-lg w-full text-left transition-all ${isPathActive
           ? 'bg-amber-100 text-amber-900 font-medium'
           : 'text-slate-600 hover:bg-slate-100'
-        }`;
+          }`;
       }}
     >
       {({ isActive }) => {
-         const isPathActive = isActive || (to !== '/' && location.pathname.startsWith(`${to}/`));
-         return (
+        const isPathActive = isActive || (to !== '/' && location.pathname.startsWith(`${to}/`));
+        return (
           <>
             <Icon size={20} className={isPathActive ? 'text-amber-700' : 'text-slate-400'} />
             {label}
@@ -174,12 +175,12 @@ export function AppContent() {
           {userRole === 'admin' && (
             <NavItem to="/" label="Visão Geral" icon={LayoutDashboard} />
           )}
-          
+
           <div className="pt-2 pb-2">
             <p className="px-4 text-xs font-bold text-slate-400 uppercase mb-1">Vendas & Caixa</p>
             {/* O PDV é o único acesso do Caixa */}
             <NavItem to="/pos" label="PDV | Frente de Caixa" icon={Store} />
-            
+
             {/* Históricos e Relatórios (Só Admin) */}
             {userRole === 'admin' && (
               <>
@@ -196,8 +197,12 @@ export function AppContent() {
             <>
               <div className="pt-2 pb-2">
                 <p className="px-4 text-xs font-bold text-slate-400 uppercase mb-1">Produção</p>
+                {/* NOVO: Link para Bases */}
+                <NavItem to="/production-bases" label="Insumos Produzidos" icon={Layers} />
+                
                 <NavItem to="/recipes" label="Minhas Receitas" icon={ChefHat} />
-                <NavItem to="/ingredients" label="Meus Ingredientes" icon={Package} />
+                <NavItem to="/ingredients" label="Ingredientes" icon={Package} />
+                
                 <NavItem to="/packaging" label="Embalagens" icon={Box} />
                 <NavItem to="/resale-products" label="Revenda" icon={ShoppingBag} />
               </div>
@@ -218,7 +223,7 @@ export function AppContent() {
         {/* Aviso de Configuração (Só Admin precisa ver isso) */}
         {!isConfigured && currentView !== 'settings' && userRole === 'admin' && (
           <div className="mt-auto bg-amber-50 p-4 rounded-xl border border-amber-100 text-sm text-amber-800 mb-4 animate-pulse">
-            <p className="font-bold mb-1 flex items-center gap-2"><ShieldAlert size={16}/> Atenção:</p>
+            <p className="font-bold mb-1 flex items-center gap-2"><ShieldAlert size={16} /> Atenção:</p>
             <p>Configure seus custos fixos e mão de obra para os cálculos funcionarem.</p>
           </div>
         )}
@@ -245,7 +250,11 @@ export function AppContent() {
                 {currentView === 'ingredients' && <><Package className="text-amber-600" /> Gestão de Ingredientes</>}
                 {currentView === 'packaging' && <><Box className="text-blue-600" /> Embalagens</>}
                 {currentView === 'resale_products' && <><ShoppingBag className="text-emerald-600" /> Produtos de Revenda</>}
+                {currentView === 'bases' && <><Layers className="text-blue-600" /> Insumos Produzidos (Bases)</>}
+
+                {/* CORREÇÃO AQUI: Apenas uma linha para recipes e texto alterado */}
                 {currentView === 'recipes' && <><ChefHat className="text-amber-600" /> Gerenciamento de Receitas</>}
+
                 {currentView === 'costs' && <><DollarSign className="text-amber-600" /> Simulador de Preços</>}
                 {currentView === 'sales' && <><TrendingUp className="text-emerald-600" /> Controle de Vendas</>}
                 {currentView === 'expenses' && <><TrendingDown className="text-rose-600" /> Controle de Despesas</>}
@@ -283,12 +292,22 @@ export function AppContent() {
                   <Route path="/recipes/new" element={<RecipeForm />} />
                   <Route path="/recipes/:id" element={<RecipeForm />} />
                   <Route path="/costs" element={<CostingView />} />
-                  <Route path="/calculator" element={<PricingSimulator />} /> 
+                  <Route path="/calculator" element={<PricingSimulator />} />
                   <Route path="/resale" element={<ResaleCalculator />} />
                   <Route path="/sales" element={<SalesView />} />
                   <Route path="/expenses" element={<ExpensesView />} />
                   <Route path="/cash-history" element={<CashHistory />} />
                   <Route path="/reports" element={<PosReports />} />
+                  <Route path="/production-bases" element={<RecipeList isBaseFilter={true} />} />
+                  <Route path="/production-bases/new" element={<RecipeForm />} />
+                  <Route path="/production-bases/new" element={<RecipeForm isBaseDefault={true} />} />
+                  <Route path="/production-bases/edit/:id" element={<RecipeForm />} />
+                  {/* Rotas de Venda (Receitas Finais) - Já deve existir, ajuste se necessário */}
+                  <Route path="/recipes" element={<RecipeList isBaseFilter={false} />} />
+                  {/* NOVO: Rotas de Produção (Bases) */}
+                  <Route path="/production-bases" element={<RecipeList isBaseFilter={true} />} />
+                  <Route path="/production-bases/new" element={<RecipeForm isBaseDefault={true} />} />
+                  <Route path="/production-bases/edit/:id" element={<RecipeForm />} />
                 </>
               ) : (
                 // Se for Caixa e tentar acessar qualquer outra rota, joga pro PDV

@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
-import { Ingredient } from '../types';
+import { Ingredient, Recipe } from '../types';
 import { SettingsService } from './settingsService';
+import { RecipeService } from './recipeService'; // IMPORTANTE: Adicionado para buscar as bases
 import { PriceHistoryService } from './priceHistoryService';
 import { calculateRecipeFinancials } from '../utils/calculations';
 
@@ -41,7 +42,6 @@ export const IngredientService = {
 
   // Atualiza um item + GATILHO DE CASCATA
   async update(id: string, ingredient: Partial<Ingredient>) {
-    // 1. Atualiza o Ingrediente
     const { data, error } = await supabase
       .from('ingredients')
       .update({
@@ -62,10 +62,8 @@ export const IngredientService = {
 
     if (error) throw error;
 
-    // 2. Dispara a atualização automática
     if (data) {
       console.log('🔄 Iniciando atualização em cascata para:', data.name);
-      // Usamos await aqui para garantir que erros sejam capturados no console
       try {
         await cascadeUpdateRecipes(data.id, data.name);
       } catch (err) {
@@ -86,36 +84,33 @@ export const IngredientService = {
  * FUNÇÃO DE AUTOMAÇÃO (Lógica de Cascata)
  */
 async function cascadeUpdateRecipes(ingredientId: string, ingredientName: string) {
-  // A. Verifica sessão do usuário (Necessário para RLS)
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    console.warn("⚠️ Usuário não autenticado. Abortando cascata.");
-    return;
-  }
+  if (!user) return;
 
-  // B. Acha quais receitas usam esse ingrediente
   const { data: relations } = await supabase
     .from('recipe_items')
     .select('recipe_id')
     .eq('ingredient_id', ingredientId);
 
-  if (!relations || relations.length === 0) {
-    console.log("ℹ️ Nenhuma receita usa este ingrediente.");
-    return;
-  }
+  if (!relations || relations.length === 0) return;
 
   const uniqueRecipeIds = [...new Set(relations.map((r) => r.recipe_id))];
-  console.log(`📊 Encontradas ${uniqueRecipeIds.length} receitas para atualizar.`);
 
-  // C. Carrega configurações globais
-  const settings = await SettingsService.get();
+  // BUSCA DE DADOS NECESSÁRIOS PARA O CÁLCULO (6 ARGUMENTOS)
+  const [settings, allRecipes] = await Promise.all([
+    SettingsService.get(),
+    RecipeService.getAll() // Buscamos todas para filtrar as bases
+  ]);
 
-  // D. Busca as receitas completas
+  const baseRecipes = allRecipes.filter(r => r.is_base);
+
+  // Busca as receitas que precisam ser atualizadas
+  // Ajustado o join (!) para evitar erro PGRST201
   const { data: recipesToUpdate } = await supabase
     .from('recipes')
     .select(`
       *,
-      items:recipe_items (
+      items:recipe_items!recipe_items_recipe_id_fkey (
         *,
         ingredient:ingredients (*)
       )
@@ -124,48 +119,31 @@ async function cascadeUpdateRecipes(ingredientId: string, ingredientName: string
 
   if (!recipesToUpdate) return;
 
-  // E. Recalcula cada receita
   for (const recipeData of recipesToUpdate) {
     try {
-      // MAPEAMENTO ROBUSTO: Garante que os números sejam números e não texto
-      const items = recipeData.items
-        .filter((i: any) => i.ingredient !== null) // Proteção contra ingredientes deletados
-        .map((i: any) => ({
-          ...i,
-          // Mapeia e força conversão para número para evitar erros de cálculo
-          quantity_used: Number(i.quantity),
-          quantity_input: Number(i.quantity_input || i.quantity),
-          unit_input: i.unit_input || i.ingredient?.base_unit || 'un',
-          ingredient_name: i.ingredient?.name,
-          ingredient: {
-            ...i.ingredient,
-            package_price: Number(i.ingredient.package_price),
-            package_amount: Number(i.ingredient.package_amount),
-            unit_cost_base: Number(i.ingredient.unit_cost_base)
-          }
-        }));
+      const items = recipeData.items.map((i: any) => ({
+        ...i,
+        quantity_used: Number(i.quantity),
+        quantity_input: Number(i.quantity_input || i.quantity),
+        unit_input: i.unit_input || i.ingredient?.base_unit || 'un',
+        ingredient_name: i.ingredient?.name,
+        item_type: i.item_type || 'ingredient'
+      }));
 
-      const ingredientsList = items.map((i: any) => i.ingredient);
-
-      // Calcula novos custos
+      // CORREÇÃO TS2554: Agora enviamos os 6 argumentos corretos
       const financials = calculateRecipeFinancials(
         items,
-        ingredientsList,
-        Number(recipeData.preparation_time_minutes || 0),
-        Number(recipeData.yield_units || 1),
-        settings
+        [], // ingredientsList (o cálculo interno buscará pelos IDs se vazio)
+        baseRecipes, // 3º argumento: Lista de bases
+        Number(recipeData.preparation_time_minutes || 0), // 4º argumento
+        Number(recipeData.yield_units || 1), // 5º argumento
+        settings // 6º argumento: Configurações
       );
 
       const oldCost = Number(recipeData.unit_cost || 0);
       const newCost = Number(financials.unit_cost || 0);
-      const diff = newCost - oldCost;
 
-      console.log(`📝 Receita: ${recipeData.name} | Antigo: ${oldCost} | Novo: ${newCost} | Diff: ${diff}`);
-
-      // Se mudou mais que 1 centavo
-      if (Math.abs(diff) > 0.01) {
-
-        // 1. Cria o histórico
+      if (Math.abs(newCost - oldCost) > 0.01) {
         await PriceHistoryService.addEntry({
           recipe_id: recipeData.id,
           old_cost: oldCost,
@@ -175,7 +153,6 @@ async function cascadeUpdateRecipes(ingredientId: string, ingredientName: string
           change_reason: `Alteração no insumo: ${ingredientName}`
         });
 
-        // 2. Atualiza a receita
         await supabase
           .from('recipes')
           .update({
@@ -186,10 +163,6 @@ async function cascadeUpdateRecipes(ingredientId: string, ingredientName: string
             unit_cost: financials.unit_cost,
           })
           .eq('id', recipeData.id);
-
-        console.log(`✅ Receita ${recipeData.name} atualizada com sucesso.`);
-      } else {
-        console.log(`⏸️ Sem mudança de valor significativa para ${recipeData.name}.`);
       }
     } catch (innerError) {
       console.error(`❌ Erro ao processar receita ${recipeData.id}:`, innerError);
