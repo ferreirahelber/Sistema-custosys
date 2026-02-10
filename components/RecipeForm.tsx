@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useRecipeForm } from '../hooks/useRecipeForm';
 import { toast } from 'sonner';
+import { PriceHistoryViewer } from './PriceHistoryViewer';
 import { CategoryManager } from './CategoryManager';
 import { Category, Ingredient, Recipe, RecipeItem, Settings } from '../types';
 
@@ -574,6 +575,7 @@ export const RecipeForm: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<'info' | 'ingredients' | 'financials'>('info');
   const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   // Calcula custo de embalagens para passar pro Financials
   const packagingCost = recipeItems
@@ -710,7 +712,7 @@ export const RecipeForm: React.FC = () => {
               settings={settings}
               packagingCost={packagingCost}
               isEditing={!!id} // Enable history button in sidebar if editing
-              onShowHistory={() => { }} // We might need to implement or pass this if history is needed, but for now just showing the detailed view
+              onShowHistory={() => setIsHistoryOpen(true)}
             />
           </div>
         </div>
@@ -721,6 +723,13 @@ export const RecipeForm: React.FC = () => {
         isOpen={isCategoryManagerOpen}
         onClose={() => setIsCategoryManagerOpen(false)}
       />
+
+      {isHistoryOpen && id && (
+        <PriceHistoryViewer
+          recipeId={id}
+          onClose={() => setIsHistoryOpen(false)}
+        />
+      )}
     </div>
   );
 };
