@@ -1,7 +1,7 @@
 {
   "name": "custosys",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.5.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,10 +11,12 @@
     "preview": "vite preview",
     "test": "vitest",
     "db:backup": "node scripts/backup-db.js",
-    "full:backup": "node scripts/backup-full.js"
+    "full:backup": "node scripts/backup-full.js",
+    "db:cleanup-e2e": "npx tsx scripts/cleanup_e2e_data.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.88.0",
+    "@tanstack/react-query": "^5.90.20",
     "archiver": "^7.0.1",
     "decimal.js": "^10.6.0",
     "exceljs": "^4.4.0",
