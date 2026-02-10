@@ -1,0 +1,69 @@
+
+[1m[46m RUN [49m[22m [36mv4.0.16 [39m[90mE:/sistema-custosys[39m
+
+[90mstdout[2m | scripts/verify_refactoring.test.ts[2m > [22m[2mRefactoring Verification: POS & Fees
+[22m[39mStarting setup...
+
+[90mstdout[2m | scripts/verify_refactoring.test.ts[2m > [22m[2mRefactoring Verification: POS & Fees
+[22m[39mUser authenticated: 9f42e425-584b-4e74-97c6-201fbf8809c0
+
+[90mstdout[2m | scripts/verify_refactoring.test.ts[2m > [22m[2mRefactoring Verification: POS & Fees
+[22m[39mCategory created: [33m24[39m
+
+[90mstdout[2m | scripts/verify_refactoring.test.ts[2m > [22m[2mRefactoring Verification: POS & Fees[2m > [22m[2mshould create test data (Ingredient, Recipe, Product)
+[22m[39mIngredient created: 565f33e9-d2b0-493e-bd52-98346ff7bc4c
+
+[90mstdout[2m | scripts/verify_refactoring.test.ts[2m > [22m[2mRefactoring Verification: POS & Fees[2m > [22m[2mshould create test data (Ingredient, Recipe, Product)
+[22m[39mRecipe created: ed8a5c62-5b4e-4373-824b-5fd7d3f265e8
+
+stderr | scripts/verify_refactoring.test.ts > Refactoring Verification: POS & Fees > should create test data (Ingredient, Recipe, Product)
+Recipe Item creation failed: {
+  code: 'PGRST204',
+  details: null,
+  hint: null,
+  message: "Could not find the 'unit' column of 'recipe_items' in the schema cache"
+}
+
+[90mstdout[2m | scripts/verify_refactoring.test.ts[2m > [22m[2mRefactoring Verification: POS & Fees[2m > [22m[2mshould process a sale atomically using RPC
+[22m[39mSession created: bd68f79b-8b3c-426b-b359-9bd284014111
+
+[90mstdout[2m | scripts/verify_refactoring.test.ts[2m > [22m[2mRefactoring Verification: POS & Fees[2m > [22m[2mshould process a sale atomically using RPC
+[22m[39mSale processed. Order ID: { id: [32m'3cf1f345-9594-49f7-bfdb-c03d37f12e55'[39m }
+
+ [31mÔØ»[39m scripts/verify_refactoring.test.ts [2m([22m[2m4 tests[22m[2m | [22m[31m2 failed[39m[2m)[22m[33m 1920[2mms[22m[39m
+[31m     [31m├ù[31m should create test data (Ingredient, Recipe, Product)[39m[33m 342[2mms[22m[39m
+     [32mÔ£ô[39m should process a sale atomically using RPC[32m 261[2mms[22m[39m
+[31m     [31m├ù[31m should verify STOCK deduction[39m[32m 287[2mms[22m[39m
+     [32mÔ£ô[39m should verify FINANCIAL records[32m 280[2mms[22m[39m
+
+ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ» Failed Tests 2 ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»
+
+ FAIL  scripts/verify_refactoring.test.ts > Refactoring Verification: POS & Fees > should create test data (Ingredient, Recipe, Product)
+Unknown Error: Could not find the 'unit' column of 'recipe_items' in the schema cache
+ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[1/2]ÔÄ»
+
+ FAIL  scripts/verify_refactoring.test.ts > Refactoring Verification: POS & Fees > should verify STOCK deduction
+AssertionError: expected 1000 to be 800 // Object.is equality
+
+- Expected
++ Received
+
+- 800
++ 1000
+
+ ÔØ» scripts/verify_refactoring.test.ts:213:35
+    211|         // Initial: 1000g. Used: 2 cakes * 100g = 200g. Expected: 800g.
+    212|         const { data: ing } = await supabase.from('ingredients').selecÔÇª
+    213|         expect(ing.current_stock).toBe(800);
+       |                                   ^
+    214| 
+    215|         // 2. Check Product Stock
+
+ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[2/2]ÔÄ»
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m2 passed[39m[22m[90m (4)[39m
+[2m   Start at [22m 22:48:00
+[2m   Duration [22m 4.26s[2m (transform 74ms, setup 244ms, import 131ms, tests 1.92s, environment 1.63s)[22m
+

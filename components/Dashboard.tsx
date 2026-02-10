@@ -1,252 +1,136 @@
-import React, { useState, useEffect } from 'react';
-import { IngredientService } from '../services/ingredientService';
-import { RecipeService } from '../services/recipeService';
-import { SettingsService } from '../services/settingsService';
-import { FixedCostService } from '../services/fixedCostService';
-import { FinancialService } from '../services/financialService';
-import { supabase } from '../services/supabase'; 
-import {
-  ChefHat,
-  Package,
-  DollarSign,
-  Loader2,
-  AlertTriangle,
-  TrendingUp,
-  TrendingDown,
-  Wallet,
-  PieChart as IconPieChart,
-  BarChart3,
-  Download,
-  FileSpreadsheet,
-  Calendar,
-  HelpCircle,
-  Layers
-} from 'lucide-react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Recipe } from '../types';
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Legend
+  TrendingUp, TrendingDown, DollarSign, Package, AlertTriangle, ArrowRight,
+  BarChart3, PieChart as IconPieChart, ArrowUpRight, ArrowDownRight,
+  Activity, Calendar, Filter, Download, FileSpreadsheet, ChefHat, Layers, HelpCircle, Wallet, Loader2
+} from 'lucide-react';
+import { useRecipes } from '../hooks/useRecipes';
+import { useIngredients } from '../hooks/useIngredients';
+import { useSettings } from '../hooks/useSystem';
+import { useSales, useExpenses, useFixedCosts } from '../hooks/useFinancials';
+import { RecipeService } from '../services/recipeService';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, Legend
 } from 'recharts';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import ExcelJS from 'exceljs';
 import { toast } from 'sonner';
 
-interface Props {
-  onNavigate?: (view: 'recipes' | 'ingredients' | 'costs' | 'settings') => void;
+interface DashboardProps {
+  onNavigate: (view: string) => void;
 }
 
 const COLORS = ['#d97706', '#2563eb', '#16a34a', '#7c3aed'];
 
-export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
+export function Dashboard({ onNavigate }: DashboardProps) {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
 
-  // ESTADOS PARA TAXAS DINÂMICAS
-  const [taxRate, setTaxRate] = useState(4.5);
-  const [cardFee, setCardFee] = useState(3.99);
+  // 1. Hooks de Dados (Com Cache Automático)
+  const { data: recipes = [], isLoading: isLoadingRecipes } = useRecipes();
+  const { ingredients, loading: isLoadingIngredients } = useIngredients();
+  const { data: settings, isLoading: isLoadingSettings } = useSettings();
+  const { data: sales = [], isLoading: isLoadingSales } = useSales();
+  const { data: expenses = [], isLoading: isLoadingExpenses } = useExpenses();
+  const { data: fixedCosts = [], isLoading: isLoadingFixed } = useFixedCosts();
 
-  const [metrics, setMetrics] = useState({
-    recipeCount: 0,
-    ingredientCount: 0,
-    monthlyCost: 0,
-    avgMargin: 0,
-    breakEven: 0,
-    productionBasesValue: 0
-  });
+  const isLoading = isLoadingRecipes || isLoadingIngredients || isLoadingSettings || isLoadingSales || isLoadingExpenses || isLoadingFixed;
 
-  // --- NOVO ESTADO FINANCEIRO ---
-  const [financials, setFinancials] = useState({
-    totalSales: 0,
-    totalExpenses: 0,
-    balance: 0
-  });
+  // 2. Cálculos Financeiros
+  const currentTax = settings?.default_tax_rate ?? 4.5;
+  const currentFee = settings?.default_card_fee ?? 3.99;
 
-  const [recentRecipes, setRecentRecipes] = useState<Recipe[]>([]);
-  const [costDistribution, setCostDistribution] = useState<any[]>([]);
-  const [topProfitableRecipes, setTopProfitableRecipes] = useState<any[]>([]);
+  const totalRevenue = sales.reduce((acc: number, curr: any) => acc + (curr.total_amount || 0), 0) + (settings?.estimated_monthly_revenue || 0);
 
-  useEffect(() => {
-    const checkSession = async () => {
-      // Busca a sessão atual do Supabase
-      const { data: { session } } = await supabase.auth.getSession();
+  const totalFixedCosts = fixedCosts.reduce((acc: any, curr: any) => acc + (curr.amount || 0), 0) + (settings?.labor_monthly_cost || 0);
+  const totalVariableExpenses = expenses.reduce((acc: any, curr: any) => acc + (curr.amount || 0), 0);
+  const totalExpenses = totalFixedCosts + totalVariableExpenses;
 
-      if (!session) {
-        console.warn("Sessão expirada. Redirecionando ou aguardando login...");
-        setLoading(false);
-        return;
-      }
+  const profit = totalRevenue - totalExpenses; // Lucro Bruto Simples (Receita - Despesas)
+  const margin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
 
-      // Só carrega os dados se a sessão existir e for válida
-      loadDashboardData();
-    };
+  // 3. Cálculos de Produção (Bases)
+  const productionBasesValue = recipes.reduce((acc, r) => {
+    if (r.is_base) {
+      return acc + (Number(r.total_cost_final) || 0);
+    }
+    return acc;
+  }, 0);
 
-    checkSession();
-  }, []);
+  // 4. Margem Média das Receitas
+  const recipesWithPrice = recipes.filter(r => r.selling_price && r.selling_price > 0);
+  const totalAvgMargin = recipesWithPrice.reduce((acc, r) => {
+    const price = r.selling_price || 1;
+    const totalDeductions = price * ((currentTax + currentFee) / 100);
+    const netProfit = price - r.unit_cost - totalDeductions;
+    return acc + ((netProfit / price) * 100);
+  }, 0);
+  const avgMargin = recipesWithPrice.length > 0 ? totalAvgMargin / recipesWithPrice.length : 0;
 
-  // Função auxiliar para cálculo usando o estado atual (para exportação)
+  // 5. Alertas de Estoque
+  const lowStockItems = ingredients.filter(i => (i.current_stock || 0) <= (i.min_stock || 0));
+
+  // 6. Dados para Gráficos
+  const revenueData = sales.reduce((acc: any[], sale: any) => {
+    const date = new Date(sale.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    const existing = acc.find(a => a.name === date);
+    if (existing) {
+      existing.receita += sale.total_amount;
+    } else {
+      acc.push({ name: date, receita: sale.total_amount });
+    }
+    return acc;
+  }, []).slice(-7);
+
+  // Distribuição de Custos
+  let costDistribution: any[] = [];
+  if (recipes.length > 0) {
+    const totalMat = recipes.reduce((acc, r) => acc + r.total_cost_material, 0);
+    const totalLab = recipes.reduce((acc, r) => acc + r.total_cost_labor, 0);
+    const totalOver = recipes.reduce((acc, r) => acc + r.total_cost_overhead, 0);
+    const grandTotal = totalMat + totalLab + totalOver;
+
+    costDistribution = [
+      { name: 'Materiais', value: grandTotal ? (totalMat / grandTotal) * 100 : 0 },
+      { name: 'Mão de Obra', value: grandTotal ? (totalLab / grandTotal) * 100 : 0 },
+      { name: 'Custos Fixos', value: grandTotal ? (totalOver / grandTotal) * 100 : 0 },
+    ];
+  }
+
+  // Top Receitas
+  const topProfitableRecipes = [...recipes]
+    .map(r => {
+      const price = r.selling_price || 0;
+      const totalDeductions = price * ((currentTax + currentFee) / 100);
+      const netProfit = price - r.unit_cost - totalDeductions;
+      return {
+        name: r.name.length > 15 ? r.name.substring(0, 15) + '...' : r.name,
+        lucro: netProfit
+      };
+    })
+    .sort((a, b) => b.lucro - a.lucro)
+    .slice(0, 5);
+
+  // --- Exportação (Mantida da Lógica Atual) ---
   const calculateNetProfitWithState = (sellingPrice: number, unitCost: number) => {
     if (!sellingPrice) return 0;
-    const totalDeductions = sellingPrice * ((taxRate + cardFee) / 100);
+    const totalDeductions = sellingPrice * ((currentTax + currentFee) / 100);
     return sellingPrice - unitCost - totalDeductions;
-  };
-
-  const loadDashboardData = async () => {
-    try {
-      setLoading(true);
-      const [ingredients, recipes, settings, fixedCosts, sales, expenses] = await Promise.all([
-        IngredientService.getAll(),
-        RecipeService.getAll(),
-        SettingsService.get(),
-        FixedCostService.getAll(),
-        FinancialService.getSales(),    // <--- NOVO
-        FinancialService.getExpenses()  // <--- NOVO
-      ]);
-
-      // --- CÁLCULO DE VALOR DE INSUMOS PRODUZIDOS (BASES) ---
-      // 1. Filtra apenas o que é base (convertendo para booleano por segurança)
-      const baseRecipes = recipes.filter(r => Boolean(r.is_base) === true);
-
-      // 2. Soma o custo final de produção dessas bases
-      // --- CÁLCULO DE VALOR DE INSUMOS PRODUZIDOS (BASES) ---
-      const productionBasesValue = recipes.reduce((acc, r) => {
-        // Aceita true booleano ou 1 numérico
-        if (r.is_base === true || (r as any).is_base === 1) {
-          return acc + (Number(r.total_cost_final) || 0);
-        }
-        return acc;
-      }, 0);
-
-      // LOG PARA TESTE: Aperte F12 no navegador e veja se aparece o valor no Console
-      console.log("Valor total de bases identificado:", productionBasesValue);
-
-      // Atualiza as métricas (Importante usar o prev para não perder as outras métricas)
-      setMetrics(prev => ({
-        ...prev,
-        recipeCount: recipes.length,
-        ingredientCount: ingredients.length,
-        productionBasesValue: productionBasesValue
-      }));
-
-      // --- CÁLCULO FINANCEIRO NOVO ---
-      const totalSales = sales.reduce((acc, item) => acc + Number(item.amount), 0);
-      const totalExpenses = expenses.reduce((acc, item) => acc + Number(item.amount), 0);
-
-      setFinancials({
-        totalSales,
-        totalExpenses,
-        balance: totalSales - totalExpenses
-      });
-      // -------------------------------
-
-      // 1. ATUALIZA AS TAXAS COM O QUE VEM DO BANCO (OU USA PADRÃO)
-      const currentTax = settings.default_tax_rate ?? 4.5;
-      const currentFee = settings.default_card_fee ?? 3.99;
-
-      setTaxRate(currentTax);
-      setCardFee(currentFee);
-
-      // 2. LÓGICA DE CUSTOS FIXOS
-      const realFixedExpenses = fixedCosts.reduce((acc, c) => acc + Number(c.value), 0);
-      const laborCost = settings.labor_monthly_cost;
-
-      let totalMonthlyCost = 0;
-      if (fixedCosts.length > 0) {
-        totalMonthlyCost = realFixedExpenses + laborCost;
-      } else {
-        totalMonthlyCost = laborCost + (settings.estimated_monthly_revenue * (settings.fixed_overhead_rate / 100));
-      }
-
-      // 3. CÁLCULOS FINANCEIROS USANDO AS TAXAS LIDAS (currentTax/currentFee)
-      const recipesWithPrice = recipes.filter(r => r.selling_price && r.selling_price > 0);
-
-      const totalMargin = recipesWithPrice.reduce((acc, r) => {
-        const price = r.selling_price || 1;
-
-        // Cálculo inline para garantir uso das taxas atualizadas
-        const totalDeductions = price * ((currentTax + currentFee) / 100);
-        const netProfit = price - r.unit_cost - totalDeductions;
-
-        const margin = (netProfit / price) * 100;
-        return acc + margin;
-      }, 0);
-
-      const avgMargin = recipesWithPrice.length > 0 ? totalMargin / recipesWithPrice.length : 0;
-
-      setMetrics({
-        recipeCount: recipes.length,
-        ingredientCount: ingredients.length,
-        monthlyCost: totalMonthlyCost,
-        breakEven: totalMonthlyCost,
-        avgMargin: avgMargin
-      });
-
-      if (recipes.length > 0) {
-        const totalMat = recipes.reduce((acc, r) => acc + r.total_cost_material, 0);
-        const totalLab = recipes.reduce((acc, r) => acc + r.total_cost_labor, 0);
-        const totalOver = recipes.reduce((acc, r) => acc + r.total_cost_overhead, 0);
-        const grandTotal = totalMat + totalLab + totalOver;
-
-        setCostDistribution([
-          { name: 'Materiais', value: grandTotal ? (totalMat / grandTotal) * 100 : 0 },
-          { name: 'Mão de Obra', value: grandTotal ? (totalLab / grandTotal) * 100 : 0 },
-          { name: 'Custos Fixos', value: grandTotal ? (totalOver / grandTotal) * 100 : 0 },
-        ]);
-      }
-
-      const sortedByProfit = [...recipes]
-        .map(r => {
-          // Replicando cálculo inline
-          const price = r.selling_price || 0;
-          const totalDeductions = price * ((currentTax + currentFee) / 100);
-          const netProfit = price - r.unit_cost - totalDeductions;
-          return {
-            name: r.name.length > 15 ? r.name.substring(0, 15) + '...' : r.name,
-            lucro: netProfit
-          };
-        })
-        .sort((a, b) => b.lucro - a.lucro)
-        .slice(0, 5);
-
-      setTopProfitableRecipes(sortedByProfit);
-      setRecentRecipes(recipes.slice(0, 3));
-
-    } catch (error) {
-      console.error('Erro ao carregar dashboard:', error);
-      toast.error('Erro ao carregar dados.');
-    } finally {
-      setLoading(false);
-    }
   };
 
   const handleExportPDF = async () => {
     const allRecipes = await RecipeService.getAll();
     const doc = new jsPDF();
-
     doc.setFontSize(16);
     doc.text("Relatório de Receitas (Lucro Líquido) - Custosys", 14, 15);
     doc.setFontSize(10);
-    // CORREÇÃO: Usa o estado taxRate e cardFee
-    doc.text(`Data: ${new Date().toLocaleDateString()} | Taxas aplicadas: ${(taxRate + cardFee).toFixed(2)}%`, 14, 22);
+    doc.text(`Data: ${new Date().toLocaleDateString()} | Taxas: ${(currentTax + currentFee).toFixed(2)}%`, 14, 22);
 
     const tableData = allRecipes.map(r => {
       const netProfit = calculateNetProfitWithState(r.selling_price || 0, r.unit_cost);
-      return [
-        r.name,
-        `R$ ${r.unit_cost.toFixed(2)}`,
-        `R$ ${r.selling_price?.toFixed(2) || '0.00'}`,
-        `R$ ${netProfit.toFixed(2)}`
-      ];
+      return [r.name, `R$ ${r.unit_cost.toFixed(2)}`, `R$ ${r.selling_price?.toFixed(2) || '0.00'}`, `R$ ${netProfit.toFixed(2)}`];
     });
 
     autoTable(doc, {
@@ -254,8 +138,7 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
       body: tableData,
       startY: 30,
     });
-
-    doc.save('relatorio_lucro_liquido.pdf');
+    doc.save('relatorio_lucro.pdf');
     toast.success('PDF gerado!');
   };
 
@@ -263,46 +146,27 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
     const allRecipes = await RecipeService.getAll();
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Relatório Financeiro');
-
     worksheet.columns = [
       { header: 'Receita', key: 'name', width: 30 },
-      { header: 'Custo Produção', key: 'unit', width: 15, style: { numFmt: '"R$"#,##0.00' } },
-      { header: 'Preço Venda', key: 'price', width: 15, style: { numFmt: '"R$"#,##0.00' } },
-      { header: 'Taxas', key: 'taxes', width: 15, style: { numFmt: '"R$"#,##0.00' } },
-      { header: 'Lucro Líquido', key: 'profit', width: 15, style: { numFmt: '"R$"#,##0.00' } },
-      { header: 'Margem Líq %', key: 'margin', width: 15, style: { numFmt: '0.00%' } },
+      { header: 'Custo', key: 'unit', width: 15 },
+      { header: 'Venda', key: 'price', width: 15 },
+      { header: 'Lucro Líq.', key: 'profit', width: 15 },
     ];
-
-    worksheet.getRow(1).font = { bold: true };
-
     allRecipes.forEach(r => {
-      const price = r.selling_price || 0;
-      const netProfit = calculateNetProfitWithState(price, r.unit_cost);
-      const taxesValue = price - r.unit_cost - netProfit;
-      const margin = price > 0 ? netProfit / price : 0;
-
-      worksheet.addRow({
-        name: r.name,
-        unit: r.unit_cost,
-        price: price,
-        taxes: taxesValue,
-        profit: netProfit,
-        margin: margin
-      });
+      const net = calculateNetProfitWithState(r.selling_price || 0, r.unit_cost);
+      worksheet.addRow({ name: r.name, unit: r.unit_cost, price: r.selling_price, profit: net });
     });
-
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `custosys_lucro_real_${new Date().toISOString().split('T')[0]}.xlsx`;
+    a.download = `relatorio_financeiro.xlsx`;
     a.click();
-    window.URL.revokeObjectURL(url);
     toast.success('Excel gerado!');
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex justify-center items-center h-96">
         <Loader2 className="animate-spin text-amber-600 w-8 h-8" />
@@ -310,6 +174,7 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
     );
   }
 
+  // --- LAYOUT RESTAURADO (v1.4.0) ---
   return (
     <div className="space-y-8 animate-fade-in pb-12">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
@@ -318,7 +183,7 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
             <TrendingUp className="text-amber-600" /> Dashboard Gerencial
           </h2>
           {/* TEXTO DINÂMICO AQUI */}
-          <p className="text-slate-500">Indicadores de Lucro Líquido (Taxas Config: {(taxRate + cardFee).toFixed(2)}%)</p>
+          <p className="text-slate-500">Indicadores de Lucro Líquido (Taxas Config: {(currentTax + currentFee).toFixed(2)}%)</p>
         </div>
 
         <div className="flex flex-col items-end gap-3">
@@ -340,7 +205,7 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
         </div>
       </div>
 
-      {/* === NOVO PAINEL FINANCEIRO (MIGRAÇÃO CRM) === */}
+      {/* === PAINEL FINANCEIRO (Layout v1.4.0) === */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in slide-in-from-left duration-500">
 
         {/* CARD RECEITAS (VENDAS) */}
@@ -352,7 +217,7 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
             <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">Entradas</span>
           </div>
           <div className="text-3xl font-bold text-emerald-700">
-            {financials.totalSales.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            {totalRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
           </div>
           <div className="text-xs text-slate-500 font-medium mt-1">Vendas Totais</div>
         </div>
@@ -366,13 +231,13 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
             <span className="text-xs font-bold text-rose-600 bg-rose-50 px-2 py-1 rounded-full">Saídas</span>
           </div>
           <div className="text-3xl font-bold text-rose-700">
-            {financials.totalExpenses.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            {totalExpenses.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
           </div>
           <div className="text-xs text-slate-500 font-medium mt-1">Despesas Totais</div>
         </div>
 
         {/* CARD SALDO */}
-        <div className={`p-6 rounded-xl shadow-sm border transition group relative overflow-hidden ${financials.balance >= 0
+        <div className={`p-6 rounded-xl shadow-sm border transition group relative overflow-hidden ${profit >= 0
           ? 'bg-gradient-to-br from-blue-600 to-blue-700 border-blue-600 text-white'
           : 'bg-gradient-to-br from-red-600 to-red-700 border-red-600 text-white'
           }`}>
@@ -383,7 +248,7 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
             <span className="text-xs font-bold bg-white/20 px-2 py-1 rounded-full text-white">Balanço</span>
           </div>
           <div className="text-3xl font-bold text-white relative z-10">
-            {financials.balance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            {profit.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
           </div>
           <div className="text-xs text-blue-100 font-medium mt-1 relative z-10">Saldo em Caixa</div>
 
@@ -405,7 +270,7 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
             </div>
             <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">+ Ativo</span>
           </div>
-          <div className="text-3xl font-bold text-slate-800">{metrics.recipeCount}</div>
+          <div className="text-3xl font-bold text-slate-800">{recipes.length}</div>
           <div className="text-xs text-slate-500 font-medium uppercase tracking-wide">Receitas</div>
         </div>
 
@@ -415,7 +280,7 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
               <Package size={20} />
             </div>
           </div>
-          <div className="text-3xl font-bold text-slate-800">{metrics.ingredientCount}</div>
+          <div className="text-3xl font-bold text-slate-800">{ingredients.length}</div>
           <div className="text-xs text-slate-500 font-medium uppercase tracking-wide">Insumos</div>
         </div>
 
@@ -428,7 +293,7 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
             <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-full uppercase">Estoque Interno</span>
           </div>
           <div className="text-3xl font-bold text-blue-700">
-            {(metrics.productionBasesValue || 0).toLocaleString('pt-BR', {
+            {(productionBasesValue || 0).toLocaleString('pt-BR', {
               style: 'currency',
               currency: 'BRL'
             })}
@@ -446,16 +311,16 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
               <div className="absolute right-0 w-64 p-3 bg-slate-800 text-slate-100 text-xs rounded-lg shadow-xl opacity-0 group-hover/info:opacity-100 transition-opacity pointer-events-none z-50 -mt-24 mr-0 border border-slate-700">
                 <p className="font-bold mb-1 text-white">Margem Líquida Estimada</p>
                 {/* TEXTO DINÂMICO AQUI TAMBÉM */}
-                Média de lucro real (%) descontando impostos ({taxRate}%) e taxas ({cardFee}%). Se estiver vermelho, seus preços não cobrem as taxas.
+                Média de lucro real (%) descontando impostos ({currentTax}%) e taxas ({currentFee}%). Se estiver vermelho, seus preços não cobrem as taxas.
                 <div className="absolute bottom-[-6px] right-2 w-3 h-3 bg-slate-800 transform rotate-45 border-r border-b border-slate-700"></div>
               </div>
             </div>
           </div>
-          <div className={`text-3xl font-bold ${metrics.avgMargin >= 20 ? 'text-green-600' :
-            metrics.avgMargin > 0 ? 'text-amber-500' :
+          <div className={`text-3xl font-bold ${avgMargin >= 20 ? 'text-green-600' :
+            avgMargin > 0 ? 'text-amber-500' :
               'text-red-500'
             }`}>
-            {metrics.avgMargin.toFixed(0)}%
+            {avgMargin.toFixed(0)}%
           </div>
           <div className="text-xs text-slate-500 font-medium uppercase tracking-wide">Margem Líq. Média</div>
         </div>
@@ -474,7 +339,7 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
               </div>
             </div>
           </div>
-          <div className="text-3xl font-bold text-white">R$ {metrics.monthlyCost.toFixed(0)}</div>
+          <div className="text-3xl font-bold text-white">R$ {totalFixedCosts.toFixed(0)}</div>
           <div className="text-xs text-slate-400 font-medium uppercase tracking-wide">Custo Fixo Total (Mensal)</div>
         </div>
       </div>
@@ -537,10 +402,10 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
             </button>
           </div>
           <div className="divide-y divide-slate-100">
-            {recentRecipes.length === 0 ? (
+            {recipes.length === 0 ? (
               <div className="p-12 text-center text-slate-400 text-sm">Nenhuma receita cadastrada ainda.</div>
             ) : (
-              recentRecipes.map((recipe) => (
+              recipes.slice(0, 3).map((recipe) => (
                 <div key={recipe.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition group">
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 bg-amber-100 text-amber-700 rounded-lg flex items-center justify-center font-bold shadow-sm group-hover:bg-amber-200 transition">
@@ -578,4 +443,4 @@ export const Dashboard: React.FC<Props> = ({ onNavigate }) => {
       </div>
     </div>
   );
-};
+}

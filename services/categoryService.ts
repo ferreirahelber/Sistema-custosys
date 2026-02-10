@@ -46,15 +46,15 @@ export const CategoryService = {
     // 3. Atualiza em massa todos os Produtos e Receitas que usavam o nome antigo
     // Isso evita que os itens fiquem com a categoria antiga
     if (oldCat.name !== newName) {
-        await supabase
-            .from('products')
-            .update({ category: newName })
-            .eq('category', oldCat.name);
-            
-        await supabase
-            .from('recipes')
-            .update({ category: newName })
-            .eq('category', oldCat.name);
+      await supabase
+        .from('products')
+        .update({ category: newName })
+        .eq('category', oldCat.name);
+
+      await supabase
+        .from('recipes')
+        .update({ category: newName })
+        .eq('category', oldCat.name);
     }
   },
 

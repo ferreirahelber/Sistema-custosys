@@ -1,0 +1,42 @@
+[dotenv@17.2.3] injecting env (2) from .env -- tip: ÔÜÖ´©Å  write to custom object with { processEnv: myObject }
+
+Running 2 tests using 1 worker
+
+[1A[2K[dotenv@17.2.3] injecting env (0) from .env -- tip: ­ƒöÉ prevent building .env in docker: https://dotenvx.com/prebuild
+
+[1A[2K[1/2] [chromium] ÔÇ║ tests\e2e\system_flow.spec.ts:28:5 ÔÇ║ Fluxo Completo do Sistema (Admin + Vendedor) ÔÇ║ Admin: Cadastrar Insumos, Receitas e Produtos
+[1A[2K[2/2] [chromium] ÔÇ║ tests\e2e\system_flow.spec.ts:184:5 ÔÇ║ Fluxo Completo do Sistema (Admin + Vendedor) ÔÇ║ Vendedor: Abrir Caixa, Vender e Fechar Caixa
+[1A[2K  1) [chromium] ÔÇ║ tests\e2e\system_flow.spec.ts:184:5 ÔÇ║ Fluxo Completo do Sistema (Admin + Vendedor) ÔÇ║ Vendedor: Abrir Caixa, Vender e Fechar Caixa 
+
+    [31mTest timeout of 30000ms exceeded.[39m
+
+    Error: page.click: Test timeout of 30000ms exceeded.
+    Call log:
+    [2m  - waiting for locator('button:has-text("Confirmar Abertura")')[22m
+
+
+      210 |                 await page.getByRole('button', { name: 'Abrir Caixa' }).click();
+      211 |                 await page.fill('input[type="number"]', '100.00'); // Fundo de troco
+    > 212 |                 await page.click('button:has-text("Confirmar Abertura")');
+          |                            ^
+      213 |                 log('Caixa aberto.');
+      214 |             } else {
+      215 |                 log('Caixa j├í estava aberto?');
+        at E:\sistema-custosys\tests\e2e\system_flow.spec.ts:212:28
+
+    Error Context: test-results\system_flow-Fluxo-Completo-f4944-Caixa-Vender-e-Fechar-Caixa-chromium\error-context.md
+
+    attachment #2: trace (application/zip) ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+    test-results\system_flow-Fluxo-Completo-f4944-Caixa-Vender-e-Fechar-Caixa-chromium\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\system_flow-Fluxo-Completo-f4944-Caixa-Vender-e-Fechar-Caixa-chromium\trace.zip
+
+    ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+
+
+[1A[2K  1 failed
+    [chromium] ÔÇ║ tests\e2e\system_flow.spec.ts:184:5 ÔÇ║ Fluxo Completo do Sistema (Admin + Vendedor) ÔÇ║ Vendedor: Abrir Caixa, Vender e Fechar Caixa 
+  1 passed (50.1s)
+
+[36m  Serving HTML report at http://localhost:56705. Press Ctrl+C to quit.[39m

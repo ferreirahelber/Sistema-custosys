@@ -1,0 +1,46 @@
+[dotenv@17.2.3] injecting env (2) from .env -- tip: 🔐 prevent building .env in docker: https://dotenvx.com/prebuild
+
+Running 2 tests using 1 worker
+
+[1A[2K[dotenv@17.2.3] injecting env (0) from .env -- tip: ⚙️  write to custom object with { processEnv: myObject }
+
+[1A[2K[1/2] [chromium] › tests\e2e\system_flow.spec.ts:28:5 › Fluxo Completo do Sistema (Admin + Vendedor) › Admin: Cadastrar Insumos, Receitas e Produtos
+[1A[2K[2/2] [chromium] › tests\e2e\system_flow.spec.ts:185:5 › Fluxo Completo do Sistema (Admin + Vendedor) › Vendedor: Abrir Caixa, Vender e Fechar Caixa
+[1A[2K  1) [chromium] › tests\e2e\system_flow.spec.ts:185:5 › Fluxo Completo do Sistema (Admin + Vendedor) › Vendedor: Abrir Caixa, Vender e Fechar Caixa 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByText('Venda Realizada!')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for getByText('Venda Realizada!')[22m
+
+
+      252 |
+      253 |             // 4. Verificar Sucesso e Iniciar Nova Venda
+    > 254 |             await expect(page.getByText('Venda Realizada!')).toBeVisible();
+          |                                                              ^
+      255 |             log('Modal de sucesso visível');
+      256 |             await page.click('button:has-text("Nova Venda")');
+      257 |
+        at E:\sistema-custosys\tests\e2e\system_flow.spec.ts:254:62
+
+    attachment #1: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\system_flow-Fluxo-Completo-f4944-Caixa-Vender-e-Fechar-Caixa-chromium\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\system_flow-Fluxo-Completo-f4944-Caixa-Vender-e-Fechar-Caixa-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[1A[2K  1 failed
+    [chromium] › tests\e2e\system_flow.spec.ts:185:5 › Fluxo Completo do Sistema (Admin + Vendedor) › Vendedor: Abrir Caixa, Vender e Fechar Caixa 
+  1 passed (36.3s)
+
+[36m  Serving HTML report at http://localhost:57330. Press Ctrl+C to quit.[39m
+^C^CDeseja finalizar o arquivo em lotes (S/N)? 

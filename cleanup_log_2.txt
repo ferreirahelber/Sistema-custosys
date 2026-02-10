@@ -1,0 +1,13 @@
+
+> custosys@0.0.0 db:cleanup-e2e
+> npx tsx scripts/cleanup_e2e_data.ts
+
+[dotenv@17.2.3] injecting env (2) from .env -- tip: ­ƒæÑ sync secrets across teammates & machines: https://dotenvx.com/ops
+Starting E2E data cleanup using ANON key...
+Recipes cleanup command executed.
+Ingredients cleanup command executed.
+Products cleanup command executed.
+Found 0 profiles matching pattern.
+Total unique Test User IDs to cleanup: 0
+No test users found to cleanup.
+Cleanup finished.

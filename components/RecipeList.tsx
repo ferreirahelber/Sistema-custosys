@@ -2,13 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 import { Recipe, Category } from '../types';
-import { CategoryService } from '../services/categoryService';
-import { RecipeService } from '../services/recipeService';
 import {
   Plus, Search, ChefHat, Layers, Clock, Users, Trash2, Edit, Printer,
   Barcode, TrendingUp, DollarSign, AlertTriangle, FileText, X, Loader2, Tag,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useRecipes, useRecipeMutations } from '../hooks/useRecipes';
+import { useCategories } from '../hooks/useSystem';
 
 // --- COMPONENTE DE IMPRESSÃO ---
 const PrintableRecipe = ({ recipe, mode }: { recipe: Recipe | null, mode: 'kitchen' | 'manager' | null }) => {
@@ -110,10 +110,12 @@ interface RecipeListProps {
 }
 
 export function RecipeList({ isBaseFilter = false }: RecipeListProps) {
-  const [recipes, setRecipes] = useState<Recipe[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
+  // --- HOOKS DE DADOS (COM CACHE) ---
+  const { data: allRecipes = [], isLoading: isLoadingRecipes } = useRecipes();
+  const { data: allCategories = [], isLoading: isLoadingCategories } = useCategories();
+  const { deleteRecipe } = useRecipeMutations();
+
   const [selectedCategory, setSelectedCategory] = useState<string>('Todas');
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
   // Modais
@@ -125,44 +127,6 @@ export function RecipeList({ isBaseFilter = false }: RecipeListProps) {
     open: false, recipe: null, mode: null
   });
 
-  useEffect(() => {
-    loadData();
-  }, [isBaseFilter]);
-
-  async function loadData() {
-    setLoading(true);
-    try {
-      // 1. Tenta buscar Receitas (Crítico - sem isto, não carrega nada)
-      const { data: recipesData, error: recipeError } = await supabase
-        .from('recipes')
-        .select('*')
-        .order('name');
-
-      if (recipeError) throw recipeError;
-      setRecipes(recipesData || []);
-
-      // Filtra as receitas baseadas no menu selecionado (Bases ou Produtos Finais)
-      const data = recipesData || [];
-      setRecipes(data.filter(r => (r.is_base || false) === isBaseFilter));
-
-      // 2. Tenta buscar Categorias (Não-crítico - Se falhar, não quebra a tela inteira)
-      try {
-        const categoriesData = await CategoryService.getAll();
-        setCategories(categoriesData || []);
-      } catch (catError) {
-        console.error("Erro ao carregar categorias:", catError);
-        // Não jogamos throw aqui para permitir que as receitas apareçam sem categorias
-        toast.warning('Categorias indisponíveis no momento');
-      }
-
-    } catch (error) {
-      console.error(error);
-      toast.error('Erro ao carregar lista de receitas');
-    } finally {
-      setLoading(false);
-    }
-  }
-
   const requestDelete = (recipe: Recipe) => {
     setDeleteModal({ open: true, id: recipe.id, name: recipe.name });
   };
@@ -170,24 +134,12 @@ export function RecipeList({ isBaseFilter = false }: RecipeListProps) {
   const confirmDelete = async () => {
     if (!deleteModal.id) return;
 
-    // Cria uma variável para o toast de carregamento
-    const toastId = toast.loading('Excluindo...');
-
     try {
-      // Chama o serviço de deleção
-      await RecipeService.delete(deleteModal.id);
-
-      // Atualiza o estado local para remover o card da tela imediatamente
-      setRecipes(recipes.filter(r => r.id !== deleteModal.id));
-
-      // Feedback de sucesso
-      toast.success(`${isBaseFilter ? 'Insumo' : 'Receita'} excluída com sucesso!`, { id: toastId });
-
-      // Fecha o modal
+      await deleteRecipe.mutateAsync(deleteModal.id);
       setDeleteModal({ open: false, id: null, name: '' });
     } catch (error) {
       console.error(error);
-      toast.error('Erro ao excluir. Verifique se este item está sendo usado em outra receita.', { id: toastId });
+      // Toast handled in mutation
     }
   };
 
@@ -228,7 +180,10 @@ export function RecipeList({ isBaseFilter = false }: RecipeListProps) {
     }
   };
 
-  const filteredRecipes = recipes.filter(r => {
+  const filteredRecipes = allRecipes.filter(r => {
+    const isBaseMatch = (r.is_base || false) === isBaseFilter;
+    if (!isBaseMatch) return false;
+
     const matchesSearch = r.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (r.barcode && r.barcode.includes(searchTerm));
     const matchesCategory = selectedCategory === 'Todas' || r.category === selectedCategory;
@@ -332,7 +287,7 @@ export function RecipeList({ isBaseFilter = false }: RecipeListProps) {
         >
           <Tag size={14} className="inline mr-1" /> Todas
         </button>
-        {categories.map(cat => (
+        {allCategories.map(cat => (
           <button
             key={cat.id}
             onClick={() => setSelectedCategory(cat.name)}
@@ -347,7 +302,7 @@ export function RecipeList({ isBaseFilter = false }: RecipeListProps) {
       </div>
 
       {/* Grid de Cards */}
-      {loading ? (
+      {isLoadingRecipes ? (
         <div className="p-12 text-center text-slate-400 flex flex-col items-center print:hidden">
           <Loader2 className="animate-spin mb-4 text-amber-600" size={32} />
           Carregando receitas...
@@ -425,6 +380,7 @@ export function RecipeList({ isBaseFilter = false }: RecipeListProps) {
                     onClick={() => requestDelete(recipe)}
                     className="text-slate-300 hover:text-red-500 transition p-1.5 hover:bg-red-50 rounded-full"
                     title="Excluir"
+                    disabled={deleteRecipe.isPending}
                   >
                     <Trash2 size={18} />
                   </button>
@@ -452,7 +408,9 @@ export function RecipeList({ isBaseFilter = false }: RecipeListProps) {
             </div>
             <div className="flex justify-end gap-3 mt-6">
               <button onClick={() => setDeleteModal({ open: false, id: null, name: '' })} className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition">Cancelar</button>
-              <button onClick={confirmDelete} className="px-4 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition">Sim, Excluir</button>
+              <button onClick={confirmDelete} disabled={deleteRecipe.isPending} className="px-4 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition">
+                {deleteRecipe.isPending ? 'Excluindo...' : 'Sim, Excluir'}
+              </button>
             </div>
           </div>
         </div>

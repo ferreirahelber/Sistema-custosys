@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { supabase } from '../services/supabase';
+import React, { useState } from 'react';
 import { Ingredient } from '../types';
 import {
   Wheat,
@@ -22,21 +21,30 @@ const formatCurrency = (value: number) => {
   return `R$ ${value.toFixed(2).replace('.', ',')}`;
 };
 
+import { useIngredients } from '../hooks/useIngredients';
+
+// ... (imports remain)
+
 export function IngredientForm() {
-  const [items, setItems] = useState<Ingredient[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { ingredients: allIngredients, loading, createIngredient, updateIngredient, deleteIngredient } = useIngredients();
+
+  // Filter out packaging for this specific form
+  const items = allIngredients.filter(i => i.category !== 'packaging');
+
+  // const [items, setItems] = useState<Ingredient[]>([]); // REMOVED
+  // const [loading, setLoading] = useState(true); // REMOVED
   const [searchTerm, setSearchTerm] = useState('');
   const [mode, setMode] = useState<'idle' | 'create' | 'edit'>('idle');
-  
+
   const [currentId, setCurrentId] = useState<string | null>(null);
-  
+
   const [formData, setFormData] = useState({
     name: '',
-    barcode: '', // NOVO CAMPO
+    barcode: '',
     price: '',
     amount: '',
-    unit: 'kg', // Unidade de Compra
-    baseUnit: 'g', // Unidade de Uso
+    unit: 'kg',
+    baseUnit: 'g',
     currentStock: '',
     minStock: '1000'
   });
@@ -45,27 +53,9 @@ export function IngredientForm() {
     isOpen: false, id: null, name: ''
   });
 
-  useEffect(() => {
-    loadItems();
-  }, []);
+  // useEffect(() => { loadItems(); }, []); // REMOVED (Hook handles it)
 
-  const loadItems = async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('ingredients')
-        .select('*')
-        .neq('category', 'packaging') 
-        .order('name');
-
-      if (error) throw error;
-      setItems(data || []);
-    } catch (error) {
-      toast.error('Erro ao carregar ingredientes');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // loadItems function REMOVED
 
   const resetForm = () => {
     setCurrentId(null);
@@ -94,15 +84,14 @@ export function IngredientForm() {
   const handleSelect = (item: Ingredient) => {
     setMode('edit');
     setCurrentId(item.id!);
-    
-    // Tenta recuperar valores antigos ou novos
+
     const loadPrice = item.package_price || item.price || 0;
     const loadAmount = item.package_amount || 1;
     const loadUnit = item.package_unit || item.unit || 'kg';
-    
+
     setFormData({
       name: item.name,
-      barcode: item.barcode || '', // Carrega código
+      barcode: item.barcode || '',
       price: loadPrice.toString(),
       amount: loadAmount.toString(),
       unit: loadUnit,
@@ -115,10 +104,9 @@ export function IngredientForm() {
   const calculateUnitCost = () => {
     const price = parseFloat(formData.price) || 0;
     const amount = parseFloat(formData.amount) || 0;
-    
+
     if (amount === 0) return 0;
-    
-    // Lógica de conversão simples (kg -> g, l -> ml)
+
     let multiplier = 1;
     if ((formData.unit === 'kg' && formData.baseUnit === 'g') || (formData.unit === 'l' && formData.baseUnit === 'ml')) {
       multiplier = 1000;
@@ -141,18 +129,18 @@ export function IngredientForm() {
 
     const payload = {
       name: formData.name,
-      barcode: formData.barcode, // SALVA O CÓDIGO
-      
+      barcode: formData.barcode,
+
       package_price: parseFloat(formData.price) || 0,
       package_amount: parseFloat(formData.amount) || 0,
       package_unit: formData.unit,
-      
+
       price: unitCost,
       unit: formData.baseUnit,
-      
+
       base_unit: formData.baseUnit,
       unit_cost_base: unitCost,
-      
+
       current_stock: parseFloat(formData.currentStock) || 0,
       min_stock: parseFloat(formData.minStock) || 0,
       category: 'food'
@@ -160,19 +148,14 @@ export function IngredientForm() {
 
     try {
       if (mode === 'edit' && currentId) {
-        const { error } = await supabase.from('ingredients').update(payload).eq('id', currentId);
-        if (error) throw error;
-        toast.success('Ingrediente atualizado!');
+        await updateIngredient(currentId, payload);
       } else {
-        const { error } = await supabase.from('ingredients').insert([payload]);
-        if (error) throw error;
-        toast.success('Ingrediente criado!');
+        await createIngredient(payload);
       }
       resetForm();
       setMode('idle');
-      loadItems();
     } catch (error) {
-      toast.error('Erro ao salvar');
+      // Error handled in hook
     }
   };
 
@@ -184,22 +167,18 @@ export function IngredientForm() {
   const executeDelete = async () => {
     if (!deleteConfirmation.id) return;
     try {
-      const { error } = await supabase.from('ingredients').delete().eq('id', deleteConfirmation.id);
-      if (error) throw error;
-      toast.success('Item excluído!');
+      await deleteIngredient(deleteConfirmation.id);
       if (currentId === deleteConfirmation.id) {
         setMode('idle');
         resetForm();
       }
       setDeleteConfirmation({ isOpen: false, id: null, name: '' });
-      loadItems();
     } catch (error) {
-      toast.error('Erro ao excluir');
       setDeleteConfirmation({ isOpen: false, id: null, name: '' });
     }
   };
 
-  const filteredItems = items.filter(i => 
+  const filteredItems = items.filter(i =>
     i.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (i.barcode && i.barcode.includes(searchTerm))
   );
@@ -215,14 +194,14 @@ export function IngredientForm() {
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-140px)] min-h-[600px] animate-fade-in">
-      
+
       {/* 🟧 PAINEL DE EDIÇÃO */}
       <div className="lg:w-1/3 bg-white rounded-xl shadow-lg border border-slate-200 flex flex-col overflow-hidden">
         <div className={`p-4 border-b flex justify-between items-center ${mode === 'create' ? theme.bg : mode === 'edit' ? 'bg-amber-50' : 'bg-slate-50'}`}>
           <div className="flex items-center gap-2 font-bold text-slate-700">
-            {mode === 'create' && <><Plus size={20} className={theme.text}/> Novo Ingrediente</>}
-            {mode === 'edit' && <><Edit size={20} className="text-amber-600"/> Editando Item</>}
-            {mode === 'idle' && <><LayoutGrid size={20} className="text-slate-400"/> Painel de Detalhes</>}
+            {mode === 'create' && <><Plus size={20} className={theme.text} /> Novo Ingrediente</>}
+            {mode === 'edit' && <><Edit size={20} className="text-amber-600" /> Editando Item</>}
+            {mode === 'idle' && <><LayoutGrid size={20} className="text-slate-400" /> Painel de Detalhes</>}
           </div>
           {mode !== 'idle' && (
             <button onClick={handleCancel} className="text-xs text-slate-500 hover:text-red-500 underline">Cancelar</button>
@@ -242,7 +221,7 @@ export function IngredientForm() {
             </div>
           ) : (
             <form onSubmit={handleSave} className="space-y-5 animate-in slide-in-from-left-4 fade-in duration-300">
-              
+
               <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-4 text-white shadow-lg relative overflow-hidden group">
                 <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition">
                   <TrendingDown size={48} />
@@ -258,10 +237,10 @@ export function IngredientForm() {
 
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase">Nome do Ingrediente</label>
-                <input 
+                <input
                   autoFocus
                   value={formData.name}
-                  onChange={e => setFormData({...formData, name: e.target.value})}
+                  onChange={e => setFormData({ ...formData, name: e.target.value })}
                   placeholder="Ex: Farinha de Trigo"
                   className="w-full mt-1 px-3 py-3 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none font-medium text-slate-700"
                 />
@@ -270,9 +249,9 @@ export function IngredientForm() {
               {/* CAMPO DE CÓDIGO DE BARRAS NOVO */}
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1"><Barcode size={14} /> Código de Barras (Opcional)</label>
-                <input 
+                <input
                   value={formData.barcode}
-                  onChange={e => setFormData({...formData, barcode: e.target.value})}
+                  onChange={e => setFormData({ ...formData, barcode: e.target.value })}
                   placeholder="Bipe ou digite o código..."
                   className="w-full mt-1 px-3 py-3 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none text-slate-700"
                 />
@@ -281,26 +260,26 @@ export function IngredientForm() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-bold text-slate-500 uppercase">Preço Pago (R$)</label>
-                  <input 
+                  <input
                     type="number" step="0.01"
                     value={formData.price}
-                    onChange={e => setFormData({...formData, price: e.target.value})}
+                    onChange={e => setFormData({ ...formData, price: e.target.value })}
                     placeholder="0.00"
                     className="w-full mt-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
                   />
                 </div>
                 <div>
-                   <label className="text-xs font-bold text-slate-500 uppercase">Qtd. da Embalagem</label>
-                   <div className="flex mt-1">
-                    <input 
+                  <label className="text-xs font-bold text-slate-500 uppercase">Qtd. da Embalagem</label>
+                  <div className="flex mt-1">
+                    <input
                       type="number" step="0.001"
                       value={formData.amount}
-                      onChange={e => setFormData({...formData, amount: e.target.value})}
+                      onChange={e => setFormData({ ...formData, amount: e.target.value })}
                       className="w-full px-3 py-2 border-l border-t border-b rounded-l-lg focus:ring-2 focus:ring-amber-500 outline-none"
                     />
-                    <select 
+                    <select
                       value={formData.unit}
-                      onChange={e => setFormData({...formData, unit: e.target.value})}
+                      onChange={e => setFormData({ ...formData, unit: e.target.value })}
                       className="px-2 border rounded-r-lg bg-slate-100 text-slate-700 outline-none text-sm font-bold"
                     >
                       <option value="kg">kg</option>
@@ -309,7 +288,7 @@ export function IngredientForm() {
                       <option value="ml">ml</option>
                       <option value="un">un</option>
                     </select>
-                   </div>
+                  </div>
                 </div>
               </div>
 
@@ -320,7 +299,7 @@ export function IngredientForm() {
                     <button
                       key={u}
                       type="button"
-                      onClick={() => setFormData({...formData, baseUnit: u})}
+                      onClick={() => setFormData({ ...formData, baseUnit: u })}
                       className={`flex-1 py-2 text-sm font-bold rounded-lg border transition ${formData.baseUnit === u ? 'bg-amber-50 border-amber-200 text-amber-600' : 'bg-white border-slate-200 text-slate-400'}`}
                     >
                       {u.toUpperCase()}
@@ -331,25 +310,25 @@ export function IngredientForm() {
 
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
                 <h4 className="text-xs font-bold text-slate-700 uppercase flex items-center gap-2">
-                  <Scale size={14}/> Estoque
+                  <Scale size={14} /> Estoque
                 </h4>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-[10px] font-bold text-slate-400 uppercase">Atual ({formData.baseUnit})</label>
-                    <input 
+                    <input
                       type="number"
                       value={formData.currentStock}
-                      onChange={e => setFormData({...formData, currentStock: e.target.value})}
+                      onChange={e => setFormData({ ...formData, currentStock: e.target.value })}
                       className="w-full mt-1 px-2 py-1.5 border rounded bg-white text-sm"
                       placeholder="0"
                     />
                   </div>
                   <div>
                     <label className="text-[10px] font-bold text-slate-400 uppercase">Mínimo ({formData.baseUnit})</label>
-                    <input 
+                    <input
                       type="number"
                       value={formData.minStock}
-                      onChange={e => setFormData({...formData, minStock: e.target.value})}
+                      onChange={e => setFormData({ ...formData, minStock: e.target.value })}
                       className="w-full mt-1 px-2 py-1.5 border rounded bg-white text-sm"
                       placeholder="1000"
                     />
@@ -371,7 +350,7 @@ export function IngredientForm() {
         <div className="p-4 border-b border-slate-100 flex gap-4 bg-white z-20">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
-            <input 
+            <input
               placeholder="Buscar ingrediente ou código..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
@@ -385,7 +364,7 @@ export function IngredientForm() {
 
         <div className="flex-1 overflow-auto bg-slate-50 relative">
           {loading ? (
-            <div className="flex items-center justify-center h-full"><Loader2 className="animate-spin text-slate-600"/></div>
+            <div className="flex items-center justify-center h-full"><Loader2 className="animate-spin text-slate-600" /></div>
           ) : (
             <table className="w-full text-sm text-left border-collapse">
               <thead className="sticky top-0 z-30 bg-white shadow-sm text-slate-500 font-bold uppercase text-xs">
@@ -398,8 +377,8 @@ export function IngredientForm() {
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {filteredItems.map(item => (
-                  <tr 
-                    key={item.id} 
+                  <tr
+                    key={item.id}
                     onClick={() => handleSelect(item)}
                     className={`
                       group cursor-pointer transition-colors duration-150
@@ -409,10 +388,10 @@ export function IngredientForm() {
                   >
                     <td className="p-4 font-bold text-slate-700 whitespace-nowrap">
                       <div>{item.name}</div>
-                      {item.barcode && <div className="text-[10px] text-slate-400 flex items-center gap-1"><Barcode size={10}/> {item.barcode}</div>}
+                      {item.barcode && <div className="text-[10px] text-slate-400 flex items-center gap-1"><Barcode size={10} /> {item.barcode}</div>}
                       {currentId === item.id && mode === 'edit' && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-200 text-amber-800 mt-1 inline-block">EDITANDO</span>}
                     </td>
-                    
+
                     <td className="p-4 whitespace-nowrap">
                       <div className={`flex flex-col text-amber-700`}>
                         <span className="font-bold">{formatCurrency(item.unit_cost_base)}</span>
@@ -421,16 +400,15 @@ export function IngredientForm() {
                     </td>
 
                     <td className="p-4 text-center whitespace-nowrap">
-                        <span className={`text-xs font-bold px-2 py-1 rounded-full ${
-                          (item.current_stock || 0) <= (item.min_stock || 0) 
-                          ? 'bg-red-100 text-red-700' 
-                          : 'bg-green-100 text-green-700'
+                      <span className={`text-xs font-bold px-2 py-1 rounded-full ${(item.current_stock || 0) <= (item.min_stock || 0)
+                        ? 'bg-red-100 text-red-700'
+                        : 'bg-green-100 text-green-700'
                         }`}>
-                          {item.current_stock || 0} {item.base_unit}
-                        </span>
+                        {item.current_stock || 0} {item.base_unit}
+                      </span>
                     </td>
                     <td className="p-4 text-right whitespace-nowrap">
-                      <button 
+                      <button
                         onClick={(e) => confirmDelete(e, item)}
                         className="p-2 text-slate-300 hover:text-red-600 hover:bg-white rounded-full transition relative z-10"
                       >

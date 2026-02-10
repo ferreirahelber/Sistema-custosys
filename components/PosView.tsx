@@ -4,10 +4,11 @@ import { PosService } from '../services/posService';
 import { CategoryService } from '../services/categoryService';
 import { CashModal } from './CashModal';
 import { PaymentModal } from './PaymentModal';
+import { CartPanel } from './CartPanel';
 import { CartItem, CashSession, Category } from '../types';
 import {
   ShoppingCart, Trash2, CreditCard, Banknote, QrCode, Plus, Minus, Search,
-  ChefHat, LogOut, Printer, CheckCircle, History, ShoppingBag, Tag, Store, ReceiptText
+  ChefHat, LogOut, Printer, CheckCircle, History, ShoppingBag, Tag, Store, ReceiptText, ChevronUp
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Receipt } from './Receipt';
@@ -43,6 +44,9 @@ export function PosView() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loadingCatalog, setLoadingCatalog] = useState(true);
+
+  // Mobile Cart State
+  const [showMobileCart, setShowMobileCart] = useState(false);
 
   // Estado para Impressão e Modal de Sucesso
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -187,6 +191,7 @@ export function PosView() {
   };
 
   const cartTotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+  const cartItemCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
   // 5. Checkout
   const handleCheckout = async (paymentMethod: string) => {
@@ -237,6 +242,7 @@ export function PosView() {
 
       setLastOrder(orderData);
       setCart([]);
+      setShowMobileCart(false); // Fechar carrinho mobile
       setShowSuccessModal(true);
     } catch (error) {
       console.error(error);
@@ -289,7 +295,7 @@ export function PosView() {
 
   if (loadingSession) return <div className="p-10 text-center">Carregando sistema de caixa...</div>;
 
-  // --- TELA DE CAIXA FECHADO (CORRIGIDA) ---
+  // --- TELA DE CAIXA FECHADO ---
   if (!session) {
     return (
       <div className="h-[calc(100vh-100px)] flex items-center justify-center p-4">
@@ -318,11 +324,8 @@ export function PosView() {
               Sair do Sistema
             </button>
           </div>
-          
-          {/* REMOVI O CASHMODAL QUE ESTAVA AQUI SOLTO */}
         </div>
 
-        {/* MODAL AGORA É CONDICIONAL (Só aparece se clicar em Abrir) */}
         {isCashModalOpen && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
             <div className="bg-white rounded-xl p-4 w-full max-w-md shadow-2xl animate-in fade-in zoom-in-95">
@@ -341,7 +344,7 @@ export function PosView() {
 
   // --- TELA DE CAIXA ABERTO ---
   return (
-    <div className="flex flex-col md:flex-row h-[calc(100vh-100px)] gap-4 animate-fade-in relative">
+    <div className="flex flex-col md:flex-row h-[calc(100vh-140px)] md:h-[calc(100vh-100px)] gap-4 animate-fade-in relative">
 
       {showCashModal && (
         <PaymentModal
@@ -405,7 +408,7 @@ export function PosView() {
             <input
               ref={searchInputRef}
               type="text"
-              placeholder="Buscar Receita ou Produto..."
+              placeholder="Buscar..."
               className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-amber-500"
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
@@ -420,8 +423,8 @@ export function PosView() {
           <button
             onClick={() => setSelectedCategory('Todas')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition ${selectedCategory === 'Todas'
-                ? 'bg-slate-800 text-white shadow-md'
-                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+              ? 'bg-slate-800 text-white shadow-md'
+              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
               }`}
           >
             <Tag size={12} className="inline mr-1" /> Todas
@@ -431,8 +434,8 @@ export function PosView() {
               key={cat.id}
               onClick={() => setSelectedCategory(cat.name)}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition ${selectedCategory === cat.name
-                  ? 'bg-slate-800 text-white shadow-md'
-                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                ? 'bg-slate-800 text-white shadow-md'
+                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
                 }`}
             >
               {cat.name}
@@ -449,13 +452,13 @@ export function PosView() {
               <p>Nenhum item encontrado.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {filteredItems.map(item => (
                 <div
                   key={item.id}
                   onClick={() => addToCart(item)}
                   className={`
-                    bg-white border p-4 rounded-xl cursor-pointer transition group flex flex-col justify-between h-32 relative overflow-hidden
+                    bg-white border p-3 rounded-xl cursor-pointer transition group flex flex-col justify-between h-32 relative overflow-hidden
                     ${item.type === 'resale' ? 'border-emerald-200 hover:border-emerald-500' : 'border-slate-200 hover:border-amber-500'}
                     hover:shadow-md active:scale-95
                   `}
@@ -467,8 +470,8 @@ export function PosView() {
                       <ChefHat size={40} className="text-amber-500" />
                     )}
                   </div>
-                  <span className="font-bold text-slate-700 line-clamp-2 relative z-10">{item.name}</span>
-                  <div className={`font-bold text-lg relative z-10 ${item.type === 'resale' ? 'text-emerald-600' : 'text-amber-600'}`}>
+                  <span className="font-bold text-slate-700 line-clamp-2 relative z-10 text-sm leading-tight">{item.name}</span>
+                  <div className={`font-bold text-base relative z-10 ${item.type === 'resale' ? 'text-emerald-600' : 'text-amber-600'}`}>
                     {item.price > 0
                       ? `R$ ${item.price.toFixed(2)}`
                       : <span className="text-red-400 text-xs">Sem preço</span>
@@ -481,141 +484,53 @@ export function PosView() {
         </div>
       </div>
 
-      {/* LADO DIREITO: CARRINHO */}
-      <div className="w-full md:w-96 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col h-full">
-        <div className="p-4 bg-slate-800 text-white rounded-t-xl">
-          <div className="flex justify-between items-center mb-2">
-            <div>
-              <h3 className="font-bold flex items-center gap-2"><ShoppingCart size={20} /> PDV Aberto</h3>
-              <p className="text-xs text-slate-400">Session ID: {session?.id.slice(0, 8)}...</p>
-            </div>
-
-            {/* BOTÕES DE AÇÃO DO TOPO */}
-            <div className="flex gap-2">
-              <button
-                onClick={handleConference}
-                className="p-2 hover:bg-slate-700 rounded-lg text-emerald-300 hover:text-emerald-200 transition"
-                title="Conferência Rápida"
-              >
-                <ReceiptText size={20} />
-              </button>
-
-              <Link to="/cash-history" className="p-2 hover:bg-slate-700 rounded-lg text-slate-300 hover:text-white transition" title="Histórico">
-                <History size={20} />
-              </Link>
-
-              <button
-                onClick={handleOpenCloseModal}
-                className="p-2 hover:bg-slate-700 rounded-lg text-rose-300 hover:text-rose-200 transition"
-                title="Fechar Caixa"
-              >
-                <LogOut size={20} />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* ÁREA DE CONFERÊNCIA RÁPIDA (EXPANSÍVEL) */}
-        {showConference && currentSessionSummary && (
-          <div className="bg-slate-100 p-3 border-b border-slate-200 animate-in slide-in-from-top-2">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-xs font-bold text-slate-500 uppercase">Resumo Parcial</span>
-              <button onClick={() => setShowConference(false)} className="text-xs text-slate-400 hover:text-slate-600">Fechar</button>
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="bg-white p-2 rounded border border-slate-200">
-                <span className="block text-slate-400">Dinheiro</span>
-                <span className="font-bold text-slate-700">R$ {currentSessionSummary.money.toFixed(2)}</span>
-              </div>
-              <div className="bg-white p-2 rounded border border-slate-200">
-                <span className="block text-slate-400">Cartão</span>
-                <span className="font-bold text-slate-700">R$ {(currentSessionSummary.credit + currentSessionSummary.debit).toFixed(2)}</span>
-              </div>
-              <div className="bg-white p-2 rounded border border-slate-200">
-                <span className="block text-slate-400">PIX</span>
-                <span className="font-bold text-slate-700">R$ {currentSessionSummary.pix.toFixed(2)}</span>
-              </div>
-              <div className="bg-emerald-50 p-2 rounded border border-emerald-200">
-                <span className="block text-emerald-600">Total</span>
-                <span className="font-bold text-emerald-700">R$ {currentSessionSummary.total.toFixed(2)}</span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50">
-          {cart.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-50">
-              <ShoppingCart size={48} className="mb-2" />
-              <p>Carrinho Vazio</p>
-            </div>
-          ) : (
-            cart.map(item => (
-              <div key={item.id} className="flex justify-between items-center bg-white p-3 rounded-lg border border-slate-200 shadow-sm animate-in slide-in-from-right-2">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    {item.type === 'resale' ? (
-                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-                    ) : (
-                      <div className="w-1.5 h-1.5 rounded-full bg-amber-500"></div>
-                    )}
-                    <p className="text-sm font-bold text-slate-700 line-clamp-1">{item.name}</p>
-                  </div>
-                  <p className="text-xs text-slate-500">{item.quantity} x R$ {item.price.toFixed(2)}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="font-bold text-slate-700">R$ {(item.quantity * item.price).toFixed(2)}</div>
-                  <button onClick={() => removeFromCart(item.id)} className="text-red-400 hover:text-red-600 p-1">
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        <div className="p-4 bg-white border-t border-slate-200 rounded-b-xl shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-          <div className="flex justify-between items-end mb-4">
-            <span className="text-slate-500 font-medium">Total a Pagar</span>
-            <span className="text-4xl font-bold text-emerald-600">R$ {cartTotal.toFixed(2)}</span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => handleCheckout('Dinheiro')}
-              disabled={cart.length === 0}
-              className="flex flex-col items-center gap-1 p-3 bg-slate-50 border border-slate-200 rounded-lg hover:border-emerald-500 hover:bg-emerald-50 hover:text-emerald-700 transition disabled:opacity-50 active:scale-95"
-            >
-              <Banknote size={24} />
-              <span className="text-xs font-bold uppercase">Dinheiro</span>
-            </button>
-            <button
-              onClick={() => handleCheckout('PIX')}
-              disabled={cart.length === 0}
-              className="flex flex-col items-center gap-1 p-3 bg-slate-50 border border-slate-200 rounded-lg hover:border-emerald-500 hover:bg-emerald-50 hover:text-emerald-700 transition disabled:opacity-50 active:scale-95"
-            >
-              <QrCode size={24} />
-              <span className="text-xs font-bold uppercase">PIX</span>
-            </button>
-            <button
-              onClick={() => handleCheckout('Débito')}
-              disabled={cart.length === 0}
-              className="flex flex-col items-center gap-1 p-3 bg-slate-50 border border-slate-200 rounded-lg hover:border-sky-500 hover:bg-sky-50 hover:text-sky-700 transition disabled:opacity-50 active:scale-95"
-            >
-              <CreditCard size={24} />
-              <span className="text-xs font-bold uppercase">Débito</span>
-            </button>
-            <button
-              onClick={() => handleCheckout('Crédito')}
-              disabled={cart.length === 0}
-              className="flex flex-col items-center gap-1 p-3 bg-slate-50 border border-slate-200 rounded-lg hover:border-orange-500 hover:bg-orange-50 hover:text-orange-700 transition disabled:opacity-50 active:scale-95"
-            >
-              <CreditCard size={24} />
-              <span className="text-xs font-bold uppercase">Crédito</span>
-            </button>
-          </div>
-        </div>
+      {/* LADO DIREITO: CARRINHO (DESKTOP) - Escondido no Mobile */}
+      <div className="hidden md:flex w-96">
+        <CartPanel
+          cart={cart}
+          session={session}
+          onRemoveItem={removeFromCart}
+          onCheckout={handleCheckout}
+          onOpenCloseSession={handleOpenCloseModal}
+          onShowConference={handleConference}
+          showConference={showConference}
+          setShowConference={setShowConference}
+          sessionSummary={currentSessionSummary}
+        />
       </div>
+
+      {/* MOBILE CART BOTTOM BAR - Só aparece se tiver itens e carrinho fechado */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] flex items-center justify-between z-40">
+        <div>
+          <p className="text-xs text-slate-500 font-medium">{cartItemCount} itens</p>
+          <p className="text-xl font-bold text-slate-800">R$ {cartTotal.toFixed(2)}</p>
+        </div>
+        <button
+          onClick={() => setShowMobileCart(true)}
+          className="bg-slate-800 text-white px-6 py-2.5 rounded-lg font-bold flex items-center gap-2 animate-pulse"
+        >
+          Ver Carrinho <ChevronUp size={16} />
+        </button>
+      </div>
+
+      {/* MOBILE CART OVERLAY (SHEET) */}
+      {showMobileCart && (
+        <div className="fixed inset-0 z-50 md:hidden flex flex-col bg-white animate-in slide-in-from-bottom duration-300">
+          <CartPanel
+            cart={cart}
+            session={session}
+            onRemoveItem={removeFromCart}
+            onCheckout={handleCheckout}
+            onOpenCloseSession={handleOpenCloseModal}
+            onShowConference={handleConference}
+            showConference={showConference}
+            setShowConference={setShowConference}
+            sessionSummary={currentSessionSummary}
+            isMobile={true}
+            onCloseMobile={() => setShowMobileCart(false)}
+          />
+        </div>
+      )}
 
       {lastOrder && (
         <Receipt

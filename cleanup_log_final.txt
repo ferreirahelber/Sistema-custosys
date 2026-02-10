@@ -1,0 +1,18 @@
+
+> custosys@0.0.0 db:cleanup-e2e
+> npx tsx scripts/cleanup_e2e_data.ts
+
+[dotenv@17.2.3] injecting env (3) from .env -- tip: ÔÜÖ´©Å  write to custom object with { processEnv: myObject }
+Starting E2E data cleanup using SERVICE_ROLE key...
+Recipes cleanup command executed.
+Ingredients cleanup command executed.
+Products cleanup command executed.
+Found 0 profiles matching pattern.
+Found 1 auth users matching pattern.
+Total unique Test User IDs to cleanup: 1
+Deleted order items for 1 orders.
+Deleted 1 orders.
+Deleted 1 cash sessions.
+Deleted profiles for 1 users.
+Failed to delete auth user 84446ba0-a20b-477f-a71f-e7a2ad23c28f: Database error deleting user
+Cleanup finished.

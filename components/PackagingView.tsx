@@ -27,14 +27,14 @@ export function PackagingView() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [mode, setMode] = useState<'idle' | 'create' | 'edit'>('idle');
-  
+
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     barcode: '', // NOVO CAMPO
     packagePrice: '',
     packageAmount: '',
-    packageUnit: 'un', 
+    packageUnit: 'un',
     baseUnit: 'un',
     currentStock: '',
     minStock: '10'
@@ -108,14 +108,14 @@ export function PackagingView() {
   const calculateUnitCost = () => {
     const price = parseFloat(formData.packagePrice) || 0;
     const amount = parseFloat(formData.packageAmount) || 0;
-    
+
     if (amount === 0) return 0;
-    
+
     // Lógica para embalagens (Unidade)
     if (formData.packageUnit === 'un') {
       return price / amount;
     }
-    
+
     // Lógica para fitas (Metros -> cm)
     let multiplier = 1;
     if (formData.packageUnit === 'm' && formData.baseUnit === 'cm') multiplier = 100;
@@ -191,7 +191,7 @@ export function PackagingView() {
     }
   };
 
-  const filteredItems = items.filter(i => 
+  const filteredItems = items.filter(i =>
     i.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (i.barcode && i.barcode.includes(searchTerm))
   );
@@ -207,14 +207,14 @@ export function PackagingView() {
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-140px)] min-h-[600px] animate-fade-in">
-      
+
       {/* 🟦 PAINEL DE EDIÇÃO */}
       <div className="lg:w-1/3 bg-white rounded-xl shadow-lg border border-slate-200 flex flex-col overflow-hidden">
         <div className={`p-4 border-b flex justify-between items-center ${mode === 'create' ? theme.bg : mode === 'edit' ? 'bg-amber-50' : 'bg-slate-50'}`}>
           <div className="flex items-center gap-2 font-bold text-slate-700">
-            {mode === 'create' && <><Plus size={20} className={theme.text}/> Nova Embalagem</>}
-            {mode === 'edit' && <><Edit size={20} className="text-amber-600"/> Editando Item</>}
-            {mode === 'idle' && <><LayoutGrid size={20} className="text-slate-400"/> Painel de Detalhes</>}
+            {mode === 'create' && <><Plus size={20} className={theme.text} /> Nova Embalagem</>}
+            {mode === 'edit' && <><Edit size={20} className="text-amber-600" /> Editando Item</>}
+            {mode === 'idle' && <><LayoutGrid size={20} className="text-slate-400" /> Painel de Detalhes</>}
           </div>
           {mode !== 'idle' && (
             <button onClick={handleCancel} className="text-xs text-slate-500 hover:text-red-500 underline">Cancelar</button>
@@ -234,7 +234,7 @@ export function PackagingView() {
             </div>
           ) : (
             <form onSubmit={handleSave} className="space-y-5 animate-in slide-in-from-left-4 fade-in duration-300">
-              
+
               <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-4 text-white shadow-lg relative overflow-hidden group">
                 <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition">
                   <TrendingDown size={48} />
@@ -250,10 +250,10 @@ export function PackagingView() {
 
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase">Nome do Item</label>
-                <input 
+                <input
                   autoFocus
                   value={formData.name}
-                  onChange={e => setFormData({...formData, name: e.target.value})}
+                  onChange={e => setFormData({ ...formData, name: e.target.value })}
                   placeholder="Ex: Caixa de Bolo 20cm"
                   className="w-full mt-1 px-3 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-medium text-slate-700"
                 />
@@ -261,9 +261,9 @@ export function PackagingView() {
 
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1"><Barcode size={14} /> Código de Barras (Opcional)</label>
-                <input 
+                <input
                   value={formData.barcode}
-                  onChange={e => setFormData({...formData, barcode: e.target.value})}
+                  onChange={e => setFormData({ ...formData, barcode: e.target.value })}
                   placeholder="Bipe ou digite o código..."
                   className="w-full mt-1 px-3 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-slate-700"
                 />
@@ -272,19 +272,19 @@ export function PackagingView() {
               {/* CARD DE DADOS DE COMPRA (IGUAL AO REVENDA) */}
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3 relative">
                 <div className="absolute top-3 right-3 text-slate-300">
-                    <Calculator size={16} />
+                  <Calculator size={16} />
                 </div>
                 <h4 className="text-xs font-bold text-slate-700 uppercase flex items-center gap-2">
-                  <Package size={14}/> Dados de Compra (Fardo/Pacote)
+                  <Package size={14} /> Dados de Compra (Fardo/Pacote)
                 </h4>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-[10px] font-bold text-slate-400 uppercase">Preço Pacote (R$)</label>
-                    <input 
+                    <input
                       type="number" step="0.01"
                       value={formData.packagePrice}
-                      onChange={e => setFormData({...formData, packagePrice: e.target.value})}
+                      onChange={e => setFormData({ ...formData, packagePrice: e.target.value })}
                       placeholder="0.00"
                       className="w-full mt-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
                     />
@@ -292,15 +292,15 @@ export function PackagingView() {
                   <div>
                     <label className="text-[10px] font-bold text-slate-400 uppercase">Qtd. no Pacote</label>
                     <div className="flex mt-1">
-                      <input 
+                      <input
                         type="number" step="0.001"
                         value={formData.packageAmount}
-                        onChange={e => setFormData({...formData, packageAmount: e.target.value})}
+                        onChange={e => setFormData({ ...formData, packageAmount: e.target.value })}
                         className="w-full px-3 py-2 border-l border-t border-b rounded-l-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
                       />
-                      <select 
+                      <select
                         value={formData.packageUnit}
-                        onChange={e => setFormData({...formData, packageUnit: e.target.value})}
+                        onChange={e => setFormData({ ...formData, packageUnit: e.target.value })}
                         className="px-2 border rounded-r-lg bg-slate-100 text-slate-700 outline-none text-sm font-bold"
                       >
                         <option value="un">un</option>
@@ -312,10 +312,10 @@ export function PackagingView() {
                 </div>
 
                 <div className="pt-2 border-t border-slate-200 flex justify-between items-center">
-                    <span className="text-xs text-slate-500 font-bold">Custo Unitário Calculado:</span>
-                    <span className="text-sm font-black text-slate-700 bg-white px-2 py-1 rounded border border-slate-200">
-                        {formatCurrency(costKPI)} / {formData.baseUnit}
-                    </span>
+                  <span className="text-xs text-slate-500 font-bold">Custo Unitário Calculado:</span>
+                  <span className="text-sm font-black text-slate-700 bg-white px-2 py-1 rounded border border-slate-200">
+                    {formatCurrency(costKPI)} / {formData.baseUnit}
+                  </span>
                 </div>
               </div>
 
@@ -326,7 +326,7 @@ export function PackagingView() {
                     <button
                       key={u}
                       type="button"
-                      onClick={() => setFormData({...formData, baseUnit: u})}
+                      onClick={() => setFormData({ ...formData, baseUnit: u })}
                       className={`flex-1 py-2 text-sm font-bold rounded-lg border transition ${formData.baseUnit === u ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-white border-slate-200 text-slate-400'}`}
                     >
                       {u.toUpperCase()}
@@ -337,25 +337,25 @@ export function PackagingView() {
 
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
                 <h4 className="text-xs font-bold text-slate-700 uppercase flex items-center gap-2">
-                  <Package size={14}/> Estoque
+                  <Package size={14} /> Estoque
                 </h4>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-[10px] font-bold text-slate-400 uppercase">Atual</label>
-                    <input 
+                    <input
                       type="number"
                       value={formData.currentStock}
-                      onChange={e => setFormData({...formData, currentStock: e.target.value})}
+                      onChange={e => setFormData({ ...formData, currentStock: e.target.value })}
                       className="w-full mt-1 px-2 py-1.5 border rounded bg-white text-sm"
                       placeholder="0"
                     />
                   </div>
                   <div>
                     <label className="text-[10px] font-bold text-slate-400 uppercase">Mínimo</label>
-                    <input 
+                    <input
                       type="number"
                       value={formData.minStock}
-                      onChange={e => setFormData({...formData, minStock: e.target.value})}
+                      onChange={e => setFormData({ ...formData, minStock: e.target.value })}
                       className="w-full mt-1 px-2 py-1.5 border rounded bg-white text-sm"
                       placeholder="10"
                     />
@@ -377,7 +377,7 @@ export function PackagingView() {
         <div className="p-4 border-b border-slate-100 flex gap-4 bg-white z-20">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
-            <input 
+            <input
               placeholder="Buscar por nome ou código..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
@@ -391,7 +391,7 @@ export function PackagingView() {
 
         <div className="flex-1 overflow-auto bg-slate-50 relative">
           {loading ? (
-            <div className="flex items-center justify-center h-full"><Loader2 className="animate-spin text-slate-600"/></div>
+            <div className="flex items-center justify-center h-full"><Loader2 className="animate-spin text-slate-600" /></div>
           ) : (
             <table className="w-full text-sm text-left border-collapse">
               <thead className="sticky top-0 z-30 bg-white shadow-sm text-slate-500 font-bold uppercase text-xs">
@@ -404,8 +404,8 @@ export function PackagingView() {
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {filteredItems.map(item => (
-                  <tr 
-                    key={item.id} 
+                  <tr
+                    key={item.id}
                     onClick={() => handleSelect(item)}
                     className={`
                       group cursor-pointer transition-colors duration-150
@@ -415,10 +415,10 @@ export function PackagingView() {
                   >
                     <td className="p-4 font-bold text-slate-700 whitespace-nowrap">
                       <div>{item.name}</div>
-                      {item.barcode && <div className="text-[10px] text-slate-400 flex items-center gap-1"><Barcode size={10}/> {item.barcode}</div>}
+                      {item.barcode && <div className="text-[10px] text-slate-400 flex items-center gap-1"><Barcode size={10} /> {item.barcode}</div>}
                       {currentId === item.id && mode === 'edit' && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-200 text-blue-800 mt-1 inline-block">EDITANDO</span>}
                     </td>
-                    
+
                     <td className="p-4 whitespace-nowrap">
                       <div className={`flex flex-col text-blue-700`}>
                         <span className="font-bold">{formatCurrency(item.unit_cost_base)}</span>
@@ -427,16 +427,15 @@ export function PackagingView() {
                     </td>
 
                     <td className="p-4 text-center whitespace-nowrap">
-                        <span className={`text-xs font-bold px-2 py-1 rounded-full ${
-                          (item.current_stock || 0) <= (item.min_stock || 0) 
-                          ? 'bg-red-100 text-red-700' 
-                          : 'bg-green-100 text-green-700'
+                      <span className={`text-xs font-bold px-2 py-1 rounded-full ${(item.current_stock || 0) <= (item.min_stock || 0)
+                        ? 'bg-red-100 text-red-700'
+                        : 'bg-green-100 text-green-700'
                         }`}>
-                          {item.current_stock || 0} {item.base_unit}
-                        </span>
+                        {item.current_stock || 0} {item.base_unit}
+                      </span>
                     </td>
                     <td className="p-4 text-right whitespace-nowrap">
-                      <button 
+                      <button
                         onClick={(e) => confirmDelete(e, item)}
                         className="p-2 text-slate-300 hover:text-red-600 hover:bg-white rounded-full transition relative z-10"
                       >

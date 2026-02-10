@@ -52,20 +52,19 @@ export interface Ingredient {
   min_stock?: number;
 
   // --- Campos Legados/Compatibilidade ---
-  price?: number; 
-  unit?: string; 
+  price?: number;
+  unit?: string;
 
   // --- Outros ---
   conversions?: MeasureConversion[];
 }
 
-// --- NOVA INTERFACE QUE FALTAVA ---
 export interface Product {
   id: string;
   name: string;
   price: number;       // Preço de Venda
   cost_price?: number; // Preço de Custo Unitário
-  type?: 'recipe' | 'resale'; 
+  type?: 'recipe' | 'resale';
 
   // Dados de compra (Revenda)
   package_price?: number;
@@ -94,6 +93,7 @@ export interface RecipeItem {
   id: string;
   ingredient_id: string;
   item_id?: string;             // Adicionado para a nova arquitetura
+  sub_recipe_id?: string;       // ID da receita quando item_type = 'recipe'
   item_type: 'ingredient' | 'recipe'; // Adicionado para distinguir base de ingrediente
   quantity_used: number;
   quantity_input?: number;
@@ -107,7 +107,7 @@ export interface Recipe {
   id: string;
   name: string;
   is_base: boolean;
-  yield_units:number; // Mantido por compatibilidade
+  yield_units: number; // Mantido por compatibilidade
   yield_quantity: number;        // Quantidade total produzida (ex: 1200)
   yield_unit: 'g' | 'ml' | 'un'; // NOVO: Unidade do rendimento
   preparation_time_minutes: number;
@@ -149,7 +149,7 @@ export interface Sale {
   category: string;
   date: string;
   created_at: string;
-  fee_amount?: number; 
+  fee_amount?: number;
   net_amount?: number;
   payment_method?: string; // Adicionado para evitar erro no SalesView
 }
@@ -164,6 +164,12 @@ export interface Expense {
   created_at: string;
 }
 
+export interface FixedCost {
+  id?: string;
+  name: string;
+  value: number;
+}
+
 // --- MÓDULO FRENTE DE CAIXA (PDV) ---
 
 export interface CartItem {
@@ -172,7 +178,7 @@ export interface CartItem {
   price: number;
   quantity: number;
   // Atualizado para aceitar 'resale' que vem do banco
-  type?: 'recipe' | 'product' | 'resale'; 
+  type?: 'recipe' | 'product' | 'resale';
 }
 
 export interface Customer {
@@ -187,6 +193,7 @@ export interface Customer {
 export interface CashSession {
   id: string;
   user_id: string;
+  user_email?: string; // NOVO: Email do usuário para histórico
   opened_at: string;
   closed_at?: string;
   initial_balance: number;
@@ -194,6 +201,8 @@ export interface CashSession {
   calculated_balance?: number;
   status: 'open' | 'closed';
   notes?: string;
+  verified_at?: string; // NOVO
+  verified_by?: string; // NOVO
 }
 
 export interface Order {
@@ -217,7 +226,7 @@ export interface OrderItem {
   order_id?: string;
   product_id: string;
   product_name: string;
-  quantity: number;conversions
+  quantity: number;
   unit_price: number;
   total_price: number;
   // Atualizado para aceitar 'resale'
@@ -227,4 +236,15 @@ export interface OrderItem {
 export interface Category {
   id: number;
   name: string;
+}
+
+export interface Profile {
+  id: string;
+  user_id?: string;
+  email: string;
+  name?: string;
+  role: 'admin' | 'manager' | 'cashier' | 'user';
+  created_at: string;
+  updated_at: string;
+  status?: 'active' | 'pending';
 }

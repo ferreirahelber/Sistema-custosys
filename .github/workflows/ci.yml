@@ -36,6 +36,6 @@ jobs:
       # Injetamos variáveis dummy para o supabase.ts não lançar erro ao carregar
       - name: Rodar Testes Automatizados
         env:
-          VITE_SUPABASE_URL: "https://ci-mock.supabase.co"
-          VITE_SUPABASE_ANON_KEY: "mock-key-for-ci-tests"
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: npm run test

@@ -86,8 +86,9 @@ export const RecipeService = {
 
       const itemsToInsert = items.map((item) => ({
         recipe_id: savedRecipe.id,
-        // CORREÇÃO: Se for 'recipe', manda nulo para ingredient_id para não quebrar a Foreign Key
-        ingredient_id: item.item_type === 'recipe' ? null : item.ingredient_id,
+        // CORREÇÃO: Mapeia corretamente para ingredient_id ou sub_recipe_id dependendo do tipo
+        ingredient_id: item.item_type === 'recipe' ? null : (item.ingredient_id || item.item_id),
+        sub_recipe_id: item.item_type === 'recipe' ? (item.ingredient_id || item.item_id) : null,
         // Adicione o campo abaixo se você criou a coluna no banco, senão o ingredient_name já resolve o texto
         quantity: item.quantity_used,
         quantity_input: item.quantity_input,

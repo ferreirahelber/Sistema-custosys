@@ -1,22 +1,40 @@
 import { supabase } from './supabase';
 import { CashSession, Order, OrderItem, CartItem } from '../types';
 import { SettingsService } from './settingsService';
+import { FinancialService } from './financialService';
 import Decimal from 'decimal.js';
 
 export const PosService = {
   // =================================================================
-  // 1. CONTROLE DE CAIXA (MANTIDO DO SEU CÓDIGO ORIGINAL)
+  // 1. CONTROLE DE CAIXA (MULTI-USUÁRIO)
   // =================================================================
   async getCurrentSession() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
     const { data, error } = await supabase
       .from('cash_sessions')
       .select('*')
       .eq('status', 'open')
+      .eq('user_id', user.id) // FILTRO DE USUÁRIO
       .order('opened_at', { ascending: false })
       .limit(1)
       .maybeSingle();
+
     if (error) throw error;
     return data as CashSession | null;
+  },
+
+  // Busca TODAS as sessões abertas (apenas para Admin/Dashboard)
+  async getAllOpenSessions() {
+    const { data, error } = await supabase
+      .from('cash_sessions')
+      .select('*')
+      .eq('status', 'open')
+      .order('opened_at', { ascending: false });
+
+    if (error) throw error;
+    return data as CashSession[];
   },
 
   async getSessionSummary(sessionId: string) {
@@ -41,25 +59,94 @@ export const PosService = {
   },
 
   async getSessionHistory() {
-    const { data, error } = await supabase.from('cash_sessions').select('*').eq('status', 'closed').order('closed_at', { ascending: false }).limit(20);
+    // Retorna histórico geral. Pode-se filtrar por user se for 'cashier', mas pedido foi ver histórico geral.
+    const { data, error } = await supabase
+      .from('cash_sessions')
+      .select('*')
+      .eq('status', 'closed')
+      .order('closed_at', { ascending: false })
+      .limit(50); // Aumentei limite
     if (error) throw error;
     return data as CashSession[];
   },
 
   async openSession(initialBalance: number) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Usuário não autenticado");
+
     const current = await this.getCurrentSession();
     if (current) return current;
-    const { data, error } = await supabase.from('cash_sessions').insert([{ initial_balance: initialBalance, status: 'open', opened_at: new Date().toISOString() }]).select().single();
+
+    const { data, error } = await supabase.from('cash_sessions').insert([{
+      initial_balance: initialBalance,
+      status: 'open',
+      opened_at: new Date().toISOString(),
+      user_id: user.id,        // GRAVA USER ID
+      user_email: user.email   // GRAVA USER EMAIL
+    }]).select().single();
+
     if (error) throw error;
     return data as CashSession;
   },
 
   async closeSession(id: string, finalBalance: number, notes: string) {
+    const { data: { user } } = await supabase.auth.getUser(); // Pega usuário atual
     const summary = await this.getSessionSummary(id);
     const { data: session } = await supabase.from('cash_sessions').select('initial_balance').eq('id', id).single();
     const initial = Number(session?.initial_balance || 0);
     const calculated = initial + summary.money;
-    const { error } = await supabase.from('cash_sessions').update({ final_balance: Number(finalBalance), calculated_balance: Number(calculated), status: 'closed', closed_at: new Date().toISOString(), notes: notes || '' }).eq('id', id);
+
+    const { error } = await supabase.from('cash_sessions').update({
+      final_balance: Number(finalBalance),
+      calculated_balance: Number(calculated),
+      status: 'closed',
+      closed_at: new Date().toISOString(),
+      notes: notes || '',
+      user_email: user?.email // Salva/Atualiza email de quem fechou (fallback)
+    }).eq('id', id);
+
+    if (error) throw error;
+  },
+
+  // FECHAMENTO FORÇADO (ADMIN)
+  async forceCloseSession(sessionId: string, userId: string) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Usuário não autenticado");
+
+    // 1. Calcula totais atuais para fechar coerentemente
+    const summary = await this.getSessionSummary(sessionId);
+    const { data: session } = await supabase.from('cash_sessions').select('initial_balance').eq('id', sessionId).single();
+
+    // Se não achar sessão, erro
+    if (!session) throw new Error("Sessão não encontrada");
+
+    const initial = Number(session.initial_balance || 0);
+    const calculated = initial + summary.money; // Assumindo que calculated é Base + Dinheiro (regra atual)
+
+    // 2. Atualiza para fechado
+    // Usa calculated como final_balance para não gerar quebra
+    const { error } = await supabase.from('cash_sessions').update({
+      final_balance: Number(calculated),
+      calculated_balance: Number(calculated),
+      status: 'closed',
+      closed_at: new Date().toISOString(),
+      notes: 'Fechamento administrativo forçado',
+      verified_at: new Date().toISOString(), // Já marca como verificado/ciente
+      verified_by: user.email
+    }).eq('id', sessionId);
+
+    if (error) throw error;
+  },
+
+  async verifySession(id: string) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Usuário não autenticado");
+
+    const { error } = await supabase.from('cash_sessions').update({
+      verified_at: new Date().toISOString(),
+      verified_by: user.email
+    }).eq('id', id);
+
     if (error) throw error;
   },
 
@@ -118,125 +205,55 @@ export const PosService = {
     } catch (err) {
       settings = null;
     }
-    
-    // B. Cálculos Financeiros (USANDO DECIMAL.JS PARA PRECISÃO)
-    const totalDec = new Decimal(orderData.total_amount || 0);
-    const method = (orderData.payment_method || '').toLowerCase();
-    
-    const debitRate = new Decimal(settings?.card_debit_rate ?? 1.60);
-    const creditRate = new Decimal(settings?.card_credit_rate ?? 4.39);
-    
-    let feeDec = new Decimal(0);
 
-    // Calcula Taxa
-    if (method.includes('débito') || method.includes('debito')) {
-      feeDec = totalDec.times(debitRate.dividedBy(100));
-    } 
-    else if (method.includes('crédito') || method.includes('credito')) {
-      feeDec = totalDec.times(creditRate.dividedBy(100));
-    }
+    // Recupera usuário (Removido acidentalmente)
+    const user = (await supabase.auth.getUser()).data.user;
 
-    const netAmountDec = totalDec.minus(feeDec);
+    // B. Cálculos Financeiros (USANDO SERVIÇO CENTRALIZADO)
+    const { total, fee, net, rateApplied } = FinancialService.calculateTransactionFees(
+      orderData.total_amount,
+      orderData.payment_method,
+      settings
+    );
 
-    // C. Salva PEDIDO (Order)
-    const cleanOrderPayload = {
+    const feeDec = new Decimal(fee);
+    const totalDec = new Decimal(total);
+    const netAmountDec = new Decimal(net);
+
+    // C. Preparar Payload para RPC
+    const payload = {
       session_id: orderData.session_id,
       customer_id: orderData.customer_id || null,
       total_amount: totalDec.toNumber(),
       discount: Number(orderData.discount || 0),
       change_amount: Number(orderData.change_amount || 0),
       payment_method: orderData.payment_method,
-      status: 'completed',
-      fee_amount: feeDec.toNumber(),       
-      net_amount: netAmountDec.toNumber() 
+      fee_amount: feeDec.toNumber(),
+      net_amount: netAmountDec.toNumber(),
+      user_email: user?.email,
+      user_id: user?.id
     };
 
-    const { data: newOrder, error: orderError } = await supabase.from('orders').insert([cleanOrderPayload]).select().single();
-    if (orderError) throw orderError;
-
-    // D. Salva ITENS DO PEDIDO
-    const itemsWithOrderId = items.map(item => ({
-      order_id: newOrder.id,
+    // D. Preparar Itens para RPC
+    const itemsPayload = items.map(item => ({
       product_id: item.product_id,
       product_name: item.product_name,
       quantity: item.quantity,
       unit_price: item.unit_price,
       total_price: item.total_price,
-      type: item.type || 'recipe' 
+      type: item.type || 'recipe'
     }));
 
-    const { error: itemsError } = await supabase.from('order_items').insert(itemsWithOrderId);
-    if (itemsError) throw itemsError;
+    // E. CHAMADA RPC ATÔMICA
+    const { data: orderId, error: rpcError } = await supabase.rpc('process_sale', {
+      payload: payload,
+      items: itemsPayload
+    });
 
-    // =================================================================
-    // E. BAIXA DE ESTOQUE (A GRANDE MELHORIA)
-    // =================================================================
-    for (const item of items) {
-      if (item.type === 'recipe') {
-        // Se for receita, baixa os ingredientes
-        const { data: recipeIngredients } = await supabase
-          .from('recipe_items')
-          .select('ingredient_id, quantity')
-          .eq('recipe_id', item.product_id);
+    if (rpcError) throw rpcError;
 
-        if (recipeIngredients) {
-          for (const ri of recipeIngredients) {
-            if (ri.ingredient_id) {
-              const qtyToDeduct = new Decimal(ri.quantity).times(item.quantity);
-
-              // Busca estoque atual
-              const { data: currentIng } = await supabase
-                .from('ingredients')
-                .select('current_stock')
-                .eq('id', ri.ingredient_id)
-                .single();
-
-              if (currentIng) {
-                const currentStock = new Decimal(currentIng.current_stock || 0);
-                const newStock = currentStock.minus(qtyToDeduct);
-
-                // Atualiza ingrediente
-                await supabase
-                  .from('ingredients')
-                  .update({ current_stock: newStock.toNumber() })
-                  .eq('id', ri.ingredient_id);
-              }
-            }
-          }
-        }
-      } 
-      // Opcional: Se você controla estoque de revenda na tabela 'products', adicione lógica aqui
-    }
-
-    // F. Salva FINANCEIRO (Mantém compatibilidade com seu Dashboard atual)
-    const salePayload = {
-      user_id: (await supabase.auth.getUser()).data.user?.id, // Garante user_id
-      description: `PDV #${newOrder.id.substring(0,6)}`,
-      amount: totalDec.toNumber(),          
-      fee_amount: feeDec.toNumber(),        
-      net_amount: netAmountDec.toNumber(),  
-      category: 'Venda PDV',
-      payment_method: orderData.payment_method,
-      date: new Date().toISOString().split('T')[0]
-    };
-
-    const { error: salesError } = await supabase.from('sales').insert([salePayload]);
-    if (salesError) {
-       console.error("Erro ao salvar financeiro (sales)", salesError);
-    }
-    
-    // G. Opcional: Salvar Taxa na tabela expenses (para ficar perfeito)
-    if (feeDec.greaterThan(0)) {
-       await supabase.from('expenses').insert({
-         user_id: (await supabase.auth.getUser()).data.user?.id,
-         description: `Taxa Cartão - Pedido #${newOrder.id.slice(0, 8)}`,
-         amount: feeDec.toNumber(),
-         category: 'Taxas Financeiras',
-         date: new Date().toISOString(),
-       });
-    }
-
-    return newOrder;
+    // Retorna um objeto compatível com o que a UI espera (pelo menos o ID)
+    return { id: orderId };
   },
 
   // =================================================================

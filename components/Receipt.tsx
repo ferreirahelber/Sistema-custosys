@@ -13,7 +13,7 @@ export const Receipt = React.forwardRef<HTMLDivElement, ReceiptProps>(
   ({ items, total, paymentMethod, date, orderId }, ref) => {
     return (
       <div ref={ref} id="receipt-area" className="hidden print:block p-4 bg-white text-black font-mono text-xs w-[80mm] mx-auto">
-        
+
         {/* CABEÇALHO */}
         <div className="text-center border-b border-black pb-2 mb-2 border-dashed">
           <h1 className="font-bold text-lg uppercase">Dodoce's</h1>
@@ -21,7 +21,7 @@ export const Receipt = React.forwardRef<HTMLDivElement, ReceiptProps>(
           <p className="text-[10px] mt-1">
             {date.toLocaleDateString('pt-BR')} - {date.toLocaleTimeString('pt-BR')}
           </p>
-          {orderId && <p className="text-[10px]">Pedido #{orderId.slice(0, 8)}</p>}
+          {orderId && <p className="text-[10px]">Pedido #{String(orderId).slice(0, 8)}</p>}
         </div>
 
         {/* ITENS */}

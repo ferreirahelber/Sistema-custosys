@@ -1,0 +1,13 @@
+
+Running 1 test using 1 worker
+
+[1A[2K[1/1] [chromium] › tests\e2e\simple.spec.ts:3:1 › Simple Environment Check
+[1A[2K[chromium] › tests\e2e\simple.spec.ts:3:1 › Simple Environment Check
+ENVIRONMENT IS WORKING
+
+[1A[2K  1 passed (2.9s)
+
+To open last HTML report run:
+[36m[39m
+[36m  npx playwright show-report[39m
+[36m[39m

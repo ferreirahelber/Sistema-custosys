@@ -1,0 +1,2 @@
+components/Dashboard.tsx(172,10): error TS2304: Cannot find name 'Loader2'.
+temp_v1_4_0/SettingsForm.tsx(4,28): error TS2459: Module '"../services/fixedCostService"' declares 'FixedCost' locally, but it is not exported.

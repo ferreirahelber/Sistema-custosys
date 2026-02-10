@@ -1,10 +1,5 @@
 import { supabase } from './supabase';
-
-export interface FixedCost {
-  id?: string;
-  name: string;
-  value: number;
-}
+import { FixedCost } from '../types';
 
 export const FixedCostService = {
   // Buscar todas as contas
@@ -15,7 +10,7 @@ export const FixedCostService = {
       .order('created_at', { ascending: true });
 
     if (error) throw error;
-    return data || [];
+    return data as FixedCost[];
   },
 
   // Adicionar conta

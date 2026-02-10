@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { SettingsService } from '../services/settingsService';
-import { TeamService, TeamMember } from '../services/teamService';
-import { FixedCostService, FixedCost } from '../services/fixedCostService';
+import { useSettings, useSettingsMutations, useTeam, useTeamMutations } from '../hooks/useSystem';
+import { FixedCostService } from '../services/fixedCostService'; // Maintaining service for FixedCosts as hooks might not exist or be different
 import {
   Users,
   Calculator,
@@ -21,26 +20,30 @@ import {
   Percent,
   Info,
   Briefcase,
-  CreditCard // Icone Novo
+  CreditCard
 } from 'lucide-react';
-import { Settings } from '../types';
+import { Settings, Employee, FixedCost } from '../types';
 import { toast } from 'sonner';
-import { BackupService, BackupData } from '../services/backupService';
+import { BackupService } from '../services/backupService';
 
-interface Props {
-  onSave?: () => void;
-}
+export const SettingsForm: React.FC = () => {
+  // Hooks
+  const { data: serverSettings, isLoading: isLoadingSettings } = useSettings();
+  const { data: serverTeam = [], isLoading: isLoadingTeam } = useTeam();
 
-export const SettingsForm: React.FC<Props> = ({ onSave }) => {
-  const [loading, setLoading] = useState(true);
+  const { updateSettings } = useSettingsMutations();
+  const { addMember, deleteMember, updateMember } = useTeamMutations();
+
+  // Local State
   const [saving, setSaving] = useState(false);
 
   // --- DADOS DA EQUIPE ---
-  const [team, setTeam] = useState<TeamMember[]>([]);
+  // We use serverTeam directly for display, but local state for the form
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({ name: '', salary: '', hours: '' });
 
   // --- DADOS DOS CUSTOS FIXOS ---
+  // FixedCostService likely doesn't have a hook equivalent in the context provided, so we keep using state and service
   const [fixedCosts, setFixedCosts] = useState<FixedCost[]>([]);
   const [editingCostId, setEditingCostId] = useState<string | null>(null);
   const [newCost, setNewCost] = useState({ name: '', value: '' });
@@ -48,8 +51,6 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
 
   // Estados novos (Taxas de Venda)
   const [defaultTaxRate, setDefaultTaxRate] = useState(4.5);
-  
-  // --- ALTERAÇÃO AQUI: NOVOS ESTADOS PARA CARTÃO ---
   const [cardDebitRate, setCardDebitRate] = useState(1.60);
   const [cardCreditRate, setCardCreditRate] = useState(4.39);
 
@@ -59,47 +60,34 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
   const [fixedOverheadRate, setFixedOverheadRate] = useState(0);
   const [estimatedRevenue, setEstimatedRevenue] = useState(0);
 
+  // Load Data Effect
   useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      const [settingsData, teamData, costsData] = await Promise.all([
-        SettingsService.get(),
-        TeamService.getAll(),
-        FixedCostService.getAll(),
-      ]);
-
-      setTeam(teamData);
-      setFixedCosts(costsData);
-
-      const tax = settingsData.default_tax_rate ?? 4.5;
+    if (serverSettings) {
+      const tax = serverSettings.default_tax_rate ?? 4.5;
       setDefaultTaxRate(tax);
-      
-      // --- ALTERAÇÃO AQUI: CARREGAR TAXAS DO BANCO ---
-      setCardDebitRate(settingsData.card_debit_rate ?? 1.60);
-      setCardCreditRate(settingsData.card_credit_rate ?? 4.39);
+      setCardDebitRate(serverSettings.card_debit_rate ?? 1.60);
+      setCardCreditRate(serverSettings.card_credit_rate ?? 4.39);
 
       if (tax === 0) setIsMei(true);
 
-      setFixedOverheadRate(settingsData.fixed_overhead_rate || 0);
-      setEstimatedRevenue(settingsData.estimated_monthly_revenue || 0);
-
-      if (
-        costsData.length > 0 &&
-        (!settingsData.fixed_overhead_rate || settingsData.fixed_overhead_rate === 0)
-      ) {
-        setCostMode('detailed');
-      }
-    } catch (error) {
-      console.error('Erro ao carregar:', error);
-      toast.error('Não foi possível carregar as configurações.');
-    } finally {
-      setLoading(false);
+      setFixedOverheadRate(serverSettings.fixed_overhead_rate || 0);
+      setEstimatedRevenue(serverSettings.estimated_monthly_revenue || 0);
     }
-  };
+
+    // Load Fixed Costs (Manual Service Call)
+    const loadFixedCosts = async () => {
+      try {
+        const costs = await FixedCostService.getAll();
+        setFixedCosts(costs);
+        if (costs.length > 0 && (!serverSettings?.fixed_overhead_rate || serverSettings.fixed_overhead_rate === 0)) {
+          setCostMode('detailed');
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    }
+    loadFixedCosts();
+  }, [serverSettings]);
 
   // --- LÓGICA MEI ---
   const handleMeiChange = (isMeiChecked: boolean) => {
@@ -109,28 +97,45 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
     }
   };
 
+  // Calculations
   const calculateMemberCPH = (salary: number, hours: number) => (hours > 0 ? salary / hours : 0);
   const calculateMemberCPM = (salary: number, hours: number) => hours > 0 ? salary / (hours * 60) : 0;
-  const totalLaborCost = team.reduce((acc, curr) => acc + Number(curr.salary), 0);
-  const totalHours = team.reduce((acc, curr) => acc + Number(curr.hours_monthly), 0);
-  const globalCPH = team.reduce((acc, curr) => acc + calculateMemberCPH(curr.salary, curr.hours_monthly), 0);
-  const globalCPM = team.reduce((acc, curr) => acc + calculateMemberCPM(curr.salary, curr.hours_monthly), 0);
+
+  const totalLaborCost = serverTeam.reduce((acc, curr) => acc + Number(curr.salary), 0);
+  const totalHours = serverTeam.reduce((acc, curr) => acc + Number(curr.hours_monthly), 0);
+  const globalCPH = serverTeam.reduce((acc, curr) => acc + calculateMemberCPH(curr.salary, curr.hours_monthly), 0);
+  const globalCPM = serverTeam.reduce((acc, curr) => acc + calculateMemberCPM(curr.salary, curr.hours_monthly), 0);
+
   const totalFixedExpenses = fixedCosts.reduce((acc, curr) => acc + Number(curr.value), 0);
   const calculatedRate = estimatedRevenue > 0 ? (totalFixedExpenses / estimatedRevenue) * 100 : 0;
 
   // --- AÇÕES EQUIPE ---
-  const handleEditClick = (member: TeamMember) => { setEditingId(member.id!); setFormData({ name: member.name, salary: member.salary.toString(), hours: member.hours_monthly.toString() }); };
+  const handleEditClick = (member: any) => {
+    setEditingId(member.id);
+    setFormData({ name: member.name, salary: member.salary.toString(), hours: member.hours_monthly.toString() });
+  };
+
   const handleCancelEdit = () => { setEditingId(null); setFormData({ name: '', salary: '', hours: '' }); };
+
   const handleSaveMember = async () => {
     if (!formData.name || !formData.salary || !formData.hours) { toast.warning('Preencha todos os campos.'); return; }
     try {
-      setSaving(true); const payload = { name: formData.name, salary: parseFloat(formData.salary), hours_monthly: parseFloat(formData.hours) };
-      if (editingId) { await TeamService.update(editingId, payload); toast.success('Atualizado!'); } else { await TeamService.add(payload); toast.success('Adicionado!'); }
-      handleCancelEdit(); const newTeam = await TeamService.getAll(); setTeam(newTeam);
+      setSaving(true);
+      const payload = { name: formData.name, salary: parseFloat(formData.salary), hours_monthly: parseFloat(formData.hours) };
+
+      if (editingId) {
+        await updateMember.mutateAsync({ id: editingId, data: payload });
+        toast.success('Atualizado!');
+      } else {
+        await addMember.mutateAsync(payload);
+        toast.success('Adicionado!');
+      }
+      handleCancelEdit();
     } catch (e) { toast.error('Erro.'); } finally { setSaving(false); }
   };
+
   const handleRemoveMember = (id: string) => {
-    const member = team.find((m) => m.id === id);
+    const member = serverTeam.find((m) => m.id === id);
     const name = member ? member.name : 'este colaborador';
 
     toast.error(`Remover "${name}"?`, {
@@ -139,9 +144,7 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
         label: 'REMOVER',
         onClick: async () => {
           try {
-            await TeamService.delete(id);
-            const newTeam = await TeamService.getAll();
-            setTeam(newTeam);
+            await deleteMember.mutateAsync(id);
             if (editingId === id) handleCancelEdit();
             toast.success('Colaborador removido.');
           } catch (e) {
@@ -155,17 +158,21 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
     });
   };
 
-  // --- AÇÕES CUSTOS ---
+  // --- AÇÕES CUSTOS (Usando Service diretamente pois não temos hooks para FixedCost aparentemente) ---
   const handleEditCost = (cost: FixedCost) => { setEditingCostId(cost.id!); setNewCost({ name: cost.name, value: cost.value.toString() }); };
   const handleCancelCostEdit = () => { setEditingCostId(null); setNewCost({ name: '', value: '' }); };
+
   const handleSaveCost = async () => {
     if (!newCost.name || !newCost.value) { toast.warning('Preencha os campos.'); return; }
     try {
       setSaving(true); const payload = { name: newCost.name, value: parseFloat(newCost.value) };
       if (editingCostId) { await FixedCostService.update(editingCostId, payload); toast.success('Atualizado!'); } else { await FixedCostService.add(payload); toast.success('Adicionado!'); }
-      handleCancelCostEdit(); const newCosts = await FixedCostService.getAll(); setFixedCosts(newCosts);
+      handleCancelCostEdit();
+      const newCosts = await FixedCostService.getAll();
+      setFixedCosts(newCosts);
     } catch (e) { toast.error('Erro.'); } finally { setSaving(false); }
   };
+
   const handleRemoveCost = (id: string) => {
     const cost = fixedCosts.find((c) => c.id === id);
     const name = cost ? cost.name : 'este custo';
@@ -191,45 +198,45 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
       duration: 5000,
     });
   };
+
   const applyCalculatedRate = () => { setFixedOverheadRate(parseFloat(calculatedRate.toFixed(2))); toast.info(`Taxa de ${calculatedRate.toFixed(2)}% aplicada!`); };
 
   const handleSaveAll = async () => {
     try {
       setSaving(true);
-      const settingsToSave: Settings = {
-        employees: team as any[],
+      const settingsToSave = {
         labor_monthly_cost: totalLaborCost,
         work_hours_monthly: totalHours,
         fixed_overhead_rate: fixedOverheadRate,
         cost_per_minute: globalCPM,
         estimated_monthly_revenue: estimatedRevenue,
         default_tax_rate: defaultTaxRate,
-        // --- ALTERAÇÃO AQUI: SALVAR AS NOVAS TAXAS ---
         card_debit_rate: cardDebitRate,
         card_credit_rate: cardCreditRate,
-      };
-      await SettingsService.save(settingsToSave);
+      } as Settings;
+
+      await updateSettings.mutateAsync(settingsToSave);
       toast.success('Configurações salvas!');
-      if (onSave) onSave();
     } catch (error) { toast.error('Erro ao salvar.'); } finally { setSaving(false); }
   };
 
-  const handleExport = async () => { 
+  const handleExport = async () => {
     try {
-        const data = await BackupService.exportData();
-        const blob = new Blob([data], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `custosys_backup_${new Date().toISOString().split('T')[0]}.json`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      } catch (error) {
-        toast.error('Erro ao exportar dados');
-      }
-   };
-  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => { 
+      const data = await BackupService.exportData();
+      const blob = new Blob([data], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `custosys_backup_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      toast.error('Erro ao exportar dados');
+    }
+  };
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -243,11 +250,11 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
     }
   };
 
-  if (loading) return <div className="flex justify-center py-12"><Loader2 className="animate-spin text-amber-600" /></div>;
+  if (isLoadingSettings || isLoadingTeam) return <div className="flex justify-center py-12"><Loader2 className="animate-spin text-amber-600" /></div>;
 
   return (
-    <div className="space-y-8 w-full pb-12">
-      {/* SEÇÃO 1: EQUIPE (MANTIDO IGUAL) */}
+    <div className="space-y-8 w-full pb-12 animate-fade-in">
+      {/* SEÇÃO 1: EQUIPE */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="p-6 border-b border-slate-100 bg-slate-50">
           <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
@@ -291,7 +298,7 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {team.map((member) => (
+                {serverTeam.map((member) => (
                   <tr key={member.id} className="hover:bg-slate-50 transition">
                     <td className="p-3 font-medium">{member.name}</td>
                     <td className="p-3">R$ {Number(member.salary).toFixed(2)}</td>
@@ -300,18 +307,18 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
                     <td className="p-3 bg-amber-50/50 font-bold text-amber-700">R$ {calculateMemberCPM(member.salary, member.hours_monthly).toFixed(2)}</td>
                     <td className="p-3 text-right flex justify-end gap-2">
                       <button onClick={() => handleEditClick(member)} className="text-slate-400 hover:text-amber-600"><Edit size={16} /></button>
-                      <button onClick={() => handleRemoveMember(member.id!)} className="text-slate-400 hover:text-red-600"><Trash2 size={16} /></button>
+                      <button onClick={() => member.id && handleRemoveMember(member.id)} className="text-slate-400 hover:text-red-600"><Trash2 size={16} /></button>
                     </td>
                   </tr>
                 ))}
               </tbody>
-              {team.length > 0 && <tfoot className="bg-slate-50 font-bold text-slate-800"><tr><td className="p-3">TOTAIS</td><td className="p-3">R$ {totalLaborCost.toFixed(2)}</td><td className="p-3">{totalHours}h</td><td className="p-3 text-blue-700">R$ {globalCPH.toFixed(2)}</td><td className="p-3 text-amber-700">R$ {globalCPM.toFixed(2)}</td><td></td></tr></tfoot>}
+              {serverTeam.length > 0 && <tfoot className="bg-slate-50 font-bold text-slate-800"><tr><td className="p-3">TOTAIS</td><td className="p-3">R$ {totalLaborCost.toFixed(2)}</td><td className="p-3">{totalHours}h</td><td className="p-3 text-blue-700">R$ {globalCPH.toFixed(2)}</td><td className="p-3 text-amber-700">R$ {globalCPM.toFixed(2)}</td><td></td></tr></tfoot>}
             </table>
           </div>
         </div>
       </div>
 
-      {/* SEÇÃO 2: CUSTOS FIXOS (MANTIDO IGUAL) */}
+      {/* SEÇÃO 2: CUSTOS FIXOS */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="p-6 border-b border-slate-100 bg-slate-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
@@ -355,7 +362,7 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
                         <span className="text-sm font-bold text-slate-800">R$ {Number(cost.value).toFixed(2)}</span>
                         <div className="flex items-center gap-1">
                           <button onClick={() => handleEditCost(cost)} className="p-1 text-slate-300 hover:text-amber-600 rounded"><Edit size={14} /></button>
-                          <button onClick={() => handleRemoveCost(cost.id!)} className="p-1 text-slate-300 hover:text-red-500 rounded"><Trash2 size={14} /></button>
+                          <button onClick={() => cost.id && handleRemoveCost(cost.id)} className="p-1 text-slate-300 hover:text-red-500 rounded"><Trash2 size={14} /></button>
                         </div>
                       </div>
                     </div>
@@ -462,7 +469,7 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
 
             <div>
               <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1">
-                 <CreditCard size={14} className="text-purple-500"/> Taxa Débito %
+                <CreditCard size={14} className="text-purple-500" /> Taxa Débito %
               </label>
               <div className="relative mt-1">
                 <input
@@ -478,7 +485,7 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
 
             <div>
               <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1">
-                 <CreditCard size={14} className="text-orange-500"/> Taxa Crédito %
+                <CreditCard size={14} className="text-orange-500" /> Taxa Crédito %
               </label>
               <div className="relative mt-1">
                 <input
@@ -495,7 +502,7 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
         </div>
       </div>
 
-      {/* SEÇÃO 3: RESUMO FINAL (MANTIDO IGUAL) */}
+      {/* SEÇÃO 3: RESUMO FINAL */}
       <div className="bg-slate-900 rounded-xl shadow-lg p-6 text-white">
         <div className="flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-4">
@@ -517,7 +524,7 @@ export const SettingsForm: React.FC<Props> = ({ onSave }) => {
         </div>
       </div>
 
-      {/* SEÇÃO 4: DADOS (MANTIDO IGUAL) */}
+      {/* SEÇÃO 4: DADOS */}
       <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
         <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><Database className="text-amber-600" size={20} /> Backup e Restauro</h3>
         <div className="p-4 bg-amber-50 rounded-lg border border-amber-100 mb-6 flex gap-3">

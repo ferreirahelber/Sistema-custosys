@@ -1,0 +1,43 @@
+
+> custosys@0.0.0 db:cleanup-e2e
+> npx tsx scripts/cleanup_e2e_data.ts
+
+[dotenv@17.2.3] injecting env (3) from .env -- tip: ÔÜÖ´©Å  load multiple .env files with { path: ['.env.local', '.env'] }
+Starting E2E data cleanup using SERVICE_ROLE key...
+Recipes cleanup command executed.
+Ingredients cleanup command executed.
+Products cleanup command executed.
+Found 0 profiles matching pattern.
+Found 23 auth users matching pattern.
+Total unique Test User IDs to cleanup: 23
+Error deleting sessions: {
+  code: '23503',
+  details: 'Key (id)=(2cd1b693-11e4-4d0e-bd91-a982aabe5310) is still referenced from table "orders".',
+  hint: null,
+  message: 'update or delete on table "cash_sessions" violates foreign key constraint "orders_session_id_fkey" on table "orders"'
+}
+Deleted profiles for 23 users.
+Deleted auth user 735002ac-3d9a-436a-9be6-af4b59618338
+Deleted auth user 1e0c6b94-b788-4c70-94a8-e38bd48a0b96
+Deleted auth user 4f8731b2-9fda-459c-90ed-0af987d4a025
+Deleted auth user 92bfeeca-62a9-43dc-b2ad-0b615f90e318
+Failed to delete auth user 84446ba0-a20b-477f-a71f-e7a2ad23c28f: Database error deleting user
+Deleted auth user 88fe4720-6584-406e-b553-855959443052
+Deleted auth user 2d607a5a-bd39-4f43-bc43-14bcbe0e9b7f
+Deleted auth user 7a439343-4a95-4c41-b9c2-0a572c65ed2d
+Deleted auth user 5153abf0-c041-468f-bc3b-7640cffcf596
+Deleted auth user a35a145f-fa55-4092-a9d7-b4c1b7a7fd24
+Deleted auth user e879e35b-4f2c-4982-8192-e62aa329eb5b
+Deleted auth user cd8d0e06-c903-4e8c-b018-9ad67c5ac797
+Deleted auth user efb6ea8a-e484-4381-acb2-1301babee7a8
+Deleted auth user 4f63990e-e508-490d-940b-e46e514f196d
+Deleted auth user f83ebfd5-a128-4815-8403-ca21ddd63c1f
+Deleted auth user b024f944-a44b-4afe-b966-e6831569ded1
+Deleted auth user 52e1138d-f041-4900-9b2b-5f342831555a
+Deleted auth user 8eaa1c42-9497-4244-9d2b-0f04675223ac
+Deleted auth user 1f03febe-1cec-4144-ac8b-aaeea27da1a6
+Deleted auth user c2865b02-6815-4402-84dd-f6cf875ab5cc
+Deleted auth user 69a2bae6-d2b0-4dd9-96ad-33f8d9237eb8
+Deleted auth user 7409d6a2-2f92-4efa-bebc-688e651edd3c
+Deleted auth user 83e13389-6f78-4cbe-b889-556f7c715399
+Cleanup finished.
