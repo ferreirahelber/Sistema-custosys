@@ -3,7 +3,7 @@ import { BookOpen } from 'lucide-react';
 
 interface RecipePreparationProps {
     method: string;
-    setMethod: (v: string) => void;
+    setMethod: (value: string) => void;
 }
 
 export const RecipePreparation: React.FC<RecipePreparationProps> = ({ method, setMethod }) => {

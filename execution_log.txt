@@ -1,0 +1,9 @@
+­ƒÜÇ Starting test execution...
+Proxy port: 56620
+Tunnel started successfully! Proxy URL: http://8569f50f-85fb-40b2-a64d-2595d839f374:CiiAtMBYa0c21L56YYfeEjCvv4cERAer@tun.testsprite.com:8080
+ÔÜí Running tests...
+This process may take anywhere from several minutes up to 15 minutes to complete.
+
+Ô£à Please ensure:
+  ÔÇó Your local servers are running and reachable
+  ÔÇó Your internet connection remains stable throughout the process

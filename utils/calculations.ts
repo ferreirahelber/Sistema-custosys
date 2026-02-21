@@ -86,6 +86,53 @@ export const calculateBaseCost = (
 };
 
 /**
+ * Calcula o custo de um único item da receita (ingrediente ou base).
+ * Esta função unificada garante que o formulário e os cálculos financeiros usem a mesma matemática.
+ */
+export const calculateItemCost = (
+  item: RecipeItem,
+  ingredients: Ingredient[],
+  baseRecipes: Recipe[]
+): Decimal => {
+  const ingredient = ingredients.find((i) => i.id === item.ingredient_id);
+  const baseRecipe = baseRecipes.find((r) => r.id === item.ingredient_id);
+
+  if (item.item_type === 'recipe' && baseRecipe) {
+    // Lógica para Base: (Custo Total / Peso Total de Produção) * Quantidade Usada Normalizada
+    const totalBaseWeight = new Decimal(baseRecipe.yield_quantity || 1);
+    const totalBaseCost = new Decimal(baseRecipe.total_cost_final || 0);
+    const qtyUsedInput = new Decimal(item.quantity_used || 0);
+
+    const baseUnit = (baseRecipe.yield_unit || 'un').toLowerCase();
+    const inputUnit = (item.unit_input || 'un').toLowerCase();
+
+    // Helper simples de fator para base (g/ml)
+    const getFactor = (u: string) => {
+      if (u === 'kg' || u === 'l') return 1000;
+      return 1; // g, ml, un
+    };
+
+    const baseFactor = getFactor(baseUnit);
+    const inputFactor = getFactor(inputUnit);
+
+    const totalBaseNormalized = totalBaseWeight.times(baseFactor);
+    const usedNormalized = qtyUsedInput.times(inputFactor);
+
+    if (totalBaseNormalized.greaterThan(0)) {
+      return totalBaseCost.dividedBy(totalBaseNormalized).times(usedNormalized);
+    }
+    return new Decimal(0);
+  } else if (ingredient) {
+    // Lógica para Ingrediente Comum
+    const costBase = new Decimal(ingredient.unit_cost_base || 0);
+    const qty = new Decimal(item.quantity_used || 0);
+    return qty.times(costBase);
+  }
+
+  return new Decimal(0);
+};
+
+/**
  * Calcula o detalhamento financeiro completo da receita.
  */
 export const calculateRecipeFinancials = (
@@ -101,50 +148,8 @@ export const calculateRecipeFinancials = (
   let costPackaging = new Decimal(0);
 
   items.forEach((item) => {
+    const itemCost = calculateItemCost(item, ingredients, baseRecipes);
     const ingredient = ingredients.find((i) => i.id === item.ingredient_id);
-    const baseRecipe = baseRecipes.find((r) => r.id === item.ingredient_id);
-
-    let itemCost = new Decimal(0);
-
-    if (item.item_type === 'recipe' && baseRecipe) {
-      // Lógica para Base: (Custo Total / Peso Total de Produção) * Quantidade Usada Normalizada
-      const totalBaseWeight = new Decimal(baseRecipe.yield_quantity || 1);
-      const totalBaseCost = new Decimal(baseRecipe.total_cost_final || 0);
-      const qtyUsedInput = new Decimal(item.quantity_used || 0);
-
-      // Normalizar unidades (Assumindo Massa/Volume padrão)
-      // Se a Base for KG e o uso for G -> fator 1000
-      let multiplier = 1;
-
-      const baseUnit = (baseRecipe.yield_unit || 'un').toLowerCase();
-      const inputUnit = (item.unit_input || 'un').toLowerCase();
-
-      // Helper simples de fator para base (g/ml)
-      const getFactor = (u: string) => {
-        if (u === 'kg' || u === 'l') return 1000;
-        return 1; // g, ml, un
-      };
-
-      const baseFactor = getFactor(baseUnit);
-      const inputFactor = getFactor(inputUnit);
-
-      // Peso total da base em g/ml
-      const totalBaseNormalized = totalBaseWeight.times(baseFactor);
-
-      // Peso usado em g/ml
-      const usedNormalized = qtyUsedInput.times(inputFactor);
-
-      if (totalBaseNormalized.greaterThan(0)) {
-        itemCost = totalBaseCost.dividedBy(totalBaseNormalized).times(usedNormalized);
-      } else {
-        itemCost = new Decimal(0);
-      }
-    } else if (ingredient) {
-      // Lógica para Ingrediente Comum (já existente)
-      const costBase = new Decimal(ingredient.unit_cost_base || 0);
-      const qty = new Decimal(item.quantity_used || 0);
-      itemCost = qty.times(costBase);
-    }
 
     if (ingredient?.category === 'packaging') {
       costPackaging = costPackaging.plus(itemCost);

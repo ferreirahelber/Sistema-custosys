@@ -110,7 +110,40 @@ export const RecipeService = {
   },
 
   async delete(id: string) {
-    const { error } = await supabase.from('recipes').delete().eq('id', id);
+    // 1. Verificar se esta receita (base) está sendo usada em outras receitas
+    const { count, error: checkError } = await supabase
+      .from('recipe_items')
+      .select('*', { count: 'exact', head: true })
+      .eq('sub_recipe_id', id);
+
+    if (checkError) throw checkError;
+
+    if (count && count > 0) {
+      throw new Error(`Este insumo não pode ser excluído pois está sendo usado em ${count} receita(s). Remova-o antes de excluir.`);
+    }
+
+    // 2. Excluir itens destas receita
+    const { error: itemsError } = await supabase
+      .from('recipe_items')
+      .delete()
+      .eq('recipe_id', id);
+
+    if (itemsError) throw itemsError;
+
+    // 3. Opcional: Excluir histórico de preços vinculado
+    const { error: historyError } = await supabase
+      .from('price_history')
+      .delete()
+      .eq('recipe_id', id);
+
+    if (historyError) console.warn("Erro ao excluir price_history, continuando...", historyError);
+
+    // 4. Excluir a receita em si
+    const { error } = await supabase
+      .from('recipes')
+      .delete()
+      .eq('id', id);
+
     if (error) throw error;
   },
 };

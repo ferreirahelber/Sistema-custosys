@@ -252,8 +252,8 @@ export function PosView() {
 
   const handlePrintReceipt = () => {
     window.print();
-    setShowSuccessModal(false);
-    setTimeout(() => searchInputRef.current?.focus(), 100);
+    // Modal de sucesso não é fechado automaticamente para que o usuário possa ver a confirmação
+    // Ele será fechado apenas ao clicar em "Nova Venda"
   };
 
   const handleNewSale = () => {

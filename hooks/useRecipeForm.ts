@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useReducer, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Recipe, RecipeItem, MeasureConversion } from '../types';
@@ -7,6 +7,11 @@ import { useIngredients } from './useIngredients';
 import { useRecipes } from './useRecipes';
 import { useSettings, useCategories } from './useSystem';
 import { calculateRecipeFinancials } from '../utils/calculations';
+import {
+    recipeFormReducer,
+    initialRecipeFormState,
+    RecipeFormState
+} from '../reducers/recipeFormReducer';
 
 export const useRecipeForm = (recipeId?: string) => {
     const navigate = useNavigate();
@@ -18,25 +23,8 @@ export const useRecipeForm = (recipeId?: string) => {
 
     const { createRecipe, updateRecipe } = useRecipeMutations();
 
-    // Form State
-    const [name, setName] = useState('');
-    const [barcode, setBarcode] = useState('');
-    const [category, setCategory] = useState('');
-    const [isBase, setIsBase] = useState(false);
-    const [yieldUnits, setYieldUnits] = useState(1);
-    const [yieldQuantity, setYieldQuantity] = useState(1);
-    const [yieldUnit, setYieldUnit] = useState<'g' | 'ml' | 'un'>('un');
-    const [prepTime, setPrepTime] = useState(60);
-    const [prepMethod, setPrepMethod] = useState('');
-    const [recipeItems, setRecipeItems] = useState<RecipeItem[]>([]);
-    const [currentSellingPrice, setCurrentSellingPrice] = useState(0);
-
-    // Sync Input Logic
-    const [selectedIngId, setSelectedIngId] = useState('');
-    const [selectedUnit, setSelectedUnit] = useState('');
-    const [itemQuantity, setItemQuantity] = useState('');
-    const [baseQuantity, setBaseQuantity] = useState('');
-    const [draftLoaded, setDraftLoaded] = useState(false);
+    // Reducer State
+    const [state, dispatch] = useReducer(recipeFormReducer, initialRecipeFormState);
 
     const baseRecipes = allRecipes.filter(r => r.is_base && r.id !== recipeId);
     const isLoading = isLoadingRecipe || isLoadingIngs || isLoadingRecipes || isLoadingSettings || isLoadingCats;
@@ -46,38 +34,29 @@ export const useRecipeForm = (recipeId?: string) => {
     // Initialize Form (Load from DB + Restore Draft if exists)
     useEffect(() => {
         if (recipeData) {
-            // 1. Load from DB
-            setName(recipeData.name);
-            setBarcode(recipeData.barcode || '');
-            setCategory(recipeData.category || 'Geral');
-            setIsBase(recipeData.is_base || false);
-            setYieldUnits(recipeData.yield_units || 1);
-            setYieldQuantity(recipeData.yield_quantity || 1);
-            setYieldUnit(recipeData.yield_unit || 'un');
-            setPrepTime(recipeData.preparation_time_minutes || 0);
-            setPrepMethod(recipeData.preparation_method || '');
-            setRecipeItems(recipeData.items || []);
-            setCurrentSellingPrice(recipeData.selling_price || 0);
+            const dbData: Partial<RecipeFormState> = {
+                name: recipeData.name,
+                barcode: recipeData.barcode || '',
+                category: recipeData.category || 'Geral',
+                isBase: recipeData.is_base || false,
+                yieldUnits: recipeData.yield_units || 1,
+                yieldQuantity: recipeData.yield_quantity || 1,
+                yieldUnit: recipeData.yield_unit || 'un',
+                prepTime: recipeData.preparation_time_minutes || 0,
+                prepMethod: recipeData.preparation_method || '',
+                recipeItems: recipeData.items || [],
+                currentSellingPrice: recipeData.selling_price || 0
+            };
 
             // 2. Override with Draft if exists
             const draft = localStorage.getItem(draftKey);
             if (draft) {
                 try {
                     const parsed = JSON.parse(draft);
-                    // Override fields if they exist in draft
-                    if (parsed.name !== undefined) setName(parsed.name);
-                    if (parsed.barcode !== undefined) setBarcode(parsed.barcode);
-                    if (parsed.category !== undefined) setCategory(parsed.category);
-                    if (parsed.isBase !== undefined) setIsBase(parsed.isBase);
-                    if (parsed.yieldUnits !== undefined) setYieldUnits(parsed.yieldUnits);
-                    if (parsed.yieldQuantity !== undefined) setYieldQuantity(parsed.yieldQuantity);
-                    if (parsed.yieldUnit !== undefined) setYieldUnit(parsed.yieldUnit);
-                    if (parsed.prepTime !== undefined) setPrepTime(parsed.prepTime);
-                    if (parsed.prepMethod !== undefined) setPrepMethod(parsed.prepMethod);
-                    if (parsed.recipeItems !== undefined) setRecipeItems(parsed.recipeItems);
-                    if (parsed.currentSellingPrice !== undefined) setCurrentSellingPrice(parsed.currentSellingPrice);
+                    const mergedData = { ...dbData, ...parsed };
 
-                    setDraftLoaded(true);
+                    dispatch({ type: 'LOAD_DATA', data: mergedData, isDraft: true });
+
                     toast.info("Rascunho não salvo restaurado!", {
                         action: {
                             label: 'Descartar',
@@ -87,7 +66,10 @@ export const useRecipeForm = (recipeId?: string) => {
                     });
                 } catch (e) {
                     console.error("Erro ao ler rascunho", e);
+                    dispatch({ type: 'LOAD_DATA', data: dbData });
                 }
+            } else {
+                dispatch({ type: 'LOAD_DATA', data: dbData });
             }
         } else if (!recipeId && !isLoadingRecipe) {
             // New Recipe Mode - Check for draft
@@ -95,19 +77,8 @@ export const useRecipeForm = (recipeId?: string) => {
             if (draft) {
                 try {
                     const parsed = JSON.parse(draft);
-                    if (parsed.name !== undefined) setName(parsed.name);
-                    if (parsed.barcode !== undefined) setBarcode(parsed.barcode);
-                    if (parsed.category !== undefined) setCategory(parsed.category);
-                    if (parsed.isBase !== undefined) setIsBase(parsed.isBase);
-                    if (parsed.yieldUnits !== undefined) setYieldUnits(parsed.yieldUnits);
-                    if (parsed.yieldQuantity !== undefined) setYieldQuantity(parsed.yieldQuantity);
-                    if (parsed.yieldUnit !== undefined) setYieldUnit(parsed.yieldUnit);
-                    if (parsed.prepTime !== undefined) setPrepTime(parsed.prepTime);
-                    if (parsed.prepMethod !== undefined) setPrepMethod(parsed.prepMethod);
-                    if (parsed.recipeItems !== undefined) setRecipeItems(parsed.recipeItems);
-                    if (parsed.currentSellingPrice !== undefined) setCurrentSellingPrice(parsed.currentSellingPrice);
+                    dispatch({ type: 'LOAD_DATA', data: parsed, isDraft: true });
 
-                    setDraftLoaded(true);
                     toast.info("Rascunho de nova receita restaurado!", {
                         action: {
                             label: 'Descartar',
@@ -124,32 +95,37 @@ export const useRecipeForm = (recipeId?: string) => {
 
     // Save Draft on Change
     useEffect(() => {
-        // Don't save if loading or empty states (unless it's a new recipe that user started typing)
         if (isLoading) return;
 
         const draft = {
-            name, barcode, category, isBase,
-            yieldUnits, yieldQuantity, yieldUnit,
-            prepTime, prepMethod, recipeItems,
-            currentSellingPrice,
+            name: state.name,
+            barcode: state.barcode,
+            category: state.category,
+            isBase: state.isBase,
+            yieldUnits: state.yieldUnits,
+            yieldQuantity: state.yieldQuantity,
+            yieldUnit: state.yieldUnit,
+            prepTime: state.prepTime,
+            prepMethod: state.prepMethod,
+            recipeItems: state.recipeItems,
+            currentSellingPrice: state.currentSellingPrice,
             updatedAt: Date.now()
         };
 
-        // Only save if there's some data
-        if (name || recipeItems.length > 0 || prepMethod) {
+        if (state.name || state.recipeItems.length > 0 || state.prepMethod) {
             localStorage.setItem(draftKey, JSON.stringify(draft));
         }
-    }, [name, barcode, category, isBase, yieldUnits, yieldQuantity, yieldUnit, prepTime, prepMethod, recipeItems, currentSellingPrice, draftKey, isLoading]);
+    }, [state, draftKey, isLoading]);
 
-    const discardDraft = () => {
+    const discardDraft = useCallback(() => {
         localStorage.removeItem(draftKey);
         window.location.reload();
-    };
+    }, [draftKey]);
 
     const addIngredientItem = (overrideId?: string, overrideQty?: string, overrideUnit?: string) => {
-        const idToUse = overrideId || selectedIngId;
-        const qtyToUse = overrideQty || (idToUse.startsWith('recipe:') ? baseQuantity : itemQuantity);
-        const unitToUse = overrideUnit || selectedUnit;
+        const idToUse = overrideId || state.selectedIngId;
+        const qtyToUse = overrideQty || (idToUse.startsWith('recipe:') ? state.baseQuantity : state.itemQuantity);
+        const unitToUse = overrideUnit || state.selectedUnit;
 
         const [type, realId] = idToUse.split(':');
 
@@ -197,27 +173,23 @@ export const useRecipeForm = (recipeId?: string) => {
             };
         }
 
-        setRecipeItems([...recipeItems, newItem]);
-
-        // Reset states if they were used (optional, keeping for backward compatibility if needed)
-        if (!overrideId) {
-            setSelectedIngId('');
-            setItemQuantity('');
-            setBaseQuantity('');
-            setSelectedUnit('');
-        }
+        dispatch({
+            type: 'ADD_ITEM',
+            item: newItem,
+            clearInputs: !overrideId // Only clear inputs if adding from the main form inputs
+        });
     };
 
     const removeItem = (id: string) => {
-        setRecipeItems(recipeItems.filter(i => i.id !== id));
+        dispatch({ type: 'REMOVE_ITEM', id });
     };
 
     const financials = calculateRecipeFinancials(
-        recipeItems,
+        state.recipeItems,
         ingredients,
         baseRecipes,
-        prepTime,
-        yieldUnits,
+        state.prepTime,
+        state.yieldUnits,
         settings || {
             employees: [],
             labor_monthly_cost: 0,
@@ -231,38 +203,41 @@ export const useRecipeForm = (recipeId?: string) => {
     );
 
     const save = async () => {
-        if (!name.trim()) return;
+        if (!state.name.trim()) return;
 
         const payload: Recipe = {
             id: recipeId || '',
-            name,
-            barcode,
-            category,
-            is_base: isBase,
-            yield_units: yieldUnits,
-            yield_quantity: yieldQuantity,
-            yield_unit: yieldUnit,
-            preparation_time_minutes: prepTime,
-            preparation_method: prepMethod,
-            items: recipeItems,
+            name: state.name,
+            barcode: state.barcode,
+            category: state.category,
+            is_base: state.isBase,
+            yield_units: state.yieldUnits,
+            yield_quantity: state.yieldQuantity,
+            yield_unit: state.yieldUnit,
+            preparation_time_minutes: state.prepTime,
+            preparation_method: state.prepMethod,
+            items: state.recipeItems,
             total_cost_material: financials.total_cost_material,
             total_cost_labor: financials.total_cost_labor,
             total_cost_overhead: financials.total_cost_overhead,
             total_cost_final: financials.total_cost_final,
             unit_cost: financials.unit_cost,
-            selling_price: currentSellingPrice
+            selling_price: state.currentSellingPrice
         };
 
         if (recipeId) {
             await updateRecipe.mutateAsync(payload);
-            localStorage.removeItem(draftKey); // Clear draft on success
+            localStorage.removeItem(draftKey);
         } else {
             await createRecipe.mutateAsync(payload);
-            localStorage.removeItem(draftKey); // Clear draft on success
+            localStorage.removeItem(draftKey);
         }
 
-        navigate(isBase ? '/production-bases' : '/recipes');
+        navigate(state.isBase ? '/production-bases' : '/recipes');
     };
+
+    // Generic Setter Dispatchers
+    const setField = <K extends keyof RecipeFormState>(field: K) => (value: RecipeFormState[K]) => dispatch({ type: 'SET_FIELD', field, value });
 
     return {
         // Data
@@ -272,24 +247,24 @@ export const useRecipeForm = (recipeId?: string) => {
         settings,
         isLoading,
 
-        // Form State
-        name, setName,
-        barcode, setBarcode,
-        category, setCategory,
-        isBase, setIsBase,
-        yieldUnits, setYieldUnits,
-        yieldQuantity, setYieldQuantity,
-        yieldUnit, setYieldUnit,
-        prepTime, setPrepTime,
-        prepMethod, setPrepMethod,
-        recipeItems,
-        currentSellingPrice, setCurrentSellingPrice,
+        // Form State (Mapped to State)
+        name: state.name, setName: setField('name'),
+        barcode: state.barcode, setBarcode: setField('barcode'),
+        category: state.category, setCategory: setField('category'),
+        isBase: state.isBase, setIsBase: setField('isBase'),
+        yieldUnits: state.yieldUnits, setYieldUnits: setField('yieldUnits'),
+        yieldQuantity: state.yieldQuantity, setYieldQuantity: setField('yieldQuantity'),
+        yieldUnit: state.yieldUnit, setYieldUnit: setField('yieldUnit'),
+        prepTime: state.prepTime, setPrepTime: setField('prepTime'),
+        prepMethod: state.prepMethod, setPrepMethod: setField('prepMethod'),
+        recipeItems: state.recipeItems,
+        currentSellingPrice: state.currentSellingPrice, setCurrentSellingPrice: setField('currentSellingPrice'),
 
         // Input Logic State
-        selectedIngId, setSelectedIngId,
-        selectedUnit, setSelectedUnit,
-        itemQuantity, setItemQuantity,
-        baseQuantity, setBaseQuantity,
+        selectedIngId: state.selectedIngId, setSelectedIngId: setField('selectedIngId'),
+        selectedUnit: state.selectedUnit, setSelectedUnit: setField('selectedUnit'),
+        itemQuantity: state.itemQuantity, setItemQuantity: setField('itemQuantity'),
+        baseQuantity: state.baseQuantity, setBaseQuantity: setField('baseQuantity'),
 
         // Actions
         addIngredientItem,
@@ -298,6 +273,6 @@ export const useRecipeForm = (recipeId?: string) => {
         isSaving: createRecipe.isPending || updateRecipe.isPending,
         financials,
         discardDraft,
-        draftLoaded
+        draftLoaded: state.draftLoaded
     };
 };

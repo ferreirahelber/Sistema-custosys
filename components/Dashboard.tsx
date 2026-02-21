@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   TrendingUp, TrendingDown, DollarSign, Package, AlertTriangle, ArrowRight,
@@ -14,13 +14,10 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend
 } from 'recharts';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import ExcelJS from 'exceljs';
 import { toast } from 'sonner';
 
 interface DashboardProps {
-  onNavigate: (view: string) => void;
+  onNavigate?: (view: 'recipes' | 'ingredients' | 'production-bases' | 'products' | 'sales' | 'expenses' | 'settings') => void;
 }
 
 const COLORS = ['#d97706', '#2563eb', '#16a34a', '#7c3aed'];
@@ -38,36 +35,53 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   const isLoading = isLoadingRecipes || isLoadingIngredients || isLoadingSettings || isLoadingSales || isLoadingExpenses || isLoadingFixed;
 
-  // 2. Cálculos Financeiros
-  const currentTax = settings?.default_tax_rate ?? 4.5;
-  const currentFee = settings?.default_card_fee ?? 3.99;
+  // 2. Cálculos Financeiros (Memoized)
+  const financialMetrics = useMemo(() => {
+    const currentTax = settings?.default_tax_rate ?? 4.5;
+    const currentFee = settings?.default_card_fee ?? 3.99;
 
-  const totalRevenue = sales.reduce((acc: number, curr: any) => acc + (curr.total_amount || 0), 0) + (settings?.estimated_monthly_revenue || 0);
+    const totalRevenue = sales.reduce((acc: number, curr: any) => acc + (curr.total_amount || 0), 0) + (settings?.estimated_monthly_revenue || 0);
 
-  const totalFixedCosts = fixedCosts.reduce((acc: any, curr: any) => acc + (curr.amount || 0), 0) + (settings?.labor_monthly_cost || 0);
-  const totalVariableExpenses = expenses.reduce((acc: any, curr: any) => acc + (curr.amount || 0), 0);
-  const totalExpenses = totalFixedCosts + totalVariableExpenses;
+    const totalFixedCosts = fixedCosts.reduce((acc: any, curr: any) => acc + (curr.amount || 0), 0) + (settings?.labor_monthly_cost || 0);
+    const totalVariableExpenses = expenses.reduce((acc: any, curr: any) => acc + (curr.amount || 0), 0);
+    const totalExpenses = totalFixedCosts + totalVariableExpenses;
 
-  const profit = totalRevenue - totalExpenses; // Lucro Bruto Simples (Receita - Despesas)
-  const margin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
+    const profit = totalRevenue - totalExpenses; // Lucro Bruto Simples (Receita - Despesas)
+    const margin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
 
-  // 3. Cálculos de Produção (Bases)
-  const productionBasesValue = recipes.reduce((acc, r) => {
-    if (r.is_base) {
-      return acc + (Number(r.total_cost_final) || 0);
-    }
-    return acc;
-  }, 0);
+    return {
+      currentTax,
+      currentFee,
+      totalRevenue,
+      totalFixedCosts,
+      totalVariableExpenses,
+      totalExpenses,
+      profit,
+      margin
+    };
+  }, [sales, expenses, fixedCosts, settings]);
 
-  // 4. Margem Média das Receitas
-  const recipesWithPrice = recipes.filter(r => r.selling_price && r.selling_price > 0);
-  const totalAvgMargin = recipesWithPrice.reduce((acc, r) => {
-    const price = r.selling_price || 1;
-    const totalDeductions = price * ((currentTax + currentFee) / 100);
-    const netProfit = price - r.unit_cost - totalDeductions;
-    return acc + ((netProfit / price) * 100);
-  }, 0);
-  const avgMargin = recipesWithPrice.length > 0 ? totalAvgMargin / recipesWithPrice.length : 0;
+  // 3. Cálculos de Produção (Bases) (Memoized)
+  const productionBasesValue = useMemo(() => {
+    return recipes.reduce((acc, r) => {
+      if (r.is_base) {
+        return acc + (Number(r.total_cost_final) || 0);
+      }
+      return acc;
+    }, 0);
+  }, [recipes]);
+
+  // 4. Margem Média das Receitas (Memoized)
+  const avgMargin = useMemo(() => {
+    const recipesWithPrice = recipes.filter(r => r.selling_price && r.selling_price > 0);
+    const totalAvgMargin = recipesWithPrice.reduce((acc, r) => {
+      const price = r.selling_price || 1;
+      const totalDeductions = price * ((financialMetrics.currentTax + financialMetrics.currentFee) / 100);
+      const netProfit = price - r.unit_cost - totalDeductions;
+      return acc + ((netProfit / price) * 100);
+    }, 0);
+    return recipesWithPrice.length > 0 ? totalAvgMargin / recipesWithPrice.length : 0;
+  }, [recipes, financialMetrics.currentTax, financialMetrics.currentFee]);
 
   // 5. Alertas de Estoque
   const lowStockItems = ingredients.filter(i => (i.current_stock || 0) <= (i.min_stock || 0));
@@ -84,86 +98,115 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     return acc;
   }, []).slice(-7);
 
-  // Distribuição de Custos
-  let costDistribution: any[] = [];
-  if (recipes.length > 0) {
+  // Distribuição de Custos (Memoized)
+  const costDistribution = useMemo(() => {
+    if (recipes.length === 0) return [];
+
     const totalMat = recipes.reduce((acc, r) => acc + r.total_cost_material, 0);
     const totalLab = recipes.reduce((acc, r) => acc + r.total_cost_labor, 0);
     const totalOver = recipes.reduce((acc, r) => acc + r.total_cost_overhead, 0);
     const grandTotal = totalMat + totalLab + totalOver;
 
-    costDistribution = [
+    return [
       { name: 'Materiais', value: grandTotal ? (totalMat / grandTotal) * 100 : 0 },
       { name: 'Mão de Obra', value: grandTotal ? (totalLab / grandTotal) * 100 : 0 },
       { name: 'Custos Fixos', value: grandTotal ? (totalOver / grandTotal) * 100 : 0 },
     ];
-  }
+  }, [recipes]);
 
-  // Top Receitas
-  const topProfitableRecipes = [...recipes]
-    .map(r => {
-      const price = r.selling_price || 0;
-      const totalDeductions = price * ((currentTax + currentFee) / 100);
-      const netProfit = price - r.unit_cost - totalDeductions;
-      return {
-        name: r.name.length > 15 ? r.name.substring(0, 15) + '...' : r.name,
-        lucro: netProfit
-      };
-    })
-    .sort((a, b) => b.lucro - a.lucro)
-    .slice(0, 5);
+  // Top Receitas (Memoized)
+  const topProfitableRecipes = useMemo(() => {
+    return [...recipes]
+      .map(r => {
+        const price = r.selling_price || 0;
+        const totalDeductions = price * ((financialMetrics.currentTax + financialMetrics.currentFee) / 100);
+        const netProfit = price - r.unit_cost - totalDeductions;
+        return {
+          name: r.name.length > 15 ? r.name.substring(0, 15) + '...' : r.name,
+          lucro: netProfit
+        };
+      })
+      .sort((a, b) => b.lucro - a.lucro)
+      .slice(0, 5);
+  }, [recipes, financialMetrics.currentTax, financialMetrics.currentFee]);
 
   // --- Exportação (Mantida da Lógica Atual) ---
+  // --- Exportação Otimizada (Lazy Loading) ---
   const calculateNetProfitWithState = (sellingPrice: number, unitCost: number) => {
     if (!sellingPrice) return 0;
-    const totalDeductions = sellingPrice * ((currentTax + currentFee) / 100);
+    const totalDeductions = sellingPrice * ((financialMetrics.currentTax + financialMetrics.currentFee) / 100);
     return sellingPrice - unitCost - totalDeductions;
   };
 
   const handleExportPDF = async () => {
-    const allRecipes = await RecipeService.getAll();
-    const doc = new jsPDF();
-    doc.setFontSize(16);
-    doc.text("Relatório de Receitas (Lucro Líquido) - Custosys", 14, 15);
-    doc.setFontSize(10);
-    doc.text(`Data: ${new Date().toLocaleDateString()} | Taxas: ${(currentTax + currentFee).toFixed(2)}%`, 14, 22);
+    try {
+      const toastId = toast.loading('Gerando PDF...');
 
-    const tableData = allRecipes.map(r => {
-      const netProfit = calculateNetProfitWithState(r.selling_price || 0, r.unit_cost);
-      return [r.name, `R$ ${r.unit_cost.toFixed(2)}`, `R$ ${r.selling_price?.toFixed(2) || '0.00'}`, `R$ ${netProfit.toFixed(2)}`];
-    });
+      // Dynamic import
+      const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+        import('jspdf'),
+        import('jspdf-autotable')
+      ]);
 
-    autoTable(doc, {
-      head: [['Receita', 'Custo Prod.', 'Preço Venda', 'Lucro Líq.']],
-      body: tableData,
-      startY: 30,
-    });
-    doc.save('relatorio_lucro.pdf');
-    toast.success('PDF gerado!');
+      const allRecipes = await RecipeService.getAll();
+      const doc = new jsPDF();
+      doc.setFontSize(16);
+      doc.text("Relatório de Receitas (Lucro Líquido) - Custosys", 14, 15);
+      doc.setFontSize(10);
+      doc.text(`Data: ${new Date().toLocaleDateString()} | Taxas: ${(financialMetrics.currentTax + financialMetrics.currentFee).toFixed(2)}%`, 14, 22);
+
+      const tableData = allRecipes.map(r => {
+        const netProfit = calculateNetProfitWithState(r.selling_price || 0, r.unit_cost);
+        return [r.name, `R$ ${r.unit_cost.toFixed(2)}`, `R$ ${r.selling_price?.toFixed(2) || '0.00'}`, `R$ ${netProfit.toFixed(2)}`];
+      });
+
+      autoTable(doc, {
+        head: [['Receita', 'Custo Prod.', 'Preço Venda', 'Lucro Líq.']],
+        body: tableData,
+        startY: 30,
+      });
+      doc.save('relatorio_lucro.pdf');
+      toast.dismiss(toastId);
+      toast.success('PDF gerado!');
+    } catch (error) {
+      console.error('Erro ao gerar PDF:', error);
+      toast.error('Erro ao gerar PDF');
+    }
   };
 
   const exportExcel = async () => {
-    const allRecipes = await RecipeService.getAll();
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Relatório Financeiro');
-    worksheet.columns = [
-      { header: 'Receita', key: 'name', width: 30 },
-      { header: 'Custo', key: 'unit', width: 15 },
-      { header: 'Venda', key: 'price', width: 15 },
-      { header: 'Lucro Líq.', key: 'profit', width: 15 },
-    ];
-    allRecipes.forEach(r => {
-      const net = calculateNetProfitWithState(r.selling_price || 0, r.unit_cost);
-      worksheet.addRow({ name: r.name, unit: r.unit_cost, price: r.selling_price, profit: net });
-    });
-    const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `relatorio_financeiro.xlsx`;
-    a.click();
-    toast.success('Excel gerado!');
+    try {
+      const toastId = toast.loading('Gerando Excel...');
+
+      // Dynamic import
+      const { default: ExcelJS } = await import('exceljs');
+
+      const allRecipes = await RecipeService.getAll();
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Relatório Financeiro');
+      worksheet.columns = [
+        { header: 'Receita', key: 'name', width: 30 },
+        { header: 'Custo', key: 'unit', width: 15 },
+        { header: 'Venda', key: 'price', width: 15 },
+        { header: 'Lucro Líq.', key: 'profit', width: 15 },
+      ];
+      allRecipes.forEach(r => {
+        const net = calculateNetProfitWithState(r.selling_price || 0, r.unit_cost);
+        worksheet.addRow({ name: r.name, unit: r.unit_cost, price: r.selling_price, profit: net });
+      });
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `relatorio_financeiro.xlsx`;
+      a.click();
+      toast.dismiss(toastId);
+      toast.success('Excel gerado!');
+    } catch (error) {
+      console.error('Erro ao gerar Excel:', error);
+      toast.error('Erro ao gerar Excel');
+    }
   };
 
   if (isLoading) {
@@ -183,7 +226,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             <TrendingUp className="text-amber-600" /> Dashboard Gerencial
           </h2>
           {/* TEXTO DINÂMICO AQUI */}
-          <p className="text-slate-500">Indicadores de Lucro Líquido (Taxas Config: {(currentTax + currentFee).toFixed(2)}%)</p>
+          <p className="text-slate-500">Indicadores de Lucro Líquido (Taxas Config: {(financialMetrics.currentTax + financialMetrics.currentFee).toFixed(2)}%)</p>
         </div>
 
         <div className="flex flex-col items-end gap-3">
@@ -217,7 +260,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">Entradas</span>
           </div>
           <div className="text-3xl font-bold text-emerald-700">
-            {totalRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            {financialMetrics.totalRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
           </div>
           <div className="text-xs text-slate-500 font-medium mt-1">Vendas Totais</div>
         </div>
@@ -231,13 +274,13 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             <span className="text-xs font-bold text-rose-600 bg-rose-50 px-2 py-1 rounded-full">Saídas</span>
           </div>
           <div className="text-3xl font-bold text-rose-700">
-            {totalExpenses.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            {financialMetrics.totalExpenses.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
           </div>
           <div className="text-xs text-slate-500 font-medium mt-1">Despesas Totais</div>
         </div>
 
         {/* CARD SALDO */}
-        <div className={`p-6 rounded-xl shadow-sm border transition group relative overflow-hidden ${profit >= 0
+        <div className={`p-6 rounded-xl shadow-sm border transition group relative overflow-hidden ${financialMetrics.profit >= 0
           ? 'bg-gradient-to-br from-blue-600 to-blue-700 border-blue-600 text-white'
           : 'bg-gradient-to-br from-red-600 to-red-700 border-red-600 text-white'
           }`}>
@@ -248,7 +291,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             <span className="text-xs font-bold bg-white/20 px-2 py-1 rounded-full text-white">Balanço</span>
           </div>
           <div className="text-3xl font-bold text-white relative z-10">
-            {profit.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            {financialMetrics.profit.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
           </div>
           <div className="text-xs text-blue-100 font-medium mt-1 relative z-10">Saldo em Caixa</div>
 
@@ -274,7 +317,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           <div className="text-xs text-slate-500 font-medium uppercase tracking-wide">Receitas</div>
         </div>
 
-        <div onClick={() => onNavigate?.('ingredients')} className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 hover:shadow-md transition cursor-pointer group">
+        <div onClick={() => onNavigate?.('production-bases')} className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 hover:shadow-md transition cursor-pointer group">
           <div className="flex justify-between items-start mb-2">
             <div className="p-2 bg-blue-50 text-blue-600 rounded-lg group-hover:scale-110 transition">
               <Package size={20} />
@@ -311,7 +354,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               <div className="absolute right-0 w-64 p-3 bg-slate-800 text-slate-100 text-xs rounded-lg shadow-xl opacity-0 group-hover/info:opacity-100 transition-opacity pointer-events-none z-50 -mt-24 mr-0 border border-slate-700">
                 <p className="font-bold mb-1 text-white">Margem Líquida Estimada</p>
                 {/* TEXTO DINÂMICO AQUI TAMBÉM */}
-                Média de lucro real (%) descontando impostos ({currentTax}%) e taxas ({currentFee}%). Se estiver vermelho, seus preços não cobrem as taxas.
+                Média de lucro real (%) descontando impostos ({financialMetrics.currentTax}%) e taxas ({financialMetrics.currentFee}%). Se estiver vermelho, seus preços não cobrem as taxas.
                 <div className="absolute bottom-[-6px] right-2 w-3 h-3 bg-slate-800 transform rotate-45 border-r border-b border-slate-700"></div>
               </div>
             </div>
@@ -339,7 +382,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               </div>
             </div>
           </div>
-          <div className="text-3xl font-bold text-white">R$ {totalFixedCosts.toFixed(0)}</div>
+          <div className="text-3xl font-bold text-white">R$ {financialMetrics.totalFixedCosts.toFixed(0)}</div>
           <div className="text-xs text-slate-400 font-medium uppercase tracking-wide">Custo Fixo Total (Mensal)</div>
         </div>
       </div>

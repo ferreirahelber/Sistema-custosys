@@ -115,6 +115,7 @@ export function AppContent() {
                 const routes: Record<string, string> = {
                   'settings': '/settings',
                   'ingredients': '/ingredients',
+                  'production-bases': '/production-bases',
                   'products': '/resale-products',
                   'recipes': '/recipes',
                   'costs': '/costs',

@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 export function Login() {
   const { signIn, loading } = useAuth();
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -14,6 +16,8 @@ export function Login() {
     const { error } = await signIn(email, password);
     if (error) {
       setError(error.message);
+    } else {
+      navigate('/', { replace: true });
     }
   };
 

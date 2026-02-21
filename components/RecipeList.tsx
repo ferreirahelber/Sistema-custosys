@@ -29,7 +29,13 @@ const PrintableRecipe = ({ recipe, mode }: { recipe: Recipe | null, mode: 'kitch
       <div className="grid grid-cols-2 gap-4 mb-6 border-b border-gray-300 pb-6 text-black">
         <div>
           <p className="mb-1"><strong>Tempo de Preparo:</strong> {recipe.preparation_time_minutes} min</p>
-          <p><strong>Rendimento:</strong> {recipe.yield_units} unidades</p>
+          <p>
+            <strong>Rendimento:</strong> {
+              recipe.is_base
+                ? `${recipe.yield_quantity} ${recipe.yield_unit}`
+                : `${recipe.yield_units} unidades`
+            }
+          </p>
         </div>
         {mode === 'manager' && (
           <div className="text-right">
@@ -151,21 +157,49 @@ export function RecipeList({ isBaseFilter = false }: RecipeListProps) {
     if (!printConfig.recipe) return;
 
     try {
+      // Usar RecipeService para carregar a receita completa garantiria compatibilidade,
+      // mas vamos fazer a consulta garantindo LEFT JOINs corretos para evitar falhas.
       const { data: fullRecipe, error } = await supabase
         .from('recipes')
-        .select(`*, items:recipe_items(*, ingredient:ingredients(name, base_unit, unit_cost_base))`)
+        .select(`
+          *, 
+          items:recipe_items!recipe_items_recipe_id_fkey(
+            *, 
+            ingredient:ingredients(name, base_unit, unit_cost_base),
+            sub_recipe:recipes!recipe_items_sub_recipe_id_fkey(name, yield_units, unit_cost)
+          )
+        `)
         .eq('id', printConfig.recipe.id)
         .single();
 
-      if (error || !fullRecipe) throw new Error("Erro ao carregar detalhes");
+      if (error || !fullRecipe) {
+        console.error("Supabase Error during Print:", error);
+        throw new Error("Erro ao carregar detalhes");
+      }
 
       const formattedRecipe = {
         ...fullRecipe,
-        items: fullRecipe.items.map((i: any) => ({
-          ...i,
-          ingredient_name: i.ingredient?.name || 'Ingrediente',
-          ingredient: i.ingredient
-        }))
+        items: fullRecipe.items.map((i: any) => {
+          let unitCost = 0;
+          let name = i.ingredient_name || 'Item';
+
+          if (i.item_type === 'recipe' && i.sub_recipe) {
+            unitCost = i.sub_recipe.unit_cost || 0;
+            name = i.sub_recipe.name || name;
+          } else if (i.ingredient) {
+            unitCost = i.ingredient.unit_cost_base || 0;
+            name = i.ingredient.name || name;
+          }
+
+          return {
+            ...i,
+            quantity_used: i.quantity,
+            quantity_input: i.quantity_input || i.quantity,
+            unit_input: i.unit_input || (i.item_type === 'recipe' ? 'un' : (i.ingredient?.base_unit || 'un')),
+            ingredient_name: name,
+            ingredient: { unit_cost_base: unitCost } // Mock para o PrintableRecipe
+          };
+        })
       };
 
       setPrintConfig({ open: false, recipe: formattedRecipe, mode });
@@ -176,6 +210,7 @@ export function RecipeList({ isBaseFilter = false }: RecipeListProps) {
       }, 500);
 
     } catch (e) {
+      console.error(e);
       toast.error("Erro ao preparar impressão.");
     }
   };
@@ -355,7 +390,9 @@ export function RecipeList({ isBaseFilter = false }: RecipeListProps) {
                   </div>
                   <div className="flex flex-col pt-2 border-t border-slate-50">
                     <span className="text-[10px] uppercase font-bold text-slate-400 flex items-center gap-1"><Users size={10} /> Rendimento</span>
-                    <span className="font-medium text-slate-500 text-xs">{recipe.yield_units} un</span>
+                    <span className="font-medium text-slate-500 text-xs">
+                      {isBaseFilter ? `${recipe.yield_quantity} ${recipe.yield_unit}` : `${recipe.yield_units} un`}
+                    </span>
                   </div>
                 </div>
               </div>

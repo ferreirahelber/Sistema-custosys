@@ -1,0 +1,155 @@
+{
+  "meta": {
+    "project": "CustoSys",
+    "date": "2026-02-12",
+    "prepared_by": "Software Development Manager"
+  },
+  "product_overview": "CustoSys is a comprehensive web-based cost management, pricing, and point-of-sale (POS) system designed for small and medium food service businesses such as restaurants, bakeries, and snack bars. It uniquely integrates precise production cost calculation including ingredient costs, labor, and overhead, to support intelligent menu engineering and financial control.",
+  "core_goals": [
+    "Provide an intuitive and integrated system for managing ingredients, recipes, and sales.",
+    "Enable precise cost calculation for menu items, incorporating materials, labor, and fixed operational costs.",
+    "Support efficient POS operations for rapid sales processing and cash session management.",
+    "Offer detailed financial management including sales tracking, expense logging, and cash flow monitoring.",
+    "Facilitate user and role management for secure and appropriate access control.",
+    "Provide insightful reports and pricing simulations to assist in decision making and profitability optimization."
+  ],
+  "key_features": [
+    "Ingredient Management: Manage food ingredients with pricing, units, and measure conversions.",
+    "Recipe Management: Create, update, and manage recipes and semi-finished products with detailed cost breakdowns and print capabilities.",
+    "Costing Engine: Automatic calculation of production costs including ingredients, labor based on preparation time, and fixed overhead allocation.",
+    "Pricing Simulator: Tool to determine ideal selling price based on total costs, desired profit margin, and tax or card fees.",
+    "Financial Settings: Configurable parameters including payroll, fixed monthly costs, work hours, and tax rates for accurate cost calculations.",
+    "Point of Sale (POS) Module: Efficient sales interface with cash session management, cart handling, various payment methods, and receipt generation.",
+    "Reports and Analytics: Comprehensive dashboards and detailed reports on sales, expenses, pricing history, and product profitability.",
+    "User Management: Administrative functions for user role assignment and permissions control."
+  ],
+  "user_flow_summary": [
+    "Admin logs in and accesses full system functionalities including settings, ingredient and recipe management, user administration, and reports.",
+    "Cashier logs into POS module, opens a cash session, processes sales by adding products to the cart, and completes payments with receipt printing.",
+    "Admin adds or updates ingredients including units and prices, then creates or modifies recipes linking ingredients and calculating total costs automatically.",
+    "Admin configures financial parameters such as payroll costs, fixed expenses, and tax/transaction fees to ensure costings reflect real business expenses.",
+    "Admin generates sales and expense reports and reviews dashboards for business metrics and trends.",
+    "Admin manages system users by inviting new users and assigning roles (Admin or Cashier) to control access levels."
+  ],
+  "validation_criteria": [
+    "All core modules (Ingredients, Recipes, POS, Financials, Settings) are fully functional and integrated with consistent, real-time data synchronization.",
+    "Costing calculations are accurate, automatically updating as ingredient costs, labor rates, or fixed costs change.",
+    "User authentication and role-based access control correctly restrict features according to user permissions.",
+    "Sales transactions complete successfully with correct payment processing and receipt generation.",
+    "Reports reflect the correct and updated sales, expenses, and cost data.",
+    "UI is responsive and intuitive across supported devices, enabling smooth workflow for both Admin and Cashier roles.",
+    "System handles edge cases gracefully, including invalid inputs, network failures, and concurrency in multi-user environments."
+  ],
+  "code_summary": {
+    "tech_stack": [
+      "TypeScript",
+      "React",
+      "Vite",
+      "Supabase",
+      "TailwindCSS",
+      "React Query",
+      "React Router",
+      "Lucide React",
+      "Recharts",
+      "Playwright",
+      "Vitest"
+    ],
+    "features": [
+      {
+        "name": "Authentication",
+        "description": "User login and session management.",
+        "files": [
+          "components/Login.tsx",
+          "services/userService.ts",
+          "services/supabase.ts"
+        ]
+      },
+      {
+        "name": "Dashboard",
+        "description": "Main dashboard showing key metrics and navigation.",
+        "files": [
+          "components/Dashboard.tsx",
+          "services/monitoring.ts"
+        ]
+      },
+      {
+        "name": "Recipe Management",
+        "description": "Create, read, update, and delete recipes, including costs and printing.",
+        "files": [
+          "components/RecipeList.tsx",
+          "components/RecipeForm.tsx",
+          "components/RecipePrintView.tsx",
+          "services/recipeService.ts",
+          "hooks/useRecipes.ts",
+          "hooks/useRecipeForm.ts"
+        ]
+      },
+      {
+        "name": "Ingredient Management",
+        "description": "Manage ingredients, units, and costs.",
+        "files": [
+          "components/IngredientForm.tsx",
+          "services/ingredientService.ts",
+          "hooks/useIngredients.ts"
+        ]
+      },
+      {
+        "name": "Point of Sale (POS)",
+        "description": "Sales interface, cart management, and payment processing.",
+        "files": [
+          "components/PosView.tsx",
+          "components/CartPanel.tsx",
+          "components/PaymentModal.tsx",
+          "components/Receipt.tsx",
+          "services/posService.ts"
+        ]
+      },
+      {
+        "name": "Financial Management",
+        "description": "Track sales, expenses, and cash flow.",
+        "files": [
+          "components/ExpensesView.tsx",
+          "components/SalesView.tsx",
+          "components/CashHistory.tsx",
+          "components/CashModal.tsx",
+          "services/financialService.ts",
+          "hooks/useFinancials.ts",
+          "hooks/useSystem.ts"
+        ]
+      },
+      {
+        "name": "Settings",
+        "description": "Application settings, categories, and fixed costs configuration.",
+        "files": [
+          "components/SettingsForm.tsx",
+          "components/CategoryManager.tsx",
+          "services/settingsService.ts",
+          "services/categoryService.ts",
+          "services/fixedCostService.ts",
+          "services/teamService.ts"
+        ]
+      },
+      {
+        "name": "Reports & Analytics",
+        "description": "Various reports including POS reports, resale products, and costing.",
+        "files": [
+          "components/PosReports.tsx",
+          "components/ResaleProductsView.tsx",
+          "components/CostingView.tsx",
+          "components/PackagingView.tsx",
+          "components/PriceHistoryViewer.tsx",
+          "components/PricingSimulator.tsx",
+          "components/ResaleCalculator.tsx",
+          "services/priceHistoryService.ts"
+        ]
+      },
+      {
+        "name": "User Management",
+        "description": "Admin interface for managing system users.",
+        "files": [
+          "components/UserManagement.tsx"
+        ]
+      }
+    ]
+  }
+}

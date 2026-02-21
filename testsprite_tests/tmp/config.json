@@ -1,0 +1,17 @@
+{
+  "status": "commited",
+  "type": "frontend",
+  "scope": "codebase",
+  "localEndpoint": "http://localhost:3000/e:\\\\sistema-custosys",
+  "executionArgs": {
+    "projectName": "sistema-custosys",
+    "projectPath": "e:\\sistema-custosys",
+    "testIds": [],
+    "additionalInstruction": "",
+    "envs": {
+      "API_KEY": "sk-user-SSt1bszYLx073ohQcO1j5LPKEf9KXqMDxKpf46PYyXO3pzrkAB4Ou9eUwAoehJL0Gepq_olkADlxqriYf19NwCz3Np0g7FNkJICdhuyYBuM5Fqajj_MiIJrQvuoMlpmfe6A"
+    }
+  },
+  "serverPort": 56617,
+  "proxy": "http://8569f50f-85fb-40b2-a64d-2595d839f374:CiiAtMBYa0c21L56YYfeEjCvv4cERAer@tun.testsprite.com:8080"
+}

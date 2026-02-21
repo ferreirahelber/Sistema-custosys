@@ -52,9 +52,9 @@ export const useRecipeMutations = () => {
             queryClient.invalidateQueries({ queryKey: ['recipes'] });
             toast.success('Receita excluída com sucesso!');
         },
-        onError: (error) => {
+        onError: (error: any) => {
             console.error(error);
-            toast.error('Erro ao excluir receita.');
+            toast.error(error.message || 'Erro ao excluir receita.');
         }
     });
 

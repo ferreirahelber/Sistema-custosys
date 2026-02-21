@@ -1,0 +1,112 @@
+{
+    "tech_stack": [
+        "TypeScript",
+        "React",
+        "Vite",
+        "Supabase",
+        "TailwindCSS",
+        "React Query",
+        "React Router",
+        "Lucide React",
+        "Recharts",
+        "Playwright",
+        "Vitest"
+    ],
+    "features": [
+        {
+            "name": "Authentication",
+            "description": "User login and session management.",
+            "files": [
+                "components/Login.tsx",
+                "services/userService.ts",
+                "services/supabase.ts"
+            ]
+        },
+        {
+            "name": "Dashboard",
+            "description": "Main dashboard showing key metrics and navigation.",
+            "files": [
+                "components/Dashboard.tsx",
+                "services/monitoring.ts"
+            ]
+        },
+        {
+            "name": "Recipe Management",
+            "description": "Create, read, update, and delete recipes, including costs and printing.",
+            "files": [
+                "components/RecipeList.tsx",
+                "components/RecipeForm.tsx",
+                "components/RecipePrintView.tsx",
+                "services/recipeService.ts",
+                "hooks/useRecipes.ts",
+                "hooks/useRecipeForm.ts"
+            ]
+        },
+        {
+            "name": "Ingredient Management",
+            "description": "Manage ingredients, units, and costs.",
+            "files": [
+                "components/IngredientForm.tsx",
+                "services/ingredientService.ts",
+                "hooks/useIngredients.ts"
+            ]
+        },
+        {
+            "name": "Point of Sale (POS)",
+            "description": "Sales interface, cart management, and payment processing.",
+            "files": [
+                "components/PosView.tsx",
+                "components/CartPanel.tsx",
+                "components/PaymentModal.tsx",
+                "components/Receipt.tsx",
+                "services/posService.ts"
+            ]
+        },
+        {
+            "name": "Financial Management",
+            "description": "Track sales, expenses, and cash flow.",
+            "files": [
+                "components/ExpensesView.tsx",
+                "components/SalesView.tsx",
+                "components/CashHistory.tsx",
+                "components/CashModal.tsx",
+                "services/financialService.ts",
+                "hooks/useFinancials.ts",
+                "hooks/useSystem.ts"
+            ]
+        },
+        {
+            "name": "Settings",
+            "description": "Application settings, categories, and fixed costs configuration.",
+            "files": [
+                "components/SettingsForm.tsx",
+                "components/CategoryManager.tsx",
+                "services/settingsService.ts",
+                "services/categoryService.ts",
+                "services/fixedCostService.ts",
+                "services/teamService.ts"
+            ]
+        },
+        {
+            "name": "Reports & Analytics",
+            "description": "Various reports including POS reports, resale products, and costing.",
+            "files": [
+                "components/PosReports.tsx",
+                "components/ResaleProductsView.tsx",
+                "components/CostingView.tsx",
+                "components/PackagingView.tsx",
+                "components/PriceHistoryViewer.tsx",
+                "components/PricingSimulator.tsx",
+                "components/ResaleCalculator.tsx",
+                "services/priceHistoryService.ts"
+            ]
+        },
+        {
+            "name": "User Management",
+            "description": "Admin interface for managing system users.",
+            "files": [
+                "components/UserManagement.tsx"
+            ]
+        }
+    ]
+}

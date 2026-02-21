@@ -1,0 +1,581 @@
+[
+  {
+    "id": "TC001",
+    "title": "Admin Login Success",
+    "description": "Verify that an Admin user can log in successfully with valid credentials and access all system modules.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to the login page."
+      },
+      {
+        "type": "action",
+        "description": "Enter valid Admin username and password."
+      },
+      {
+        "type": "action",
+        "description": "Click the login button."
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm login is successful and Admin dashboard is displayed with access to all modules."
+      }
+    ]
+  },
+  {
+    "id": "TC002",
+    "title": "Cashier Login and POS Access",
+    "description": "Verify that a Cashier user can log in successfully and access only the POS module.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to the login page."
+      },
+      {
+        "type": "action",
+        "description": "Enter valid Cashier username and password."
+      },
+      {
+        "type": "action",
+        "description": "Click the login button."
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm login is successful and POS module is accessible, other admin modules are restricted."
+      }
+    ]
+  },
+  {
+    "id": "TC003",
+    "title": "Login Failure with Incorrect Credentials",
+    "description": "Verify that login fails and appropriate error message is shown on entering invalid username or password.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to login page."
+      },
+      {
+        "type": "action",
+        "description": "Enter invalid username and/or password."
+      },
+      {
+        "type": "action",
+        "description": "Click login button."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify login fails and appropriate error message is displayed."
+      }
+    ]
+  },
+  {
+    "id": "TC004",
+    "title": "Create New Ingredient with Valid Details",
+    "description": "Verify that Admin can successfully add a new ingredient with pricing, units, and measure conversions.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as Admin."
+      },
+      {
+        "type": "action",
+        "description": "Navigate to Ingredient Management module."
+      },
+      {
+        "type": "action",
+        "description": "Click on 'Add Ingredient' button."
+      },
+      {
+        "type": "action",
+        "description": "Fill all required fields including name, price, unit, and conversion factors with valid data."
+      },
+      {
+        "type": "action",
+        "description": "Click 'Save'."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the ingredient is added successfully and displayed in the ingredient list."
+      }
+    ]
+  },
+  {
+    "id": "TC005",
+    "title": "Attempt to Add Ingredient with Missing Mandatory Fields",
+    "description": "Verify system validation prevents adding an ingredient when mandatory fields are missing and displays proper error messages.",
+    "category": "error handling",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as Admin."
+      },
+      {
+        "type": "action",
+        "description": "Navigate to Ingredient Management."
+      },
+      {
+        "type": "action",
+        "description": "Click 'Add Ingredient'."
+      },
+      {
+        "type": "action",
+        "description": "Leave required fields empty (e.g., name or price)."
+      },
+      {
+        "type": "action",
+        "description": "Click 'Save'."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify validation errors are shown and ingredient is not saved."
+      }
+    ]
+  },
+  {
+    "id": "TC006",
+    "title": "Create New Recipe with Ingredients and Verify Cost Calculation",
+    "description": "Verify that Admin can create a recipe by adding ingredients and the system correctly calculates total cost incorporating ingredients, labor, and overhead.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as Admin."
+      },
+      {
+        "type": "action",
+        "description": "Navigate to Recipe Management."
+      },
+      {
+        "type": "action",
+        "description": "Click 'Create New Recipe'."
+      },
+      {
+        "type": "action",
+        "description": "Enter recipe details including name and description."
+      },
+      {
+        "type": "action",
+        "description": "Add multiple ingredients with specified quantities."
+      },
+      {
+        "type": "action",
+        "description": "Enter recipe preparation time for labor costing."
+      },
+      {
+        "type": "action",
+        "description": "Save the recipe."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify recipe is saved, cost breakdown displays ingredient cost, labor cost based on time, and overhead allocation accurately."
+      }
+    ]
+  },
+  {
+    "id": "TC007",
+    "title": "Update Ingredient and Verify Automatic Cost Recalculation in Recipes",
+    "description": "Verify that when an ingredient's price or unit is updated, recipes using that ingredient automatically update their total cost.",
+    "category": "integration",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as Admin."
+      },
+      {
+        "type": "action",
+        "description": "Navigate to Ingredient Management."
+      },
+      {
+        "type": "action",
+        "description": "Update the price or unit of an existing ingredient."
+      },
+      {
+        "type": "action",
+        "description": "Save changes."
+      },
+      {
+        "type": "action",
+        "description": "Navigate to Recipe Management."
+      },
+      {
+        "type": "action",
+        "description": "Open a recipe that uses the updated ingredient."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the total cost of the recipe reflects the updated ingredient pricing dynamically."
+      }
+    ]
+  },
+  {
+    "id": "TC008",
+    "title": "Configure Financial Parameters and Verify Costing Engine Updates",
+    "description": "Verify that updating financial settings such as payroll rate, fixed costs, tax rate updates the costing engine and downstream calculations.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as Admin."
+      },
+      {
+        "type": "action",
+        "description": "Navigate to Financial Settings."
+      },
+      {
+        "type": "action",
+        "description": "Update payroll costs, fixed monthly costs, work hours, and tax rates."
+      },
+      {
+        "type": "action",
+        "description": "Save settings."
+      },
+      {
+        "type": "action",
+        "description": "Navigate to Recipe Management."
+      },
+      {
+        "type": "action",
+        "description": "Open any recipe to check costing details."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify labor costs and overhead in recipe cost calculations reflect the updated financial parameters."
+      }
+    ]
+  },
+  {
+    "id": "TC009",
+    "title": "Use Pricing Simulator to Determine Ideal Selling Price",
+    "description": "Verify that Pricing Simulator correctly calculates ideal selling price based on total costs, desired profit margin, and tax/card fees.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as Admin."
+      },
+      {
+        "type": "action",
+        "description": "Navigate to Pricing Simulator."
+      },
+      {
+        "type": "action",
+        "description": "Input recipe or product details to fetch total cost."
+      },
+      {
+        "type": "action",
+        "description": "Set desired profit margin percentage."
+      },
+      {
+        "type": "action",
+        "description": "Input applicable tax rates and card fees."
+      },
+      {
+        "type": "action",
+        "description": "Run the simulation."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the suggested selling price is correctly calculated and displayed."
+      }
+    ]
+  },
+  {
+    "id": "TC010",
+    "title": "Open Cash Session and Process Sale in POS",
+    "description": "Verify Cashier can open a cash session, add products to cart, process payments with various methods, and generate receipt.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as Cashier."
+      },
+      {
+        "type": "action",
+        "description": "Open a new cash session."
+      },
+      {
+        "type": "action",
+        "description": "Add multiple products to sales cart."
+      },
+      {
+        "type": "action",
+        "description": "Proceed to payment."
+      },
+      {
+        "type": "action",
+        "description": "Complete payment using cash and card methods separately."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify payment is successfully processed and receipt is generated and displayed."
+      }
+    ]
+  },
+  {
+    "id": "TC011",
+    "title": "Handle Insufficient Payment in POS",
+    "description": "Verify system prevents completing sale when payment amount is less than total cost and displays appropriate error message.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as Cashier."
+      },
+      {
+        "type": "action",
+        "description": "Open cash session and add products to cart."
+      },
+      {
+        "type": "action",
+        "description": "Attempt to complete payment with amount less than total sale."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that sale is not completed and error message about insufficient payment is shown."
+      }
+    ]
+  },
+  {
+    "id": "TC012",
+    "title": "Generate Sales and Expense Reports with Updated Data",
+    "description": "Verify Admin can generate sales and expense reports, and that reports reflect all transactions correctly and remain up-to-date.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as Admin."
+      },
+      {
+        "type": "action",
+        "description": "Navigate to Reports and Analytics."
+      },
+      {
+        "type": "action",
+        "description": "Select sales report and generate for current period."
+      },
+      {
+        "type": "action",
+        "description": "Select expense report and generate."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify reports display correct sales and expense data consistent with recorded transactions including payments and costs."
+      }
+    ]
+  },
+  {
+    "id": "TC013",
+    "title": "User Management - Add New User and Assign Role",
+    "description": "Verify Admin can invite new users and assign either Admin or Cashier role with correct permission enforcement post creation.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as Admin."
+      },
+      {
+        "type": "action",
+        "description": "Navigate to User Management."
+      },
+      {
+        "type": "action",
+        "description": "Invite a new user with email and assign role as Cashier."
+      },
+      {
+        "type": "action",
+        "description": "Save and confirm invitation."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify new user is created with Cashier role and has restricted access accordingly."
+      }
+    ]
+  },
+  {
+    "id": "TC014",
+    "title": "Verify Role-Based Access Control Enforcement",
+    "description": "Verify that user roles restrict or grant access appropriately; Admin has full access, Cashier access limited to POS only.",
+    "category": "security",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as Admin and verify access to Ingredients, Recipes, Financials, Settings, Reports, User Management, and POS."
+      },
+      {
+        "type": "action",
+        "description": "Logout and login as Cashier."
+      },
+      {
+        "type": "action",
+        "description": "Attempt to access modules other than POS like Financials or Settings."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify Cashier access is restricted and access denied errors or no navigation options present."
+      }
+    ]
+  },
+  {
+    "id": "TC015",
+    "title": "Recipe Costing Edge Case: Ingredient Quantity Zero or Negative",
+    "description": "Verify that system handles zero or negative ingredient quantities in recipes with proper validation and error messaging.",
+    "category": "error handling",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as Admin."
+      },
+      {
+        "type": "action",
+        "description": "Create or edit a recipe."
+      },
+      {
+        "type": "action",
+        "description": "Add an ingredient with quantity zero or negative value."
+      },
+      {
+        "type": "action",
+        "description": "Attempt to save the recipe."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify validation error prevents saving and user is informed of invalid quantity input."
+      }
+    ]
+  },
+  {
+    "id": "TC016",
+    "title": "Concurrent Updates Handling for Ingredients",
+    "description": "Verify that concurrent edits on the same ingredient by multiple Admin users are handled gracefully, preventing data corruption.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as Admin in two separate sessions."
+      },
+      {
+        "type": "action",
+        "description": "In both sessions, open the same ingredient for editing."
+      },
+      {
+        "type": "action",
+        "description": "In session one, update price and save."
+      },
+      {
+        "type": "action",
+        "description": "In session two, try to save different update."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify system either merges changes carefully or warns about concurrent modification, preserving data integrity."
+      }
+    ]
+  },
+  {
+    "id": "TC017",
+    "title": "Responsive UI Verification on Various Devices",
+    "description": "Verify the UI layout and functionality adapt correctly on desktop, tablet, and mobile browsers enabling smooth workflow.",
+    "category": "ui",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Access the application on desktop browser."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify UI is fully functional and properly laid out."
+      },
+      {
+        "type": "action",
+        "description": "Access the application on tablet device or emulator."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify UI rearranges layout properly and all features remain accessible."
+      },
+      {
+        "type": "action",
+        "description": "Access the application on mobile device or emulator."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify UI is responsive with no broken elements and touch interactions work correctly."
+      }
+    ]
+  },
+  {
+    "id": "TC018",
+    "title": "System Recovery on Network Failure During Save Operations",
+    "description": "Verify the system handles network interruptions gracefully during saving ingredient, recipe, or transaction data, providing proper user feedback and retry options.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as Admin or Cashier."
+      },
+      {
+        "type": "action",
+        "description": "Initiate a save operation (ingredient creation, recipe update, or POS payment) and simulate network failure mid-process."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify user is informed of the failure with clear message and options to retry or cancel."
+      }
+    ]
+  },
+  {
+    "id": "TC019",
+    "title": "Sales Completion Updates Cash Session and Financial Records",
+    "description": "Verify that each completed sale correctly updates cash session totals and financial records for accurate reporting.",
+    "category": "integration",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as Cashier."
+      },
+      {
+        "type": "action",
+        "description": "Open new cash session."
+      },
+      {
+        "type": "action",
+        "description": "Process multiple sales to completion."
+      },
+      {
+        "type": "action",
+        "description": "Logout and login as Admin."
+      },
+      {
+        "type": "action",
+        "description": "Navigate to Cash History and Financial Reports."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify cash session reflects totals accurately including individual sales data and financial reports include these sales correctly."
+      }
+    ]
+  }
+]

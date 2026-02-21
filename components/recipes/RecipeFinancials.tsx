@@ -1,33 +1,77 @@
 import React from 'react';
-import { Clock, HelpCircle, Save, Loader2, Package, History } from 'lucide-react';
+import { Clock, Package, HelpCircle, History } from 'lucide-react';
 import { Settings } from '../../types';
 
-interface RecipeFinancialsProps {
-    financials: {
-        total_cost_material: number;
-        total_cost_labor: number;
-        total_cost_overhead: number;
-        total_cost_final: number;
-        unit_cost: number;
-    };
-    settings: Settings;
-    onSave: (e: React.FormEvent) => void;
-    isSaving: boolean;
-    isEditing: boolean;
-    onShowHistory: () => void;
-    packagingCost: number;
+export interface RecipeFinancialMetrics {
+    total_cost_material: number;
+    total_cost_labor: number;
+    total_cost_overhead: number;
+    total_cost_final: number;
+    unit_cost: number;
 }
 
-export const RecipeFinancials: React.FC<RecipeFinancialsProps> = ({
-    financials, settings, onSave, isSaving, isEditing, onShowHistory, packagingCost
+interface RecipeFinancialsProps {
+    financials: RecipeFinancialMetrics;
+    settings: Settings;
+    onSave?: () => void;
+    isSaving?: boolean;
+    isEditing: boolean;
+    onShowHistory?: () => void;
+    packagingCost?: number;
+    isSummaryMode?: boolean;
+}
+
+export const RecipeFinancials = React.memo<RecipeFinancialsProps>(({
+    financials, settings, onSave, isSaving, isEditing, onShowHistory, packagingCost = 0, isSummaryMode = false
 }) => {
-    const materialsCostOnly = financials.total_cost_material - packagingCost;
+    // Cálculo seguro para evitar NaN
+    const materialsCost = financials?.total_cost_material || 0;
+    const laborCost = financials?.total_cost_labor || 0;
+    const overheadCost = financials?.total_cost_overhead || 0;
+    const finalCost = financials?.total_cost_final || 0;
+    const unitCost = financials?.unit_cost || 0;
+
+    const materialsCostOnly = materialsCost - packagingCost;
     const totalFixedExpensesApprox = (settings.estimated_monthly_revenue * settings.fixed_overhead_rate) / 100;
     const showDetailedTooltip = settings.estimated_monthly_revenue > 0;
 
+    if (isSummaryMode) {
+        return (
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                <h3 className="text-lg font-bold text-slate-800 mb-4">Resumo de Custos</h3>
+                <div className="space-y-3">
+                    <div className="flex justify-between items-center text-sm">
+                        <span className="text-slate-500">Materiais</span>
+                        <span className="font-semibold">R$ {materialsCostOnly.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                        <span className="text-slate-500">Embalagens</span>
+                        <span className="font-semibold text-purple-600">R$ {packagingCost.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                        <span className="text-slate-500">Mão de Obra</span>
+                        <span className="font-semibold">R$ {laborCost.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                        <span className="text-slate-500">Custos Fixos</span>
+                        <span className="font-semibold">R$ {overheadCost.toFixed(2)}</span>
+                    </div>
+                    <div className="pt-3 border-t border-slate-100 flex justify-between items-center">
+                        <span className="font-bold text-slate-800">Custo Total</span>
+                        <span className="font-bold text-xl text-emerald-600">R$ {finalCost.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center bg-slate-50 p-3 rounded-lg">
+                        <span className="font-bold text-slate-600">Custo Unitário</span>
+                        <span className="font-bold text-lg text-slate-800">R$ {unitCost.toFixed(2)}</span>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
     return (
         <div className="space-y-6">
-            <div className="sticky top-6 bg-slate-800 text-white p-6 rounded-xl shadow-lg">
+            <div className="bg-slate-800 text-white p-6 rounded-xl shadow-lg">
                 <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><Clock size={20} className="text-amber-400" /> Custos Calculados</h3>
                 <div className="space-y-2 text-sm opacity-80">
                     <div className="flex justify-between">
@@ -40,7 +84,7 @@ export const RecipeFinancials: React.FC<RecipeFinancialsProps> = ({
                     </div>
                     <div className="flex justify-between">
                         <span>Mão de Obra</span>
-                        <span>R$ {financials.total_cost_labor.toFixed(2)}</span>
+                        <span>R$ {laborCost.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between items-center">
                         <span className="flex items-center gap-1">
@@ -71,25 +115,18 @@ export const RecipeFinancials: React.FC<RecipeFinancialsProps> = ({
                                 </div>
                             </div>
                         </span>
-                        <span>R$ {financials.total_cost_overhead.toFixed(2)}</span>
+                        <span>R$ {overheadCost.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between pt-2 mt-2 border-t border-slate-600 font-bold text-amber-400">
                         <span>Total</span>
-                        <span>R$ {financials.total_cost_final.toFixed(2)}</span>
+                        <span>R$ {finalCost.toFixed(2)}</span>
                     </div>
                 </div>
                 <div className="mt-4 pt-4 border-t border-slate-700 text-2xl font-bold text-center">
-                    R$ {financials.unit_cost.toFixed(2)} <span className="text-xs font-normal">/un</span>
+                    R$ {unitCost.toFixed(2)} <span className="text-xs font-normal">/un</span>
                 </div>
-                <button
-                    onClick={onSave}
-                    disabled={isSaving}
-                    className="w-full mt-6 py-3 bg-green-600 hover:bg-green-700 rounded-lg font-bold flex justify-center items-center gap-2 transition disabled:opacity-50"
-                >
-                    {isSaving ? <Loader2 className="animate-spin" /> : <><Save size={20} /> Salvar Receita</>}
-                </button>
             </div>
-            {isEditing && (
+            {isEditing && onShowHistory && (
                 <button
                     onClick={onShowHistory}
                     className="w-full py-3 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-slate-50 transition"
@@ -99,4 +136,4 @@ export const RecipeFinancials: React.FC<RecipeFinancialsProps> = ({
             )}
         </div>
     );
-};
+});
