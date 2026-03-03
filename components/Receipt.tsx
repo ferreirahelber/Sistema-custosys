@@ -1,5 +1,6 @@
 import React from 'react';
 import { CartItem } from '../types';
+import { QRCodeCanvas } from 'qrcode.react';
 
 interface ReceiptProps {
   items: CartItem[];
@@ -11,6 +12,8 @@ interface ReceiptProps {
 
 export const Receipt = React.forwardRef<HTMLDivElement, ReceiptProps>(
   ({ items, total, paymentMethod, date, orderId }, ref) => {
+    const receiptUrl = orderId ? `https://app.custosys.com.br/comprovante/${orderId}` : 'https://app.custosys.com.br';
+
     return (
       <div ref={ref} id="receipt-area" className="hidden print:block p-4 bg-white text-black font-mono text-xs w-[80mm] mx-auto">
 
@@ -58,8 +61,25 @@ export const Receipt = React.forwardRef<HTMLDivElement, ReceiptProps>(
           </div>
         </div>
 
+        {/* QR CODE COMPROVANTE */}
+        {orderId && (
+          <div className="mt-6 flex flex-col items-center justify-center border-t border-black border-dashed pt-6 pb-2">
+            <div className="bg-white p-4 rounded-lg">
+              <QRCodeCanvas
+                value={receiptUrl}
+                size={160}
+                level={"H"}
+                fgColor="#000000"
+                bgColor="#FFFFFF"
+                includeMargin={true}
+              />
+            </div>
+            <p className="text-[10px] mt-2 text-center font-bold">Aponte a câmera para o QR Code</p>
+          </div>
+        )}
+
         {/* RODAPÉ */}
-        <div className="text-center mt-6 text-[10px]">
+        <div className="text-center mt-4 text-[10px]">
           <p>Obrigado pela preferência!</p>
           <p>Volte sempre.</p>
           <p className="mt-2 text-[8px] text-slate-500">Sistema Custosys</p>

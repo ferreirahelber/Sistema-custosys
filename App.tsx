@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { Login } from './components/Login';
 import { SettingsForm } from './components/SettingsForm';
@@ -19,6 +19,7 @@ import { PosReports } from './components/PosReports';
 import { PackagingView } from './components/PackagingView';
 import { ResaleProductsView } from './components/ResaleProductsView';
 import { UserManagement } from './components/UserManagement';
+import { PublicReceiptView } from './components/PublicReceiptView';
 import { supabase } from './services/supabase';
 import { MainLayout } from './components/layout/MainLayout';
 import { Loader2 } from 'lucide-react';
@@ -37,6 +38,7 @@ export function AppContent() {
   const [loadingRole, setLoadingRole] = useState(true);
 
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     const initApp = async () => {
@@ -85,14 +87,19 @@ export function AppContent() {
 
 
   if (loading || checkingConfig || loadingRole || (session && userRole === null)) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <Loader2 className="animate-spin text-amber-600 w-8 h-8" />
-      </div>
-    );
+    // Se a rota for o comprovante público, não exibimos o loader bloqueante se não houver sessão ativa
+    if (!session && location.pathname.startsWith('/comprovante')) {
+      // prosseguimos para baixo para renderizar a rota livremente
+    } else {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-50">
+          <Loader2 className="animate-spin text-amber-600 w-8 h-8" />
+        </div>
+      );
+    }
   }
 
-  if (!session) {
+  if (!session && !location.pathname.startsWith('/comprovante')) {
     return <Login />;
   }
 
@@ -104,57 +111,63 @@ export function AppContent() {
     <>
       <Toaster position="top-right" richColors expand={true} />
       <Routes>
-        <Route element={<MainLayout userRole={userRole} isConfigured={isConfigured} />}>
-          {/* Rota Pública (Acessível a Todos) */}
-          <Route path="/pos" element={<PosView />} />
+        {/* ROTA TOTALMENTE PÚBLICA (Sem Layout, Sem Login) */}
+        <Route path="/comprovante/:id" element={<PublicReceiptView />} />
 
-          {/* Rotas de Admin - Bloqueadas para Caixa */}
-          {userRole === 'admin' ? (
-            <>
-              <Route path="/" element={<Dashboard onNavigate={(view) => {
-                const routes: Record<string, string> = {
-                  'settings': '/settings',
-                  'ingredients': '/ingredients',
-                  'production-bases': '/production-bases',
-                  'products': '/resale-products',
-                  'recipes': '/recipes',
-                  'costs': '/costs',
-                  'sales': '/sales',
-                  'expenses': '/expenses'
-                };
-                if (routes[view]) navigate(routes[view]);
-              }} />} />
-              <Route path="/settings" element={<SettingsForm onSave={handleSettingsSaved} />} />
-              <Route path="/ingredients" element={<IngredientForm />} />
-              <Route path="/packaging" element={<PackagingView />} />
-              <Route path="/resale-products" element={<ResaleProductsView />} />
-              <Route path="/recipes" element={<RecipeList />} />
-              <Route path="/recipes/new" element={<RecipeForm />} />
-              <Route path="/recipes/:id" element={<RecipeForm />} />
-              <Route path="/costs" element={<CostingView />} />
-              <Route path="/calculator" element={<PricingSimulator />} />
-              <Route path="/resale" element={<ResaleCalculator />} />
-              <Route path="/sales" element={<SalesView />} />
-              <Route path="/expenses" element={<ExpensesView />} />
-              <Route path="/cash-history" element={<CashHistory />} />
-              <Route path="/reports" element={<PosReports />} />
+        {/* ROTAS AUTENTICADAS */}
+        {session && (
+          <Route element={<MainLayout userRole={userRole} isConfigured={isConfigured} />}>
+            {/* Rota Interna Compartilhada (Admin e Caixa) */}
+            <Route path="/pos" element={<PosView />} />
 
-              {/* Rotas de Produção (Bases) */}
-              <Route path="/production-bases" element={<RecipeList isBaseFilter={true} />} />
-              <Route path="/production-bases/new" element={<RecipeForm />} />
-              <Route path="/production-bases/edit/:id" element={<RecipeForm />} />
+            {/* Rotas de Admin - Bloqueadas para Caixa */}
+            {userRole === 'admin' ? (
+              <>
+                <Route path="/" element={<Dashboard onNavigate={(view) => {
+                  const routes: Record<string, string> = {
+                    'settings': '/settings',
+                    'ingredients': '/ingredients',
+                    'production-bases': '/production-bases',
+                    'products': '/resale-products',
+                    'recipes': '/recipes',
+                    'costs': '/costs',
+                    'sales': '/sales',
+                    'expenses': '/expenses'
+                  };
+                  if (routes[view]) navigate(routes[view]);
+                }} />} />
+                <Route path="/settings" element={<SettingsForm onSave={handleSettingsSaved} />} />
+                <Route path="/ingredients" element={<IngredientForm />} />
+                <Route path="/packaging" element={<PackagingView />} />
+                <Route path="/resale-products" element={<ResaleProductsView />} />
+                <Route path="/recipes" element={<RecipeList />} />
+                <Route path="/recipes/new" element={<RecipeForm />} />
+                <Route path="/recipes/:id" element={<RecipeForm />} />
+                <Route path="/costs" element={<CostingView />} />
+                <Route path="/calculator" element={<PricingSimulator />} />
+                <Route path="/resale" element={<ResaleCalculator />} />
+                <Route path="/sales" element={<SalesView />} />
+                <Route path="/expenses" element={<ExpensesView />} />
+                <Route path="/cash-history" element={<CashHistory />} />
+                <Route path="/reports" element={<PosReports />} />
 
-              {/* Gestão de Usuários */}
-              <Route path="/team" element={<UserManagement />} />
-            </>
-          ) : (
-            // Fallback para Caixa
-            <Route path="*" element={<Navigate to="/pos" replace />} />
-          )}
+                {/* Rotas de Produção (Bases) */}
+                <Route path="/production-bases" element={<RecipeList isBaseFilter={true} />} />
+                <Route path="/production-bases/new" element={<RecipeForm />} />
+                <Route path="/production-bases/edit/:id" element={<RecipeForm />} />
 
-          {/* Redirecionamento padrão global */}
-          <Route path="*" element={<Navigate to={userRole === 'admin' ? "/" : "/pos"} replace />} />
-        </Route>
+                {/* Gestão de Usuários */}
+                <Route path="/team" element={<UserManagement />} />
+              </>
+            ) : (
+              // Fallback para Caixa
+              <Route path="*" element={<Navigate to="/pos" replace />} />
+            )}
+
+            {/* Redirecionamento padrão global */}
+            <Route path="*" element={<Navigate to={userRole === 'admin' ? "/" : "/pos"} replace />} />
+          </Route>
+        )}
       </Routes>
     </>
   );

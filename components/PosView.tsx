@@ -14,6 +14,8 @@ import { toast } from 'sonner';
 import { Receipt } from './Receipt';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { QRCodeSVG } from 'qrcode.react';
+import { SettingsService } from '../services/settingsService';
 
 export function PosView() {
   const { signOut } = useAuth();
@@ -60,11 +62,23 @@ export function PosView() {
     received?: number;
   } | null>(null);
 
+  const [settings, setSettings] = useState<any>(null);
+
   // 1. Verificar Caixa e Carregar Categorias
   useEffect(() => {
     checkSession();
     loadCategories();
+    loadSettings();
   }, []);
+
+  async function loadSettings() {
+    try {
+      const data = await SettingsService.get();
+      setSettings(data);
+    } catch (e) {
+      console.error(e);
+    }
+  }
 
   async function checkSession() {
     try {
@@ -370,6 +384,33 @@ export function PosView() {
               </div>
             ) : null}
 
+            {lastOrder?.paymentMethod?.toLowerCase() === 'pix' && (
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-6 flex flex-col items-center">
+                <p className="text-xs font-bold text-slate-500 uppercase mb-3">Escaneie para pagar com PIX</p>
+                {console.log("DEBUG PIX:", settings?.pix_key)}
+                {settings?.pix_key ? (
+                  <>
+                    <div className="bg-white p-2 rounded-lg shadow-sm border border-slate-100">
+                      <QRCodeSVG
+                        value={settings.pix_key}
+                        size={150}
+                        level={"H"}
+                        includeMargin={true}
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-2 text-center max-w-[200px] break-words">
+                      Código PIX Copia e Cola Gerado
+                    </p>
+                  </>
+                ) : (
+                  <div className="text-center p-4 bg-amber-50 rounded-lg text-amber-600 border border-amber-200">
+                    <p className="font-bold text-sm">Código PIX não encontrado!</p>
+                    <p className="text-xs mt-1">Coloque o código "Copia e Cola" nas Configurações.</p>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="space-y-3">
               <button
                 onClick={handlePrintReceipt}
@@ -453,32 +494,42 @@ export function PosView() {
             </div>
           ) : (
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {filteredItems.map(item => (
-                <div
-                  key={item.id}
-                  onClick={() => addToCart(item)}
-                  className={`
+              {filteredItems.map(item => {
+                const cartItem = cart.find(c => c.id === item.id);
+                const quantityInCart = cartItem ? cartItem.quantity : 0;
+
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => addToCart(item)}
+                    className={`
                     bg-white border p-3 rounded-xl cursor-pointer transition group flex flex-col justify-between h-32 relative overflow-hidden
                     ${item.type === 'resale' ? 'border-emerald-200 hover:border-emerald-500' : 'border-slate-200 hover:border-amber-500'}
                     hover:shadow-md active:scale-95
                   `}
-                >
-                  <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
-                    {item.type === 'resale' ? (
-                      <ShoppingBag size={40} className="text-emerald-500" />
-                    ) : (
-                      <ChefHat size={40} className="text-amber-500" />
+                  >
+                    {quantityInCart > 0 && (
+                      <div className="absolute top-2 right-2 bg-slate-800 text-white text-[10px] font-bold w-6 h-6 rounded-full flex items-center justify-center shadow-md z-20">
+                        {quantityInCart}
+                      </div>
                     )}
+                    <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
+                      {item.type === 'resale' ? (
+                        <ShoppingBag size={40} className="text-emerald-500" />
+                      ) : (
+                        <ChefHat size={40} className="text-amber-500" />
+                      )}
+                    </div>
+                    <span className="font-bold text-slate-700 line-clamp-2 relative z-10 text-sm leading-tight">{item.name}</span>
+                    <div className={`font-bold text-base relative z-10 ${item.type === 'resale' ? 'text-emerald-600' : 'text-amber-600'}`}>
+                      {item.price > 0
+                        ? `R$ ${item.price.toFixed(2)}`
+                        : <span className="text-red-400 text-xs">Sem preço</span>
+                      }
+                    </div>
                   </div>
-                  <span className="font-bold text-slate-700 line-clamp-2 relative z-10 text-sm leading-tight">{item.name}</span>
-                  <div className={`font-bold text-base relative z-10 ${item.type === 'resale' ? 'text-emerald-600' : 'text-amber-600'}`}>
-                    {item.price > 0
-                      ? `R$ ${item.price.toFixed(2)}`
-                      : <span className="text-red-400 text-xs">Sem preço</span>
-                    }
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
