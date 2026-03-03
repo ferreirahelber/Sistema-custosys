@@ -53,6 +53,10 @@ begin
         alter table user_settings add column card_credit_rate numeric default 4.39;
     end if;
 
+    if not exists (select 1 from information_schema.columns where table_name = 'user_settings' and column_name = 'pix_key') then
+        alter table user_settings add column pix_key text;
+    end if;
+
 end $$;
 
 -- Garante permissões RLS básicas (caso não existam)

@@ -21,6 +21,9 @@ create table if not exists user_settings (
   card_debit_rate numeric default 1.60,
   card_credit_rate numeric default 4.39,
   
+  -- PIX
+  pix_key text,
+  
   updated_at timestamp with time zone default timezone('utc'::text, now()),
 
   -- VALIDAÇÕES
