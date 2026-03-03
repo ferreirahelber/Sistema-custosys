@@ -34,46 +34,45 @@ export function CartPanel({
 
     return (
         <div className="flex flex-col h-full bg-white md:rounded-xl shadow-sm border border-slate-200">
-            <div className="p-4 bg-slate-800 text-white md:rounded-t-xl flex justify-between items-center">
-                <div>
-                    <h3 className="font-bold flex items-center gap-2">
-                        <ShoppingCart size={20} />
-                        {isMobile ? 'Seu Carrinho' : 'PDV Aberto'}
-                    </h3>
-                    <p className="text-xs text-slate-400">Session ID: {session?.id.slice(0, 8)}...</p>
-                </div>
-
-                <div className="flex gap-2 items-center">
-                    {/* Mobile Close Button */}
+            <div className="p-4 bg-slate-800 text-white md:rounded-t-xl flex flex-col md:flex-row justify-between md:items-center gap-4 md:gap-0">
+                <div className="flex justify-between items-center w-full md:w-auto">
+                    <div>
+                        <h3 className="font-bold flex items-center gap-2">
+                            <ShoppingCart size={20} />
+                            {isMobile ? 'Seu Carrinho' : 'PDV Aberto'}
+                        </h3>
+                        <p className="text-xs text-slate-400">Session ID: {session?.id.slice(0, 8)}...</p>
+                    </div>
                     {isMobile && onCloseMobile && (
-                        <button onClick={onCloseMobile} className="p-2 bg-slate-700/50 rounded-full text-white mx-2">
+                        <button onClick={onCloseMobile} className="p-2 bg-slate-700/50 hover:bg-slate-600 rounded-full text-white transition">
                             <X size={20} />
                         </button>
                     )}
+                </div>
 
-                    {!isMobile && (
-                        <>
-                            <button
-                                onClick={onShowConference}
-                                className="p-2 hover:bg-slate-700 rounded-lg text-emerald-300 hover:text-emerald-200 transition"
-                                title="Conferência Rápida"
-                            >
-                                <ReceiptText size={20} />
-                            </button>
+                <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
+                    <button
+                        onClick={onShowConference}
+                        className="p-2 md:p-2 bg-slate-700/50 md:bg-transparent hover:bg-slate-700 flex items-center gap-2 md:block justify-center md:justify-start rounded-lg text-emerald-300 hover:text-emerald-200 transition"
+                        title="Conferência Rápida"
+                    >
+                        <ReceiptText size={20} className="md:mx-auto" />
+                        <span className="md:hidden text-sm font-medium">Conferência Rápida</span>
+                    </button>
 
-                            <Link to="/cash-history" className="p-2 hover:bg-slate-700 rounded-lg text-slate-300 hover:text-white transition" title="Histórico">
-                                <History size={20} />
-                            </Link>
+                    <Link to="/cash-history" className="p-2 md:p-2 bg-slate-700/50 md:bg-transparent hover:bg-slate-700 flex items-center gap-2 md:block justify-center md:justify-start rounded-lg text-slate-300 hover:text-white transition" title="Histórico">
+                        <History size={20} className="md:mx-auto" />
+                        <span className="md:hidden text-sm font-medium">Histórico</span>
+                    </Link>
 
-                            <button
-                                onClick={onOpenCloseSession}
-                                className="p-2 hover:bg-slate-700 rounded-lg text-rose-300 hover:text-rose-200 transition"
-                                title="Fechar Caixa"
-                            >
-                                <LogOut size={20} />
-                            </button>
-                        </>
-                    )}
+                    <button
+                        onClick={onOpenCloseSession}
+                        className="p-2 md:p-2 bg-slate-700/50 md:bg-transparent hover:bg-slate-700 flex items-center gap-2 md:block justify-center md:justify-start rounded-lg text-rose-300 hover:text-rose-200 transition"
+                        title="Fechar Caixa"
+                    >
+                        <LogOut size={20} className="md:mx-auto" />
+                        <span className="md:hidden text-sm font-medium">Fechar Caixa</span>
+                    </button>
                 </div>
             </div>
 
