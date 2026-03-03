@@ -38,7 +38,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   // 2. Cálculos Financeiros (Memoized)
   const financialMetrics = useMemo(() => {
     const currentTax = settings?.default_tax_rate ?? 4.5;
-    const currentFee = settings?.default_card_fee ?? 3.99;
+    const currentFee = settings?.card_credit_rate ?? 4.39;
 
     const totalRevenue = sales.reduce((acc: number, curr: any) => acc + (curr.total_amount || 0), 0) + (settings?.estimated_monthly_revenue || 0);
 

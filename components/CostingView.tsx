@@ -20,9 +20,9 @@ export const CostingView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Inputs do Simulador
-  const [taxRate, setTaxRate] = useState(0); 
-  const [cardFee, setCardFee] = useState(0);
+  const [taxRate, setTaxRate] = useState<number | ''>(0);
+  const [cardDebitRate, setCardDebitRate] = useState<number | ''>(0);
+  const [cardCreditRate, setCardCreditRate] = useState<number | ''>(0);
   const [desiredMargin, setDesiredMargin] = useState(25);
   const [manualPrice, setManualPrice] = useState('');
   const [mode, setMode] = useState<'margin' | 'price'>('margin');
@@ -37,15 +37,17 @@ export const CostingView: React.FC = () => {
         RecipeService.getAll(),
         SettingsService.get(),
       ]);
-      
+
       setRecipes(recipesData || []);
 
       if (settingsData) {
         setTaxRate(settingsData.default_tax_rate ?? 4.5);
-        setCardFee(settingsData.default_card_fee ?? 3.99);
+        setCardDebitRate(settingsData.card_debit_rate ?? 1.6);
+        setCardCreditRate(settingsData.card_credit_rate ?? 4.39);
       } else {
         setTaxRate(4.5);
-        setCardFee(3.99);
+        setCardDebitRate(1.6);
+        setCardCreditRate(4.39);
       }
 
     } catch (error) {
@@ -70,8 +72,12 @@ export const CostingView: React.FC = () => {
     }
   }, [selectedRecipeId, recipes]); // Adicionado recipes para garantir atualização
 
-  // Validações Matemáticas
-  const totalTaxAndFees = taxRate + cardFee;
+  const safeTax = taxRate === '' ? 0 : taxRate;
+  const safeCredit = cardCreditRate === '' ? 0 : cardCreditRate;
+  const safeDebit = cardDebitRate === '' ? 0 : cardDebitRate;
+
+  // Validações Matemáticas - Usando a pior taxa de cartão (Crédito) como base de segurança
+  const totalTaxAndFees = safeTax + safeCredit;
   const isImpossibleMath = mode === 'margin' && totalTaxAndFees + desiredMargin >= 100;
   const isNearLimit =
     mode === 'margin' && totalTaxAndFees + desiredMargin > 95 && !isImpossibleMath;
@@ -79,15 +85,16 @@ export const CostingView: React.FC = () => {
   // Cálculos Reativos
   let sellingPrice = 0;
   let realMargin = 0;
-  let profitValue = 0;
+  let profitCredit = 0;
+  let profitDebit = 0;
 
   if (selectedRecipe) {
     if (mode === 'margin') {
       if (!isImpossibleMath) {
         sellingPrice = calculateSellingPrice(
           selectedRecipe.unit_cost,
-          taxRate,
-          cardFee,
+          safeTax,
+          safeCredit, // Baseado na pior taxa
           desiredMargin
         );
         realMargin = desiredMargin;
@@ -95,11 +102,13 @@ export const CostingView: React.FC = () => {
     } else {
       const priceVal = manualPrice === '' ? 0 : parseFloat(manualPrice);
       sellingPrice = priceVal || 0;
-      realMargin = calculateMargin(selectedRecipe.unit_cost, sellingPrice, taxRate, cardFee);
+      realMargin = calculateMargin(selectedRecipe.unit_cost, sellingPrice, safeTax, safeCredit);
     }
 
-    const totalDeductions = (sellingPrice * (taxRate + cardFee)) / 100;
-    profitValue = sellingPrice - selectedRecipe.unit_cost - totalDeductions;
+    const totalDeductionsCredit = (sellingPrice * (safeTax + safeCredit)) / 100;
+    const totalDeductionsDebit = (sellingPrice * (safeTax + safeDebit)) / 100;
+    profitCredit = sellingPrice - selectedRecipe.unit_cost - totalDeductionsCredit;
+    profitDebit = sellingPrice - selectedRecipe.unit_cost - totalDeductionsDebit;
   }
 
   const handleSavePrice = async () => {
@@ -107,7 +116,7 @@ export const CostingView: React.FC = () => {
 
     try {
       setSaving(true);
-      
+
       // --- CORREÇÃO AQUI ---
       // Usamos .save e passamos o objeto completo, pois o .update foi removido
       await RecipeService.save({
@@ -122,7 +131,7 @@ export const CostingView: React.FC = () => {
           : r
       );
       setRecipes(updatedRecipes);
-      
+
       toast.success(`Preço de venda atualizado!`);
     } catch (error) {
       toast.error('Erro ao salvar.');
@@ -133,10 +142,10 @@ export const CostingView: React.FC = () => {
 
   const handleNumberInput = (
     e: React.ChangeEvent<HTMLInputElement>,
-    setter: (val: number) => void
+    setter: (val: number | '') => void
   ) => {
     const value = e.target.value;
-    setter(value === '' ? 0 : parseFloat(value));
+    setter(value === '' ? '' : parseFloat(value));
   };
 
   if (loading)
@@ -285,7 +294,7 @@ export const CostingView: React.FC = () => {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className="text-xs font-bold text-slate-500 uppercase">Impostos (%)</label>
                   <input
@@ -296,14 +305,25 @@ export const CostingView: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase">
-                    Taxa Cartão (%)
+                  <label className="text-xs font-bold text-slate-500 uppercase" title="Baseada no Crédito">
+                    Tx Débito (%)
                   </label>
                   <input
                     type="number"
-                    value={cardFee}
-                    onChange={(e) => handleNumberInput(e, setCardFee)}
-                    className="w-full mt-1 p-2 border rounded bg-slate-50"
+                    value={cardDebitRate}
+                    onChange={(e) => handleNumberInput(e, setCardDebitRate)}
+                    className="w-full mt-1 p-2 border rounded bg-slate-50 text-slate-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold flex gap-1 items-center text-orange-600 uppercase">
+                    Tx Crédito (%) <AlertCircle size={12} title="Usada como teto para a Sugestão" />
+                  </label>
+                  <input
+                    type="number"
+                    value={cardCreditRate}
+                    onChange={(e) => handleNumberInput(e, setCardCreditRate)}
+                    className="w-full mt-1 p-2 border border-orange-200 rounded bg-orange-50 font-bold outline-none focus:ring-2 focus:ring-orange-500"
                   />
                 </div>
               </div>
@@ -354,10 +374,16 @@ export const CostingView: React.FC = () => {
                       <span>- R$ {((sellingPrice * totalTaxAndFees) / 100).toFixed(2)}</span>
                     </div>
                     <div
-                      className={`flex justify-between font-bold text-lg pt-2 ${profitValue > 0 ? 'text-green-600' : 'text-red-500'}`}
+                      className={`flex justify-between font-bold text-sm pt-2 ${profitDebit > 0 ? 'text-green-600' : 'text-red-500'}`}
                     >
-                      <span>Lucro Real:</span>
-                      <span>R$ {profitValue.toFixed(2)}</span>
+                      <span>Lucro Estimado (Débito):</span>
+                      <span>R$ {profitDebit.toFixed(2)}</span>
+                    </div>
+                    <div
+                      className={`flex justify-between font-bold text-sm ${profitCredit > 0 ? 'text-orange-600' : 'text-red-500'}`}
+                    >
+                      <span>Lucro Estimado (Crédito):</span>
+                      <span>R$ {profitCredit.toFixed(2)}</span>
                     </div>
                   </div>
 
