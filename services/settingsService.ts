@@ -9,25 +9,21 @@ export const SettingsService = {
   },
 
   async get(): Promise<Settings> {
-    const user = await this.getCurrentUser();
-
-    if (!user) {
-      // Se não tiver usuário logado, retorna padrão (evita quebrar a tela de login)
-      return this.getDefaultSettings();
-    }
-
-    // Busca a configuração DO USUÁRIO ATUAL
+    // Buscamos a primeira linha da tabela, independente de quem criou
     const { data, error } = await supabase
       .from('user_settings')
       .select('*')
-      .eq('user_id', user.id) // Filtra pelo usuário
-      .maybeSingle();
+      .order('updated_at', { ascending: false }) // Pega a última atualização
+      .limit(1)
+      .maybeSingle(); // Usamos maybeSingle para evitar erro se estiver vazio
 
     if (error) {
-      console.error('Erro ao buscar settings:', error);
+      console.error('Erro crítico ao buscar settings no Supabase:', error);
     }
 
+    // Se não houver dados, aí sim retornamos o default
     if (!data) {
+      console.warn('Nenhuma configuração encontrada no banco. Usando padrão.');
       return this.getDefaultSettings();
     }
 
@@ -36,7 +32,8 @@ export const SettingsService = {
       card_debit_rate: Number(data.card_debit_rate ?? 1.60),
       card_credit_rate: Number(data.card_credit_rate ?? 4.39),
       default_tax_rate: Number(data.default_tax_rate ?? 0),
-      default_card_fee: Number(data.default_card_fee ?? 0)
+      default_card_fee: Number(data.default_card_fee ?? 0),
+      pix_key: data.pix_key || ''
     };
   },
 
@@ -52,7 +49,8 @@ export const SettingsService = {
       default_tax_rate: 0,
       default_card_fee: 0,
       card_debit_rate: 1.60,
-      card_credit_rate: 4.39
+      card_credit_rate: 4.39,
+      pix_key: ''
     };
   },
 
@@ -89,6 +87,7 @@ export const SettingsService = {
       default_card_fee: settings.default_card_fee,
       card_debit_rate: settings.card_debit_rate,
       card_credit_rate: settings.card_credit_rate,
+      pix_key: settings.pix_key || null,
     };
 
     const { data, error } = await supabase

@@ -20,7 +20,8 @@ import {
   Percent,
   Info,
   Briefcase,
-  CreditCard
+  CreditCard,
+  QrCode
 } from 'lucide-react';
 import { Settings, Employee, FixedCost } from '../types';
 import { toast } from 'sonner';
@@ -53,6 +54,7 @@ export const SettingsForm: React.FC = () => {
   const [defaultTaxRate, setDefaultTaxRate] = useState(4.5);
   const [cardDebitRate, setCardDebitRate] = useState(1.60);
   const [cardCreditRate, setCardCreditRate] = useState(4.39);
+  const [pixKey, setPixKey] = useState('');
 
   // NOVO: Estado para controlar a interface MEI
   const [isMei, setIsMei] = useState(false);
@@ -67,6 +69,7 @@ export const SettingsForm: React.FC = () => {
       setDefaultTaxRate(tax);
       setCardDebitRate(serverSettings.card_debit_rate ?? 1.60);
       setCardCreditRate(serverSettings.card_credit_rate ?? 4.39);
+      setPixKey(serverSettings.pix_key || '');
 
       if (tax === 0) setIsMei(true);
 
@@ -213,6 +216,7 @@ export const SettingsForm: React.FC = () => {
         default_tax_rate: defaultTaxRate,
         card_debit_rate: cardDebitRate,
         card_credit_rate: cardCreditRate,
+        pix_key: pixKey,
       } as Settings;
 
       await updateSettings.mutateAsync(settingsToSave);
@@ -497,6 +501,22 @@ export const SettingsForm: React.FC = () => {
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">%</span>
               </div>
+            </div>
+
+            <div className="md:col-span-3 mt-2 border-t border-slate-100 pt-6">
+              <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1 mb-1">
+                <QrCode size={14} className="text-emerald-500" /> Código Pix Copia e Cola (Para o PDV)
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={pixKey}
+                  placeholder="Ex: 00020126...BR.GOV.BCB.PIX..."
+                  onChange={e => setPixKey(e.target.value)}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
+                />
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1">Gere o código "Copia e Cola" no seu app do banco e cole aqui para que os clientes possam escanear o QR Code gerado no PDV.</p>
             </div>
           </div>
         </div>
