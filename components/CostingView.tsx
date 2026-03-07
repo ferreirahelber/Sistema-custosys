@@ -11,6 +11,7 @@ import {
   Loader2,
   AlertTriangle,
   Info,
+  Star,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -85,8 +86,13 @@ export const CostingView: React.FC = () => {
   // Cálculos Reativos
   let sellingPrice = 0;
   let realMargin = 0;
-  let profitCredit = 0;
+  let profitPix = 0;
   let profitDebit = 0;
+  let profitCredit = 0;
+
+  let marginPix = 0;
+  let marginDebit = 0;
+  let marginCredit = 0;
 
   if (selectedRecipe) {
     if (mode === 'margin') {
@@ -105,10 +111,17 @@ export const CostingView: React.FC = () => {
       realMargin = calculateMargin(selectedRecipe.unit_cost, sellingPrice, safeTax, safeCredit);
     }
 
-    const totalDeductionsCredit = (sellingPrice * (safeTax + safeCredit)) / 100;
+    const totalDeductionsPix = (sellingPrice * safeTax) / 100;
     const totalDeductionsDebit = (sellingPrice * (safeTax + safeDebit)) / 100;
-    profitCredit = sellingPrice - selectedRecipe.unit_cost - totalDeductionsCredit;
+    const totalDeductionsCredit = (sellingPrice * (safeTax + safeCredit)) / 100;
+
+    profitPix = sellingPrice - selectedRecipe.unit_cost - totalDeductionsPix;
     profitDebit = sellingPrice - selectedRecipe.unit_cost - totalDeductionsDebit;
+    profitCredit = sellingPrice - selectedRecipe.unit_cost - totalDeductionsCredit;
+
+    marginPix = sellingPrice > 0 ? (profitPix / sellingPrice) * 100 : 0;
+    marginDebit = sellingPrice > 0 ? (profitDebit / sellingPrice) * 100 : 0;
+    marginCredit = sellingPrice > 0 ? (profitCredit / sellingPrice) * 100 : 0;
   }
 
   const handleSavePrice = async () => {
@@ -343,7 +356,10 @@ export const CostingView: React.FC = () => {
                 </div>
               ) : (
                 <div
-                  className={`p-6 rounded-xl border-2 transition-all ${realMargin < 0 ? 'bg-red-50 border-red-100' : 'bg-green-50 border-green-100'}`}
+                  className={`p-6 rounded-xl border-2 transition-all ${marginCredit < 0 ? 'bg-red-50 border-red-300' :
+                    marginPix > 40 ? 'bg-yellow-50 border-yellow-300' :
+                      'bg-slate-50 border-slate-200'
+                    }`}
                 >
                   <div className="flex justify-between items-start mb-4">
                     <div>
@@ -364,26 +380,54 @@ export const CostingView: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="space-y-2 text-sm border-t border-slate-200/50 pt-4">
-                    <div className="flex justify-between text-slate-600">
-                      <span>Custo Unitário:</span>
-                      <span>R$ {selectedRecipe.unit_cost.toFixed(2)}</span>
+                  <div className="space-y-3 text-sm border-t border-slate-200/50 pt-4">
+                    {/* Linha Dinheiro/Pix */}
+                    <div className="flex justify-between items-center bg-white p-3 rounded-lg border border-slate-100 shadow-sm">
+                      <span className="text-slate-700 font-medium">Dinheiro / Pix</span>
+                      <div className="text-right flex items-center justify-end gap-3">
+                        <span className={`font-bold ${marginPix < 0 ? 'text-red-600' : 'text-slate-800'}`}>R$ {profitPix.toFixed(2)}</span>
+                        <span className={`px-2 py-0.5 rounded-md text-xs font-bold border flex items-center gap-1 min-w-[70px] justify-center ${marginPix < 0 ? 'bg-red-100 text-red-700 border-red-200' :
+                          marginPix < 15 ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                            marginPix >= 40 ? 'bg-yellow-100 text-yellow-700 border-yellow-300' :
+                              'bg-green-50 text-green-700 border-green-200'
+                          }`}>
+                          {marginPix.toFixed(1)}%
+                          {marginPix >= 40 && <Star size={12} className="fill-yellow-500 text-yellow-600" />}
+                          {marginPix < 15 && marginPix >= 0 && <AlertTriangle size={12} />}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex justify-between text-slate-600">
-                      <span>Taxas ({totalTaxAndFees.toFixed(2)}%):</span>
-                      <span>- R$ {((sellingPrice * totalTaxAndFees) / 100).toFixed(2)}</span>
+
+                    {/* Linha Débito */}
+                    <div className="flex justify-between items-center bg-white p-3 rounded-lg border border-slate-100 shadow-sm">
+                      <span className="text-slate-700 font-medium flex items-center gap-2">Débito <span className="text-xs text-slate-400 font-normal">({safeDebit}%)</span></span>
+                      <div className="text-right flex items-center justify-end gap-3">
+                        <span className={`font-bold ${marginDebit < 0 ? 'text-red-600' : 'text-slate-800'}`}>R$ {profitDebit.toFixed(2)}</span>
+                        <span className={`px-2 py-0.5 rounded-md text-xs font-bold border flex items-center gap-1 min-w-[70px] justify-center ${marginDebit < 0 ? 'bg-red-100 text-red-700 border-red-200' :
+                          marginDebit < 15 ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                            'bg-green-50 text-green-700 border-green-200'
+                          }`}>
+                          {marginDebit.toFixed(1)}%
+                          {marginDebit < 15 && marginDebit >= 0 && <AlertTriangle size={12} />}
+                        </span>
+                      </div>
                     </div>
-                    <div
-                      className={`flex justify-between font-bold text-sm pt-2 ${profitDebit > 0 ? 'text-green-600' : 'text-red-500'}`}
-                    >
-                      <span>Lucro Estimado (Débito):</span>
-                      <span>R$ {profitDebit.toFixed(2)}</span>
-                    </div>
-                    <div
-                      className={`flex justify-between font-bold text-sm ${profitCredit > 0 ? 'text-orange-600' : 'text-red-500'}`}
-                    >
-                      <span>Lucro Estimado (Crédito):</span>
-                      <span>R$ {profitCredit.toFixed(2)}</span>
+
+                    {/* Linha Crédito */}
+                    <div className="flex justify-between items-center bg-white p-3 rounded-lg border border-slate-100 shadow-sm">
+                      <span className="text-slate-700 font-medium flex items-center gap-2">
+                        Crédito <span className="text-xs text-slate-400 font-normal">({safeCredit}%)</span>
+                      </span>
+                      <div className="text-right flex items-center justify-end gap-3">
+                        <span className={`font-bold ${marginCredit < 0 ? 'text-red-600' : 'text-slate-800'}`}>R$ {profitCredit.toFixed(2)}</span>
+                        <span className={`px-2 py-0.5 rounded-md text-xs font-bold border flex items-center gap-1 min-w-[70px] justify-center ${marginCredit < 0 ? 'bg-red-100 text-red-700 border-red-200' :
+                          marginCredit < 15 ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                            'bg-green-50 text-green-700 border-green-200'
+                          }`}>
+                          {marginCredit.toFixed(1)}%
+                          {marginCredit < 15 && marginCredit >= 0 && <AlertTriangle size={12} />}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
