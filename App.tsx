@@ -20,6 +20,7 @@ import { PackagingView } from './components/PackagingView';
 import { ResaleProductsView } from './components/ResaleProductsView';
 import { UserManagement } from './components/UserManagement';
 import { PublicReceiptView } from './components/PublicReceiptView';
+import { ProductionStockPage } from './components/ProductionStockPage'; // Recarregando componente
 import { supabase } from './services/supabase';
 import { MainLayout } from './components/layout/MainLayout';
 import { Loader2 } from 'lucide-react';
@@ -155,6 +156,8 @@ export function AppContent() {
                 <Route path="/production-bases" element={<RecipeList isBaseFilter={true} />} />
                 <Route path="/production-bases/new" element={<RecipeForm />} />
                 <Route path="/production-bases/edit/:id" element={<RecipeForm />} />
+                
+                <Route path="/estoque-producao" element={<ProductionStockPage />} />
 
                 {/* Gestão de Usuários */}
                 <Route path="/team" element={<UserManagement />} />

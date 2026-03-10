@@ -249,3 +249,34 @@ export interface Profile {
   updated_at: string;
   status?: 'active' | 'pending';
 }
+
+// --- MÓDULO CONTROLE DE ESTOQUE E PERDAS ---
+
+export interface ProductionStock {
+  id: string;
+  recipe_id: string;
+  quantity: number;
+  min_quantity: number;
+  unit: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface LossReason {
+  id: string;
+  label: string;
+  created_at: string;
+}
+
+export interface InventoryLoss {
+  id: string;
+  product_id: string;
+  quantity: number;
+  reason_id: string;
+  description?: string;
+  created_at: string;
+  
+  // Relações que vêm em JOINs do Supabase
+  reason?: LossReason;
+  recipe?: Recipe;
+}

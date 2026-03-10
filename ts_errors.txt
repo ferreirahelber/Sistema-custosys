@@ -1,0 +1,1 @@
+components/ProductionStockView.tsx(4,10): error TS2724: '"../services/productionStockService"' has no exported member named 'productionStockService'. Did you mean 'ProductionStockService'?

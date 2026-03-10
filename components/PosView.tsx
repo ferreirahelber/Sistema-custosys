@@ -8,7 +8,7 @@ import { CartPanel } from './CartPanel';
 import { CartItem, CashSession, Category } from '../types';
 import {
   ShoppingCart, Trash2, CreditCard, Banknote, QrCode, Plus, Minus, Search,
-  ChefHat, LogOut, Printer, CheckCircle, History, ShoppingBag, Tag, Store, ReceiptText, ChevronUp
+  ChefHat, LogOut, Printer, CheckCircle, History, ShoppingBag, Tag, Store, ReceiptText, ChevronUp, AlertTriangle
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Receipt } from './Receipt';
@@ -258,6 +258,9 @@ export function PosView() {
       setCart([]);
       setShowMobileCart(false); // Fechar carrinho mobile
       setShowSuccessModal(true);
+      
+      // Sincronização Local Estado (Recarrega o estoque)
+      loadCatalog();
     } catch (error) {
       console.error(error);
       toast.error('Erro ao processar venda');
@@ -521,11 +524,24 @@ export function PosView() {
                       )}
                     </div>
                     <span className="font-bold text-slate-700 line-clamp-2 relative z-10 text-sm leading-tight">{item.name}</span>
-                    <div className={`font-bold text-base relative z-10 ${item.type === 'resale' ? 'text-emerald-600' : 'text-amber-600'}`}>
-                      {item.price > 0
-                        ? `R$ ${item.price.toFixed(2)}`
-                        : <span className="text-red-400 text-xs">Sem preço</span>
-                      }
+                    <div className="flex justify-between items-end relative z-10">
+                      <div className={`font-bold text-base ${item.type === 'resale' ? 'text-emerald-600' : 'text-amber-600'}`}>
+                        {item.price > 0
+                          ? `R$ ${item.price.toFixed(2)}`
+                          : <span className="text-red-400 text-xs">Sem preço</span>
+                        }
+                      </div>
+
+                      {item.current_stock !== null && item.current_stock !== undefined && (
+                        <div className={`text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 ${
+                          item.current_stock < (item.min_stock || 0) 
+                            ? 'bg-amber-100 text-amber-700 border border-amber-200' 
+                            : 'bg-slate-100 text-slate-500'
+                        }`}>
+                          {item.current_stock < (item.min_stock || 0) && <AlertTriangle size={10} />}
+                          {item.current_stock} {item.stock_unit || 'un'}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )

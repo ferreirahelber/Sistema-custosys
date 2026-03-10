@@ -154,10 +154,10 @@ export const PosService = {
   // 2. BUSCAR PRODUTOS (MANTIDO DO SEU CÓDIGO ORIGINAL)
   // =================================================================
   async getAllProductsForPOS() {
-    // 1. Busca Receitas (Bolos, Doces)
+    // 1. Busca Receitas (Bolos, Doces) com seu saldo no Estoque de Produção
     const { data: recipes, error: recipesError } = await supabase
       .from('recipes')
-      .select('id, name, selling_price, category, barcode')
+      .select('id, name, selling_price, category, barcode, production_stock:production_stock(quantity, min_quantity, unit)')
       .eq('is_base', false);
 
     if (recipesError) throw recipesError;
@@ -165,20 +165,27 @@ export const PosService = {
     // 2. Busca Produtos de Revenda (Coca, Velas)
     const { data: products, error: productsError } = await supabase
       .from('products')
-      .select('id, name, price, category, barcode')
+      .select('id, name, price, category, barcode, current_stock, min_stock')
       .eq('type', 'resale');
 
     if (productsError) throw productsError;
 
     // 3. Padroniza Receitas
-    const formattedRecipes = (recipes || []).map(r => ({
-      id: r.id,
-      name: r.name,
-      price: Number(r.selling_price),
-      category: r.category || 'Sem categoria',
-      barcode: r.barcode || null,
-      type: 'recipe' as const
-    }));
+    const formattedRecipes = (recipes || []).map(r => {
+      // Supabase pode retornar array vazio em caso de tabela estrangeira inexistente ou ausência de match
+      let ps = Array.isArray(r.production_stock) ? r.production_stock[0] : r.production_stock;
+      return {
+        id: r.id,
+        name: r.name,
+        price: Number(r.selling_price),
+        category: r.category || 'Sem categoria',
+        barcode: r.barcode || null,
+        type: 'recipe' as const,
+        stock_unit: ps?.unit || null,
+        current_stock: ps?.quantity ?? null,
+        min_stock: ps?.min_quantity ?? null,
+      };
+    });
 
     // 4. Padroniza Produtos de Revenda
     const formattedProducts = (products || []).map(p => ({
@@ -187,7 +194,10 @@ export const PosService = {
       price: Number(p.price),
       category: p.category || 'Sem categoria',
       barcode: p.barcode || null,
-      type: 'resale' as const
+      type: 'resale' as const,
+      stock_unit: 'un',
+      current_stock: p.current_stock ?? null,
+      min_stock: p.min_stock ?? null,
     }));
 
     // 5. Retorna tudo junto ordenado por nome

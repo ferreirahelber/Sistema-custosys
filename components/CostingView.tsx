@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Recipe } from '../types';
 import { RecipeService } from '../services/recipeService';
 import { SettingsService } from '../services/settingsService';
+import { ProductionStockService } from '../services/productionStockService';
 import { calculateSellingPrice, calculateMargin } from '../utils/calculations';
 import {
   DollarSign,
@@ -12,6 +13,8 @@ import {
   AlertTriangle,
   Info,
   Star,
+  PackagePlus,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -27,6 +30,11 @@ export const CostingView: React.FC = () => {
   const [desiredMargin, setDesiredMargin] = useState(25);
   const [manualPrice, setManualPrice] = useState('');
   const [mode, setMode] = useState<'margin' | 'price'>('margin');
+
+  // Controle de Produção
+  const [showProductionModal, setShowProductionModal] = useState(false);
+  const [producedQty, setProducedQty] = useState<number | ''>('');
+  const [submittingProduction, setSubmittingProduction] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -161,6 +169,65 @@ export const CostingView: React.FC = () => {
     setter(value === '' ? '' : parseFloat(value));
   };
 
+  const openProductionModal = () => {
+    if (!selectedRecipe) return;
+    setProducedQty(selectedRecipe.yield_units || selectedRecipe.yield_quantity || 0);
+    setShowProductionModal(true);
+  };
+
+  const handleRegisterProduction = async () => {
+    if (!selectedRecipe || producedQty === '' || producedQty <= 0) {
+      toast.error('Informe uma quantidade válida para produzir.');
+      return;
+    }
+
+    try {
+      setSubmittingProduction(true);
+      
+      const payloadOriginalYield = selectedRecipe.yield_units || selectedRecipe.yield_quantity || 1;
+      const unit = selectedRecipe.yield_unit || 'un';
+
+      const response = await ProductionStockService.registerBatch(
+        selectedRecipe.id,
+        producedQty,
+        payloadOriginalYield,
+        unit
+      );
+
+      if (!response.success && response.missing_items && response.missing_items.length > 0) {
+        toast.error(
+          <div className="flex flex-col gap-1">
+            <b>Falha no Registro: Estoque Insuficiente!</b>
+            <span className="text-xs">Itens faltantes:</span>
+            <ul className="list-disc pl-4 text-xs mt-1">
+              {response.missing_items.map((item, idx) => (
+                <li key={idx}>
+                  {item.name}: Falta {(item.needed - item.available).toFixed(1)} 
+                  (Tem {item.available.toFixed(1)}, Precisa {item.needed.toFixed(1)})
+                </li>
+              ))}
+            </ul>
+          </div>,
+          { duration: 8000 }
+        );
+        return;
+      }
+
+      toast.success(`Produção de ${producedQty} ${unit} de "${selectedRecipe.name}" registrada com sucesso!`, {
+        icon: <PackagePlus className="w-4 h-4 text-green-500" />
+      });
+      
+      setShowProductionModal(false);
+
+    } catch (error: any) {
+      toast.error('Erro ao registrar produção do lote.', {
+        description: error.message || 'Falha ao contatar servidor RPC.'
+      });
+    } finally {
+      setSubmittingProduction(false);
+    }
+  };
+
   if (loading)
     return (
       <div className="flex justify-center p-12">
@@ -230,7 +297,7 @@ export const CostingView: React.FC = () => {
                     Rendimento
                   </span>
                   <span className="font-bold text-slate-800 text-lg">
-                    {selectedRecipe.yield_units} <span className="text-xs font-normal">un</span>
+                    {selectedRecipe.yield_units || selectedRecipe.yield_quantity} <span className="text-xs font-normal lowercase">{selectedRecipe.yield_unit || 'un'}</span>
                   </span>
                 </div>
                 <div className="text-center p-2 bg-amber-50 rounded-lg border border-amber-100">
@@ -449,6 +516,91 @@ export const CostingView: React.FC = () => {
           <DollarSign className="w-12 h-12 text-slate-300 mx-auto mb-4" />
           <h3 className="text-slate-600 font-medium">Nenhuma receita selecionada</h3>
           <p className="text-slate-400 text-sm">Escolha uma receita para começar.</p>
+        </div>
+      )}
+
+      {/* FOOTER: Controle de Produção se selecionado */}
+      {selectedRecipe && (
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mt-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h3 className="font-bold text-slate-800 flex items-center gap-2">
+              <PackagePlus className="text-indigo-600" /> Controle de Produção
+            </h3>
+            <p className="text-sm text-slate-500 mt-1">
+              Registre a produção da receita para dar baixa nos ingredientes utilizados e somar ao saldo de produtos acabados.
+            </p>
+          </div>
+          <button
+            onClick={openProductionModal}
+            className="whitespace-nowrap py-3 px-6 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold flex items-center justify-center gap-2 transition shadow-lg shadow-indigo-600/20"
+          >
+            <PackagePlus size={18} />
+            Registrar Lote
+          </button>
+        </div>
+      )}
+
+      {/* MODAL: Registrar Produção */}
+      {showProductionModal && selectedRecipe && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center p-5 border-b border-slate-100 bg-slate-50">
+              <h2 className="font-bold text-slate-800 flex items-center gap-2">
+                <PackagePlus className="text-indigo-600" size={20} />
+                Registrar Produção
+              </h2>
+              <button 
+                onClick={() => !submittingProduction && setShowProductionModal(false)}
+                className="text-slate-400 hover:text-slate-600 transition"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div className="bg-indigo-50 text-indigo-800 p-3 rounded-lg text-sm flex gap-2">
+                <Info size={16} className="mt-0.5 shrink-0" />
+                <p>
+                  O sistema irá <b>subtrair ingredientes</b> do estoque baseando-se no rendimento oficial ({selectedRecipe.yield_units || selectedRecipe.yield_quantity} {selectedRecipe.yield_unit || 'un'}) e <b>somar</b> na produção da receita: <b>{selectedRecipe.name}</b>.
+                </p>
+              </div>
+
+              <div>
+                 <label className="block text-sm font-bold text-slate-700 mb-1">
+                   Quantidade Produzida (<span className="text-indigo-600 uppercase">{selectedRecipe.yield_unit || 'un'}</span>)
+                 </label>
+                 <input
+                   type="number"
+                   value={producedQty}
+                   onChange={e => handleNumberInput(e, setProducedQty)}
+                   min="0.01"
+                   step="any"
+                   className="w-full px-4 py-3 border border-slate-300 rounded-lg text-lg outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
+                 />
+                 <p className="text-xs text-slate-500 mt-1.5">
+                    Sugestão baseada no rendimento padrão da receita ({selectedRecipe.yield_units || selectedRecipe.yield_quantity} {selectedRecipe.yield_unit || 'un'}). Altere caso o lote real tenha rendido mais ou menos.
+                 </p>
+              </div>
+            </div>
+
+            <div className="p-5 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+              <button
+                onClick={() => setShowProductionModal(false)}
+                disabled={submittingProduction}
+                className="px-5 py-2.5 text-slate-600 font-medium hover:bg-slate-200 rounded-lg transition"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleRegisterProduction}
+                disabled={submittingProduction || producedQty === '' || producedQty <= 0}
+                className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold flex items-center gap-2 shadow-md disabled:opacity-50 transition"
+              >
+                {submittingProduction ? <Loader2 className="animate-spin" size={18} /> : <PackagePlus size={18} />}
+                Processar Lote
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

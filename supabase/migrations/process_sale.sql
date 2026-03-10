@@ -1,5 +1,5 @@
--- CRIAÇÃO DA STORED PROCEDURE PARA VENDA ATÔMICA
--- Execute este script no SQL Editor do Supabase
+-- CRIAÇÃO DA STORED PROCEDURE PARA VENDA ATÔMICA (COM SUPORTE A ESTOQUE HÍBRIDO)
+-- Execute este script no SQL Editor do Supabase para atualizar a função existente
 
 CREATE OR REPLACE FUNCTION process_sale(
   payload JSONB,
@@ -12,6 +12,7 @@ DECLARE
   item JSONB;
   rec_item RECORD;
   qty_to_deduct NUMERIC;
+  v_has_production_stock BOOLEAN;
 BEGIN
   -- 1. Inserir Pedido
   INSERT INTO orders (
@@ -71,21 +72,37 @@ BEGIN
       WHERE id = (item->>'product_id')::UUID;
     END IF;
 
-    -- 2.3 Baixa de Estoque - Receita (Ingredientes)
+    -- 2.3 Baixa de Estoque - Receita (Híbrido)
     IF (item->>'type') = 'recipe' THEN
-      FOR rec_item IN 
-        SELECT ingredient_id, quantity 
-        FROM recipe_items 
-        WHERE recipe_id = (item->>'product_id')::UUID
-      LOOP
-        IF rec_item.ingredient_id IS NOT NULL THEN
-          qty_to_deduct := rec_item.quantity * (item->>'quantity')::NUMERIC;
-          
-          UPDATE ingredients
-          SET current_stock = current_stock - qty_to_deduct
-          WHERE id = rec_item.ingredient_id;
-        END IF;
-      END LOOP;
+      
+      -- Verifica se a receita existe na prateleira (Mesmo que zero, o registro diz que ela é "Made to Stock")
+      SELECT EXISTS (
+          SELECT 1 FROM production_stock WHERE recipe_id = (item->>'product_id')::UUID
+      ) INTO v_has_production_stock;
+
+      IF v_has_production_stock THEN
+          -- Modelo "Made to Stock": Desconta do Produto Acabado da Prateleira (Pode ficar negativo)
+          UPDATE production_stock
+          SET quantity = quantity - (item->>'quantity')::NUMERIC, updated_at = now()
+          WHERE recipe_id = (item->>'product_id')::UUID;
+      ELSE
+          -- Modelo "Made to Order" (Legado): Desconta dos itens brutos que compõem a receita na hora
+          FOR rec_item IN 
+            SELECT ingredient_id, quantity_used as quantity
+            FROM recipe_items 
+            WHERE recipe_id = (item->>'product_id')::UUID
+          LOOP
+            IF rec_item.ingredient_id IS NOT NULL THEN
+              -- NOTA: Como a matemática da RPC original utilizava a proporção multiplicada direta, mantemos a retrocompatibilidade.
+              qty_to_deduct := rec_item.quantity * (item->>'quantity')::NUMERIC;
+              
+              UPDATE ingredients
+              SET current_stock = current_stock - qty_to_deduct
+              WHERE id = rec_item.ingredient_id;
+            END IF;
+          END LOOP;
+      END IF;
+
     END IF;
 
   END LOOP;

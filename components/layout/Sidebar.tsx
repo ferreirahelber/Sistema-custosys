@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { LogOut, ShieldAlert, LayoutDashboard, Store, History, PieChart, TrendingUp, TrendingDown, Layers, ChefHat, Package, Box, ShoppingBag, DollarSign, Tags, Settings as SettingsIcon, LucideIcon, X, Users } from 'lucide-react';
+import { LogOut, ShieldAlert, LayoutDashboard, Store, History, PieChart, TrendingUp, TrendingDown, Layers, ChefHat, Package, Box, ShoppingBag, DollarSign, Tags, Settings as SettingsIcon, LucideIcon, X, Users, Archive } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface SidebarProps {
@@ -99,6 +99,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ userRole, isConfigured, curren
                         <>
                             <div className="pt-2 pb-2">
                                 <p className="px-4 text-xs font-bold text-slate-400 uppercase mb-1">Produção</p>
+                                <NavItem to="/estoque-producao" label="Prateleira & Perdas" icon={Archive} />
                                 <NavItem to="/production-bases" label="Insumos Produzidos" icon={Layers} />
                                 <NavItem to="/recipes" label="Minhas Receitas" icon={ChefHat} />
                                 <NavItem to="/ingredients" label="Ingredientes" icon={Package} />
