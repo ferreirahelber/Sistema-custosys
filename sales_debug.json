@@ -1,0 +1,82 @@
+[
+  {
+    "id": "0c3e269b-2162-4481-8f18-a48d576da9e2",
+    "user_id": "f37e14e8-b720-4f15-af25-e7e8661fba7f",
+    "date": "2026-03-10",
+    "created_at": "2026-03-10T14:35:18.438241+00:00",
+    "category": "Venda PDV",
+    "description": "PDV #e6ef51e1"
+  },
+  {
+    "id": "795439d3-8bcc-41df-a332-3e5049917ade",
+    "user_id": "f37e14e8-b720-4f15-af25-e7e8661fba7f",
+    "date": "2026-03-10",
+    "created_at": "2026-03-10T14:30:33.115875+00:00",
+    "category": "Venda PDV",
+    "description": "PDV #240d7d43"
+  },
+  {
+    "id": "8d733899-1a87-4975-80aa-4fc167044e75",
+    "user_id": "f37e14e8-b720-4f15-af25-e7e8661fba7f",
+    "date": "2026-03-10",
+    "created_at": "2026-03-10T12:03:16.826317+00:00",
+    "category": "Venda PDV",
+    "description": "PDV #238834d7"
+  },
+  {
+    "id": "aa429422-bd4b-443f-abef-8093f1b3630f",
+    "user_id": "f37e14e8-b720-4f15-af25-e7e8661fba7f",
+    "date": "2026-03-10",
+    "created_at": "2026-03-10T12:02:03.000704+00:00",
+    "category": "Venda PDV",
+    "description": "PDV #61bd9654"
+  },
+  {
+    "id": "a65fd342-dc70-4ed4-ac84-9bb89a27f616",
+    "user_id": "f37e14e8-b720-4f15-af25-e7e8661fba7f",
+    "date": "2026-03-10",
+    "created_at": "2026-03-10T03:18:44.868728+00:00",
+    "category": "Venda PDV",
+    "description": "PDV #c86b3370"
+  },
+  {
+    "id": "8864692c-da13-4c56-91dd-55243c4e3c12",
+    "user_id": "f37e14e8-b720-4f15-af25-e7e8661fba7f",
+    "date": "2026-03-10",
+    "created_at": "2026-03-10T03:18:20.252675+00:00",
+    "category": "Venda PDV",
+    "description": "PDV #6623e01f"
+  },
+  {
+    "id": "12418269-7815-41db-9c73-664ab5535be7",
+    "user_id": "f37e14e8-b720-4f15-af25-e7e8661fba7f",
+    "date": "2026-03-05",
+    "created_at": "2026-03-05T15:24:56.910325+00:00",
+    "category": "Venda PDV",
+    "description": "PDV #deba43d4"
+  },
+  {
+    "id": "cb275661-f6a9-40fe-9615-facc3e2ae4d6",
+    "user_id": "51724193-3b26-41de-80f7-5daf3488628f",
+    "date": "2026-02-27",
+    "created_at": "2026-02-27T15:01:22.848733+00:00",
+    "category": "Venda PDV",
+    "description": "PDV #327467d8"
+  },
+  {
+    "id": "3aee546d-e10c-43af-9b0c-8f0031209fc8",
+    "user_id": "51724193-3b26-41de-80f7-5daf3488628f",
+    "date": "2026-02-21",
+    "created_at": "2026-02-21T05:14:50.285494+00:00",
+    "category": "Venda PDV",
+    "description": "PDV #69f12844"
+  },
+  {
+    "id": "85d88ebb-bbc9-4fab-9854-a8b3c62a331f",
+    "user_id": "51724193-3b26-41de-80f7-5daf3488628f",
+    "date": "2026-02-21",
+    "created_at": "2026-02-21T05:06:42.926818+00:00",
+    "category": "Venda PDV",
+    "description": "PDV #150bef84"
+  }
+]

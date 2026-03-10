@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Archive, Search, AlertTriangle, Plus, Tag, X, Save, History } from 'lucide-react';
+import { Archive, Search, AlertTriangle, Plus, Tag, X, Save, ChevronDown, ChevronRight, Activity, TrendingUp, TrendingDown, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ProductionStockService } from '../services/productionStockService';
-import { ProductionStock, LossReason, InventoryLoss } from '../types';
+import { ProductionStock, LossReason, UnifiedOutflow, ProductionHistory } from '../types';
 
 export function ProductionStockPage() {
   const [stockItems, setStockItems] = useState<Array<ProductionStock & { recipes: { name: string; category: string } }>>([]);
@@ -22,9 +22,13 @@ export function ProductionStockPage() {
   const [newReasonLabel, setNewReasonLabel] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Estados do Histórico
-  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
-  const [lossHistory, setLossHistory] = useState<any[]>([]);
+  // Estados do Histórico em Acordeão (Por Linha)
+  const [expandedRows, setExpandedRows] = useState<string[]>([]);
+  const [rowHistories, setRowHistories] = useState<Record<string, {
+    production: ProductionHistory[];
+    losses: UnifiedOutflow[];
+    loading: boolean;
+  }>>({});
 
   useEffect(() => {
     loadData();
@@ -33,14 +37,12 @@ export function ProductionStockPage() {
   async function loadData() {
     try {
       setLoading(true);
-      const [items, reasons, historyData] = await Promise.all([
+      const [items, reasons] = await Promise.all([
         ProductionStockService.getAllStock(),
-        ProductionStockService.getLossReasons(),
-        ProductionStockService.getLossHistory()
+        ProductionStockService.getLossReasons()
       ]);
       setStockItems(items);
       setLossReasons(reasons);
-      setLossHistory(historyData);
     } catch (error) {
       toast.error('Erro ao carregar os dados de estoque.');
       console.error(error);
@@ -99,6 +101,48 @@ export function ProductionStockPage() {
     }
   };
 
+  const toggleRow = async (recipeId: string) => {
+    const isExpanded = expandedRows.includes(recipeId);
+    
+    if (isExpanded) {
+      setExpandedRows(expandedRows.filter(id => id !== recipeId));
+      return;
+    }
+
+    setExpandedRows([...expandedRows, recipeId]);
+
+    // Se ainda não carregou os dados pra essa linha, faz o fetch duplo
+    if (!rowHistories[recipeId]) {
+      setRowHistories(prev => ({
+        ...prev,
+        [recipeId]: { production: [], losses: [], loading: true }
+      }));
+
+      try {
+        const [prodHistory, outflowHistory] = await Promise.all([
+          ProductionStockService.getProductionHistoryByProduct(recipeId),
+          ProductionStockService.getOutflowsByProduct(recipeId)
+        ]);
+
+        setRowHistories(prev => ({
+          ...prev,
+          [recipeId]: {
+            production: prodHistory,
+            losses: outflowHistory,
+            loading: false
+          }
+        }));
+      } catch (error) {
+        console.error("Erro ao puxar históricos da linha:", error);
+        toast.error("Erro ao carregar detalhes do produto.");
+        setRowHistories(prev => ({
+          ...prev,
+          [recipeId]: { production: [], losses: [], loading: false }
+        }));
+      }
+    }
+  };
+
   const filteredItems = stockItems.filter(item => 
     item.recipes.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.recipes.category.toLowerCase().includes(searchTerm.toLowerCase())
@@ -117,23 +161,13 @@ export function ProductionStockPage() {
           </p>
         </div>
         
-        <div className="flex gap-3">
-          <button
-            onClick={() => setIsHistoryModalOpen(true)}
-            className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 px-4 rounded-xl flex items-center gap-2 transition"
-          >
-            <History size={20} />
-            <span className="hidden sm:inline">Histórico</span>
-          </button>
-          
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="bg-amber-600 hover:bg-amber-700 text-white font-bold py-3 px-6 rounded-xl flex items-center gap-2 transition"
-          >
-            <AlertTriangle size={20} />
-            Registrar Perda
-          </button>
-        </div>
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="bg-amber-600 hover:bg-amber-700 text-white font-bold py-3 px-6 rounded-xl flex items-center gap-2 transition shadow-md shadow-amber-600/20"
+        >
+          <AlertTriangle size={20} />
+          Registrar Perda
+        </button>
       </div>
 
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
@@ -173,36 +207,134 @@ export function ProductionStockPage() {
               <tbody className="divide-y divide-slate-100">
                 {filteredItems.map(item => {
                   const isLowStock = item.quantity < item.min_quantity;
+                  const isExpanded = expandedRows.includes(item.recipe_id);
+                  const rowData = rowHistories[item.recipe_id];
+
                   return (
-                    <tr key={item.id} className="hover:bg-slate-50 transition">
-                      <td className="py-4 px-4 font-bold text-slate-800">
-                        {item.recipes.name}
-                      </td>
-                      <td className="py-4 px-4 text-slate-600 text-sm">
-                        <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-semibold">
-                          {item.recipes.category || 'Geral'}
-                        </span>
-                      </td>
-                      <td className="py-4 px-4 text-slate-500 text-right font-medium">
-                        {item.min_quantity} {item.unit}
-                      </td>
-                      <td className="py-4 px-4 text-slate-800 text-right font-bold">
-                        <span className={isLowStock ? 'text-red-500' : 'text-emerald-600'}>
-                            {item.quantity} {item.unit}
-                        </span>
-                      </td>
-                      <td className="py-4 px-4 text-center">
-                        {isLowStock ? (
-                          <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full text-xs font-bold">
-                            <AlertTriangle size={12} /> Abaixo do Mínimo
+                    <React.Fragment key={item.id}>
+                      <tr 
+                        className={`hover:bg-slate-50 transition cursor-pointer ${isExpanded ? 'bg-slate-50' : ''}`}
+                        onClick={() => toggleRow(item.recipe_id)}
+                      >
+                        <td className="py-4 px-4 font-bold text-slate-800 flex items-center gap-2">
+                          <button className="text-slate-400 hover:text-amber-600 transition">
+                            {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                          </button>
+                          {item.recipes.name}
+                        </td>
+                        <td className="py-4 px-4 text-slate-600 text-sm">
+                          <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-semibold">
+                            {item.recipes.category || 'Geral'}
                           </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full text-xs font-bold">
-                            OK
+                        </td>
+                        <td className="py-4 px-4 text-slate-500 text-right font-medium">
+                          {item.min_quantity} {item.unit}
+                        </td>
+                        <td className="py-4 px-4 text-slate-800 text-right font-bold">
+                          <span className={isLowStock ? 'text-red-500' : 'text-emerald-600'}>
+                              {item.quantity} {item.unit}
                           </span>
-                        )}
-                      </td>
-                    </tr>
+                        </td>
+                        <td className="py-4 px-4 text-center">
+                          {isLowStock ? (
+                            <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full text-xs font-bold">
+                              <AlertTriangle size={12} /> Abaixo do Mínimo
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full text-xs font-bold">
+                              OK
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                      
+                      {/* ACORDEÃO DE HISTÓRICOS DA LINHA */}
+                      {isExpanded && (
+                        <tr className="bg-slate-50/80">
+                          <td colSpan={5} className="p-0">
+                            <div className="px-6 py-4 border-t border-slate-100 animate-in fade-in slide-in-from-top-2 duration-200">
+                              {rowData?.loading ? (
+                                <div className="flex items-center justify-center py-6 text-slate-500 gap-2">
+                                  <Loader2 className="animate-spin" size={18} /> Carregando extrato...
+                                </div>
+                              ) : (
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                  
+                                  {/* Coluna 1: Histórico de Produção (Entradas) */}
+                                  <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                                    <h4 className="flex items-center gap-2 font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2">
+                                      <TrendingUp className="text-emerald-500" size={18} /> 
+                                      Entradas (Lotes Produzidos)
+                                    </h4>
+                                    
+                                    {(!rowData?.production || rowData.production.length === 0) ? (
+                                       <p className="text-sm text-slate-500 py-2 text-center">Nenhum lote fabricado registrado no sistema.</p>
+                                    ) : (
+                                      <div className="space-y-3 max-h-60 overflow-y-auto pr-2">
+                                        {rowData.production.map(prod => (
+                                          <div key={prod.id} className="flex justify-between items-center text-sm p-2 hover:bg-slate-50 rounded-lg">
+                                            <div className="text-slate-600">
+                                              {new Date(prod.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+                                            </div>
+                                            <div className="font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded">
+                                              +{prod.quantity} {prod.unit}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Coluna 2: Histórico de Avarias e Vendas (Saídas) */}
+                                  <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                                    <h4 className="flex items-center gap-2 font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2">
+                                      <TrendingDown className="text-red-500" size={18} /> 
+                                      Extrato de Saídas (Vendas/Perdas)
+                                    </h4>
+                                    
+                                    {(!rowData?.losses || rowData.losses.length === 0) ? (
+                                       <p className="text-sm text-slate-500 py-2 text-center">Nenhuma saída registrada para este produto.</p>
+                                    ) : (
+                                      <div className="space-y-3 max-h-60 overflow-y-auto pr-2">
+                                        {rowData.losses.map(outflow => (
+                                          <div key={outflow.id} className="flex flex-col text-sm p-2 hover:bg-slate-50 rounded-lg border border-transparent hover:border-slate-100 gap-1">
+                                            <div className="flex justify-between items-center">
+                                              <div className="text-slate-600">
+                                                {new Date(outflow.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+                                              </div>
+                                              <div className="font-bold text-red-600 bg-red-50 px-2 py-1 rounded">
+                                                -{outflow.quantity}
+                                              </div>
+                                            </div>
+                                            <div className="flex items-center gap-2 mt-1">
+                                              {outflow.isSale ? (
+                                                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded">
+                                                  {outflow.reasonLabel}
+                                                </span>
+                                              ) : (
+                                                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
+                                                  {outflow.reasonLabel}
+                                                </span>
+                                              )}
+                                              {outflow.description && (
+                                                <span className="text-xs text-slate-500 truncate mt-0.5" title={outflow.description}>
+                                                  {outflow.description}
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   )
                 })}
               </tbody>
@@ -339,82 +471,7 @@ export function ProductionStockPage() {
         </div>
       )}
 
-      {/* MODAL DE HISTÓRICO DE PERDAS */}
-      {isHistoryModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl w-full max-w-4xl shadow-2xl flex flex-col max-h-[90vh]">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-2xl">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-slate-200 flex items-center justify-center text-slate-700">
-                  <History size={20} />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-slate-800">Histórico de Perdas</h3>
-                  <p className="text-sm text-slate-500">Últimos registros de avarias e saídas manuais.</p>
-                </div>
-              </div>
-              <button onClick={() => setIsHistoryModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-2">
-                <X size={24} />
-              </button>
-            </div>
 
-            <div className="p-0 overflow-y-auto flex-1">
-              {lossHistory.length === 0 ? (
-                <div className="text-center py-12">
-                  <History className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                  <p className="text-slate-500 font-medium">Nenhum registro de perda encontrado.</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 sticky top-0">
-                      <th className="py-3 px-6 font-bold text-slate-500 uppercase text-xs">Data</th>
-                      <th className="py-3 px-6 font-bold text-slate-500 uppercase text-xs">Produto Acabado</th>
-                      <th className="py-3 px-6 font-bold text-slate-500 uppercase text-xs text-right">Qtd</th>
-                      <th className="py-3 px-6 font-bold text-slate-500 uppercase text-xs">Motivo</th>
-                      <th className="py-3 px-6 font-bold text-slate-500 uppercase text-xs">Observações</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {lossHistory.map((loss: any) => (
-                      <tr key={loss.id} className="hover:bg-slate-50 transition">
-                        <td className="py-3 px-6 text-sm text-slate-600 whitespace-nowrap">
-                          {new Date(loss.created_at).toLocaleString('pt-BR')}
-                        </td>
-                        <td className="py-3 px-6 font-bold text-slate-800">
-                          {loss.recipes?.name || 'Desconhecido'}
-                        </td>
-                        <td className="py-3 px-6 text-slate-800 font-bold text-right text-red-600">
-                          -{loss.quantity}
-                        </td>
-                        <td className="py-3 px-6 text-sm">
-                          <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-semibold">
-                            {loss.loss_reasons?.label || 'Outro'}
-                          </span>
-                        </td>
-                        <td className="py-3 px-6 text-sm text-slate-500 truncate max-w-[200px]" title={loss.description || '-'}>
-                          {loss.description || '-'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                </div>
-              )}
-            </div>
-            
-            <div className="p-4 border-t border-slate-100 bg-slate-50 rounded-b-2xl flex justify-center">
-               <button
-                  onClick={() => setIsHistoryModalOpen(false)}
-                  className="px-8 py-2.5 text-slate-600 font-bold hover:bg-slate-200 rounded-xl transition"
-                >
-                  Fechar
-                </button>
-            </div>
-          </div>
-        </div>
-      )}
 
     </div>
   );

@@ -108,6 +108,10 @@ BEGIN
         quantity = production_stock.quantity + EXCLUDED.quantity,
         updated_at = now();
 
+    -- 6. Gravar o Histórico Físico do Lote Produzido
+    INSERT INTO production_history (recipe_id, quantity, unit)
+    VALUES (p_recipe_id, p_quantity_produced, COALESCE(p_yield_unit, 'un'));
+
     RETURN jsonb_build_object('success', true);
 END;
 $$;

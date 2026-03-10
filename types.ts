@@ -262,6 +262,14 @@ export interface ProductionStock {
   updated_at?: string;
 }
 
+export interface ProductionHistory {
+  id: string;
+  recipe_id: string;
+  quantity: number;
+  unit: string;
+  created_at: string;
+}
+
 export interface LossReason {
   id: string;
   label: string;
@@ -279,4 +287,13 @@ export interface InventoryLoss {
   // Relações que vêm em JOINs do Supabase
   reason?: LossReason;
   recipe?: Recipe;
+}
+
+export interface UnifiedOutflow {
+  id: string;
+  created_at: string;
+  quantity: number;
+  reasonLabel: string;
+  description?: string;
+  isSale: boolean;
 }

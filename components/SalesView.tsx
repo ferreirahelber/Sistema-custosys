@@ -412,7 +412,7 @@ export function SalesView() {
                       <td className="p-4 text-sm text-slate-500">
                         <div className="flex items-center gap-2 mb-1">
                           <Calendar size={14} />
-                          {new Date(sale.date).toLocaleDateString()}
+                          {new Date(sale.date + 'T12:00:00').toLocaleDateString('pt-BR')}
                         </div>
                         <div className="flex items-center gap-2 text-xs text-slate-400">
                           <Clock size={12} />

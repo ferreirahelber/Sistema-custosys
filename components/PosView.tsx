@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { PosService } from '../services/posService';
 import { CategoryService } from '../services/categoryService';
 import { CashModal } from './CashModal';
@@ -20,6 +21,7 @@ import { SettingsService } from '../services/settingsService';
 export function PosView() {
   const { signOut } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Estados do Sistema
@@ -259,6 +261,9 @@ export function PosView() {
       setShowMobileCart(false); // Fechar carrinho mobile
       setShowSuccessModal(true);
       
+      // Atualiza o Cache (Vendas e Estatísticas Financeiras)
+      queryClient.invalidateQueries({ queryKey: ['sales'] });
+
       // Sincronização Local Estado (Recarrega o estoque)
       loadCatalog();
     } catch (error) {
