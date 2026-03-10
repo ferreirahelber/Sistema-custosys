@@ -63,11 +63,12 @@ export function PosReports() {
     csvRows.push([]);
 
     csvRows.push(['PRODUTOS MAIS VENDIDOS']);
-    csvRows.push(['Produto', 'Quantidade', 'Total Vendido']);
+    csvRows.push(['Produto', 'Quantidade', 'Saldo Atual', 'Total Vendido']);
     report.topProducts.forEach((prod: any) => {
       csvRows.push([
         `"${prod.name}"`,
         prod.quantity, 
+        prod.current_stock ?? 0,
         `R$ ${prod.total.toFixed(2).replace('.', ',')}`
       ]);
     });
@@ -110,10 +111,11 @@ export function PosReports() {
     
     autoTable(doc, {
       startY: 85,
-      head: [['Produto', 'Qtd', 'Total (R$)']],
+      head: [['Produto', 'Qtd', 'Saldo', 'Total (R$)']],
       body: report.topProducts.map((p: any) => [
         p.name, 
         p.quantity, 
+        p.current_stock ?? 0,
         p.total.toFixed(2)
       ]),
       theme: 'grid',
@@ -272,7 +274,7 @@ export function PosReports() {
                             {index + 1}. {prod.name}
                           </span>
                           <span className="font-bold text-slate-900">
-                            {prod.quantity} un
+                            {prod.quantity} un <span className="text-xs text-slate-400 font-normal ml-2">({prod.current_stock ?? 0} em estoque)</span>
                           </span>
                         </div>
                         <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">

@@ -293,17 +293,33 @@ export const PosService = {
       if (method === 'Cartão') method = 'Crédito';
       paymentMethods[method] = (paymentMethods[method] || 0) + Number(o.total_amount);
     });
-    const topProducts: Record<string, { name: string; quantity: number; total: number }> = {};
+    const topProducts: Record<string, { id: string; name: string; quantity: number; total: number; current_stock?: number }> = {};
     items.forEach(i => {
       const id = i.product_id;
-      if (!topProducts[id]) topProducts[id] = { name: i.product_name, quantity: 0, total: 0 };
+      if (!topProducts[id]) topProducts[id] = { id: id, name: i.product_name, quantity: 0, total: 0 };
       topProducts[id].quantity += Number(i.quantity);
       topProducts[id].total += Number(i.total_price);
     });
+    
+    const topProductsArray = Object.values(topProducts).sort((a, b) => b.quantity - a.quantity).slice(0, 10);
+
+    if (topProductsArray.length > 0) {
+      const ids = topProductsArray.map(p => p.id);
+      
+      const { data: pStock } = await supabase.from('production_stock').select('recipe_id, quantity').in('recipe_id', ids);
+      const { data: rStock } = await supabase.from('products').select('id, current_stock').in('id', ids);
+      
+      topProductsArray.forEach(p => {
+        const prodQty = pStock?.find(s => s.recipe_id === p.id)?.quantity;
+        const resQty = rStock?.find(r => r.id === p.id)?.current_stock;
+        p.current_stock = Number(prodQty ?? resQty ?? 0);
+      });
+    }
+
     return {
       summary: { totalSales, totalOrders, averageTicket },
       paymentMethods,
-      topProducts: Object.values(topProducts).sort((a, b) => b.quantity - a.quantity).slice(0, 10)
+      topProducts: topProductsArray
     };
   }
 };

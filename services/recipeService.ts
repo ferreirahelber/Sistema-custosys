@@ -7,6 +7,7 @@ export const RecipeService = {
       .from('recipes')
       .select(`
       *,
+      production_stock:production_stock(quantity, min_quantity),
       items:recipe_items!recipe_items_recipe_id_fkey(*)
     `) // Especificamos que queremos o caminho pelo recipe_id
       .order('name');
@@ -26,6 +27,7 @@ export const RecipeService = {
         unit_input: i.unit_input || 'un',
         ingredient_name: i.ingredient_name
       })),
+      production_stock: Array.isArray(r.production_stock) ? r.production_stock[0] : r.production_stock
     }));
   },
 

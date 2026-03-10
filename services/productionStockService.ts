@@ -194,5 +194,30 @@ export const ProductionStockService = {
 
     if (error) throw error;
     return data as any;
+  },
+
+  /**
+   * Calcula o custo financeiro total de perdas no mês corrente.
+   */
+  async getMonthlyLossCost(): Promise<number> {
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
+    
+    // Busca as perdas do mês com as respectivas receitas para pegar o custo
+    const { data: losses, error } = await supabase
+      .from('inventory_losses')
+      .select('quantity, recipes!inner(unit_cost)')
+      .gte('created_at', firstDay);
+
+    if (error) {
+      console.error('Erro ao buscar perdas mensais:', error);
+      return 0; // Silencia o erro retornando zero no dashboard
+    }
+
+    // Calcula Qtd x Custo Unitário
+    return (losses || []).reduce((acc: number, curr: any) => {
+      const cost = Number(curr.recipes?.unit_cost || 0);
+      return acc + (Number(curr.quantity) * cost);
+    }, 0);
   }
 };

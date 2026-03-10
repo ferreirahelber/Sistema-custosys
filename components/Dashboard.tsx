@@ -10,6 +10,7 @@ import { useIngredients } from '../hooks/useIngredients';
 import { useSettings } from '../hooks/useSystem';
 import { useSales, useExpenses, useFixedCosts } from '../hooks/useFinancials';
 import { RecipeService } from '../services/recipeService';
+import { ProductionStockService } from '../services/productionStockService';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend
@@ -33,7 +34,17 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const { data: expenses = [], isLoading: isLoadingExpenses } = useExpenses();
   const { data: fixedCosts = [], isLoading: isLoadingFixed } = useFixedCosts();
 
-  const isLoading = isLoadingRecipes || isLoadingIngredients || isLoadingSettings || isLoadingSales || isLoadingExpenses || isLoadingFixed;
+  const [monthlyLossCost, setMonthlyLossCost] = useState<number>(0);
+  const [isLoadingLoss, setIsLoadingLoss] = useState(true);
+
+  React.useEffect(() => {
+    ProductionStockService.getMonthlyLossCost()
+      .then(cost => setMonthlyLossCost(cost))
+      .catch(err => console.error(err))
+      .finally(() => setIsLoadingLoss(false));
+  }, []);
+
+  const isLoading = isLoadingRecipes || isLoadingIngredients || isLoadingSettings || isLoadingSales || isLoadingExpenses || isLoadingFixed || isLoadingLoss;
 
   // 2. Cálculos Financeiros (Memoized)
   const financialMetrics = useMemo(() => {
@@ -83,8 +94,18 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     return recipesWithPrice.length > 0 ? totalAvgMargin / recipesWithPrice.length : 0;
   }, [recipes, financialMetrics.currentTax, financialMetrics.currentFee]);
 
-  // 5. Alertas de Estoque
-  const lowStockItems = ingredients.filter(i => (i.current_stock || 0) <= (i.min_stock || 0));
+  // 5. Alertas de Estoque (Memoized cruzado: Insumos/Revenda + Produção)
+  const lowStockRecords = useMemo(() => {
+    const lowIngredients = ingredients
+      .filter(i => (i.current_stock || 0) <= (i.min_stock || 0) && (i.min_stock || 0) > 0)
+      .map(i => ({ id: i.id, name: i.name, stock: i.current_stock || 0, min: i.min_stock || 0, type: 'Insumo/Revenda' }));
+    
+    const lowRecipes = recipes
+      .filter(r => r.production_stock && typeof r.production_stock.min_quantity === 'number' && r.production_stock.min_quantity > 0 && r.production_stock.quantity <= r.production_stock.min_quantity)
+      .map(r => ({ id: r.id, name: r.name, stock: r.production_stock.quantity, min: r.production_stock.min_quantity, type: 'Produção' }));
+
+    return [...lowIngredients, ...lowRecipes].sort((a, b) => a.stock - b.stock);
+  }, [ingredients, recipes]);
 
   // 6. Dados para Gráficos
   const revenueData = sales.reduce((acc: any[], sale: any) => {
@@ -305,7 +326,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       {/* Título para separar as seções */}
       <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-[-10px]">Indicadores Operacionais</h3>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <div onClick={() => onNavigate?.('recipes')} className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 hover:shadow-md transition cursor-pointer group">
           <div className="flex justify-between items-start mb-2">
             <div className="p-2 bg-amber-50 text-amber-600 rounded-lg group-hover:scale-110 transition">
@@ -385,6 +406,21 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           <div className="text-3xl font-bold text-white">R$ {financialMetrics.totalFixedCosts.toFixed(0)}</div>
           <div className="text-xs text-slate-400 font-medium uppercase tracking-wide">Custo Fixo Total (Mensal)</div>
         </div>
+
+        {/* CARD NOVO: PERDAS DE PRODUÇÃO MENSAL */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-red-100 hover:shadow-md transition group">
+          <div className="flex justify-between items-start mb-2">
+            <div className="p-2 bg-red-50 text-red-600 rounded-lg group-hover:bg-red-100 transition">
+              <AlertTriangle size={20} />
+            </div>
+            <span className="text-[10px] font-bold text-red-600 bg-red-50 px-2 py-1 rounded-full uppercase">Péssimo</span>
+          </div>
+          <div className="text-3xl font-bold text-red-700">
+            {monthlyLossCost.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+          </div>
+          <div className="text-xs text-slate-500 font-medium uppercase tracking-wide">Perdas de Produção (Mês)</div>
+        </div>
+
       </div>
 
       {/* ÁREA DE GRÁFICOS E LISTAS (MANTIDA IGUAL) */}
@@ -435,6 +471,50 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        {/* NOVA SEÇÃO: ALERTAS DE REPOSIÇÃO */}
+        <div className="lg:col-span-3 bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+          <div className="p-6 border-b border-slate-50 flex justify-between items-center bg-red-50/30">
+            <h3 className="font-bold text-slate-800 flex items-center gap-2">
+              <AlertTriangle size={18} className="text-red-500" /> Alertas de Reposição
+            </h3>
+            <span className="text-xs font-bold text-red-600 bg-red-100 px-3 py-1 rounded-full">
+              {lowStockRecords.length} Itens em Atenção
+            </span>
+          </div>
+          <div className="divide-y divide-slate-100 max-h-64 overflow-y-auto">
+            {lowStockRecords.length === 0 ? (
+              <div className="p-8 text-center text-slate-500 font-medium">Todos os estoques estão adequados. Mantenha o bom trabalho! 🎉</div>
+            ) : (
+              lowStockRecords.map((record, idx) => (
+                <div key={`${record.id}-${idx}`} className="p-4 flex items-center justify-between hover:bg-slate-50 transition">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-slate-100 text-slate-600 rounded-lg flex items-center justify-center font-bold">
+                      <Package size={20} />
+                    </div>
+                    <div>
+                      <div className="font-bold text-slate-700">{record.name}</div>
+                      <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{record.type}</div>
+                    </div>
+                  </div>
+                  <div className="text-right flex items-center gap-4">
+                    <div>
+                      <div className="text-xs text-slate-400 uppercase tracking-tight">Estoque Atual</div>
+                      <div className={`font-bold ${record.stock <= 0 ? 'text-red-600' : 'text-amber-600'}`}>
+                        {record.stock}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-400 uppercase tracking-tight">Mínimo</div>
+                      <div className="font-bold text-slate-700">{record.min}</div>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
         <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
           <div className="p-6 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
             <h3 className="font-bold text-slate-800 flex items-center gap-2">

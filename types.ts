@@ -123,6 +123,12 @@ export interface Recipe {
   selling_price?: number;
   barcode?: string;
   category?: string;
+  
+  // Tipagem adicionada para refletir junção com prateleira
+  production_stock?: {
+    quantity: number;
+    min_quantity: number;
+  };
 }
 
 export interface SimulationParams {
