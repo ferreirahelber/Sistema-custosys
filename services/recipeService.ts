@@ -39,15 +39,21 @@ export const RecipeService = {
       .single();
     if (error) throw error;
 
+    // BUKA O LEFT JOIN: Em Supabase se você puxar uma Relation e o campo estiver NULL, ele mata a ROW inteira (Inner Join).
+    // Como implementamos `item_type = 'recipe'` onde ingredient_id ficam preenchidos de Null para as subreceitas...
+    // as duas linhas morriam juntas retornando Data vazia.
+    // O recurso !left() instrui o PostgREST a trazer o Item mesmo sem pareamento no Ingredients
     const { data: items, error: itemsError } = await supabase
       .from('recipe_items')
-      .select('*, ingredient:ingredients(*)')
+      .select('*, ingredient:ingredients!left(*)') 
       .eq('recipe_id', id);
 
     if (itemsError) throw itemsError;
 
     const formattedItems = (items || []).map((i: any) => ({
       ...i,
+      // FIX CRITICO: O formulário UI espera o ID neste campo genérico para localizar o dropdown
+      ingredient_id: i.item_type === 'recipe' ? (i.sub_recipe_id || i.item_id) : i.ingredient_id,
       quantity_used: i.quantity,
       quantity_input: i.quantity_input || i.quantity,
       unit_input: i.unit_input || i.ingredient?.base_unit || 'un',
@@ -91,11 +97,10 @@ export const RecipeService = {
         // CORREÇÃO: Mapeia corretamente para ingredient_id ou sub_recipe_id dependendo do tipo
         ingredient_id: item.item_type === 'recipe' ? null : (item.ingredient_id || item.item_id),
         sub_recipe_id: item.item_type === 'recipe' ? (item.ingredient_id || item.item_id) : null,
-        // Adicione o campo abaixo se você criou a coluna no banco, senão o ingredient_name já resolve o texto
-        quantity: item.quantity_used,
-        quantity_input: item.quantity_input,
-        unit_input: item.unit_input,
-        ingredient_name: item.ingredient_name,
+        // Usa `quantity_used` se existir, caso contrário fallback pro `quantity` local
+        quantity: item.quantity_used || (item as any).quantity || 0,
+        // Limpando colunas virtuais do frontend que estavam causando a quebra do Insert() logo após o Delete() 
+        // Não tentar inserir: quantity_input, unit_input, ingredient_name
         // MUITO IMPORTANTE: Salvar o tipo para o cálculo saber o que fazer depois
         item_type: item.item_type || 'ingredient'
       }));

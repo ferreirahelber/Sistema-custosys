@@ -151,7 +151,7 @@ export function SalesView() {
 
     filteredSales.forEach(sale => {
       const timeString = sale.created_at ? new Date(sale.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '--:--';
-      const dateStr = new Date(sale.date + 'T12:00:00').toLocaleDateString('pt-BR');
+      const dateStr = sale.created_at ? new Date(sale.created_at).toLocaleDateString('pt-BR') : new Date(sale.date + 'T12:00:00').toLocaleDateString('pt-BR');
 
       csvRows.push([
         dateStr,
@@ -208,7 +208,7 @@ export function SalesView() {
       startY: 75,
       head: [['Data', 'Descrição', 'Categoria', 'Pgto', 'Bruto', 'Taxa', 'Líquido']],
       body: filteredSales.map(sale => [
-        new Date(sale.date + 'T12:00:00').toLocaleDateString('pt-BR'),
+        sale.created_at ? new Date(sale.created_at).toLocaleDateString('pt-BR') : new Date(sale.date + 'T12:00:00').toLocaleDateString('pt-BR'),
         sale.description,
         sale.category,
         sale.payment_method || '-',
@@ -412,7 +412,7 @@ export function SalesView() {
                       <td className="p-4 text-sm text-slate-500">
                         <div className="flex items-center gap-2 mb-1">
                           <Calendar size={14} />
-                          {new Date(sale.date + 'T12:00:00').toLocaleDateString('pt-BR')}
+                          {sale.created_at ? new Date(sale.created_at).toLocaleDateString('pt-BR') : new Date(sale.date + 'T12:00:00').toLocaleDateString('pt-BR')}
                         </div>
                         <div className="flex items-center gap-2 text-xs text-slate-400">
                           <Clock size={12} />

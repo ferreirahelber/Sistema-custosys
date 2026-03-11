@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../services/supabase';
 import { Expense } from '../types';
-import { TrendingDown, Calendar, Search, Plus, Trash2, Wallet, CreditCard, X, PieChart, FileText, FileSpreadsheet } from 'lucide-react';
+import { TrendingDown, Calendar, Search, Plus, Trash2, Wallet, CreditCard, X, PieChart, FileText, FileSpreadsheet, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { useExpenses, useExpenseMutations } from '../hooks/useFinancials';
 
@@ -91,7 +91,7 @@ export function ExpensesView() {
 
     filteredExpenses.forEach(exp => {
       const timeString = exp.created_at ? new Date(exp.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '--:--';
-      const dateStr = new Date(exp.date + 'T12:00:00').toLocaleDateString('pt-BR');
+      const dateStr = exp.created_at ? new Date(exp.created_at).toLocaleDateString('pt-BR') : new Date(exp.date + 'T12:00:00').toLocaleDateString('pt-BR');
 
       csvRows.push([
         dateStr,
@@ -143,7 +143,7 @@ export function ExpensesView() {
       startY: 75,
       head: [['Data', 'Descrição', 'Categoria', 'Valor']],
       body: filteredExpenses.map(exp => [
-        new Date(exp.date + 'T12:00:00').toLocaleDateString('pt-BR'),
+        exp.created_at ? new Date(exp.created_at).toLocaleDateString('pt-BR') : new Date(exp.date + 'T12:00:00').toLocaleDateString('pt-BR'),
         exp.description,
         exp.category,
         `R$ ${exp.amount.toFixed(2)}`
@@ -309,12 +309,38 @@ export function ExpensesView() {
             ) : filteredExpenses.map(expense => (
               <tr key={expense.id} className="hover:bg-slate-50/50 transition group">
                 <td className="p-4 text-slate-600 font-medium text-sm">
-                  <div className="flex items-center gap-2">
-                    <Calendar size={14} className="text-slate-400" /> {new Date(expense.date).toLocaleDateString()}
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-2 text-slate-700">
+                      <Calendar size={14} className="text-slate-400" />
+                      {expense.created_at ? new Date(expense.created_at).toLocaleDateString('pt-BR') : new Date(expense.date + 'T12:00:00').toLocaleDateString('pt-BR')}
+                    </div>
+                    {expense.created_at && (
+                      <div className="flex items-center gap-2 text-xs text-slate-400">
+                        <Clock size={12} className="text-slate-300" />
+                        {new Date(expense.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    )}
                   </div>
                 </td>
-                <td className="p-4 font-bold text-slate-700">{expense.description}</td>
-                <td className="p-4"><span className="px-2 py-1 bg-slate-100 text-slate-500 text-xs font-bold rounded-lg uppercase tracking-wider">{expense.category}</span></td>
+                <td className="p-4">
+                  {expense.category === 'Taxas de Venda' || expense.category === 'TAXAS FINANCEIRAS' ? (
+                    <div>
+                        <div className="font-bold text-slate-700 flex items-center gap-2">
+                          <CreditCard size={14} className="text-rose-400"/> Taxa de Cartão (PDV)
+                        </div>
+                        <div className="text-xs text-slate-400 font-mono mt-1 pt-1 border-t border-slate-100">
+                          {expense.description}
+                        </div>
+                    </div>
+                  ) : (
+                    <div className="font-bold text-slate-700">{expense.description}</div>
+                  )}
+                </td>
+                <td className="p-4">
+                  <span className={`px-2 py-1 text-xs font-bold rounded-lg uppercase tracking-wider ${expense.category === 'Taxas de Venda' || expense.category === 'TAXAS FINANCEIRAS' ? 'bg-rose-100 text-rose-600' : 'bg-slate-100 text-slate-500'}`}>
+                    {expense.category}
+                  </span>
+                </td>
                 <td className="p-4 text-red-600 font-bold bg-red-50/10">- R$ {expense.amount.toFixed(2)}</td>
                 <td className="p-4 text-right transition">
                   <button onClick={() => setDeleteModal({ isOpen: true, id: expense.id, desc: expense.description })} className="text-red-300 hover:text-red-500 hover:bg-red-50 p-2 rounded-lg transition"><Trash2 size={18} /></button>

@@ -48,22 +48,31 @@ export const useRecipeForm = (recipeId?: string) => {
                 currentSellingPrice: recipeData.selling_price || 0
             };
 
-            // 2. Override with Draft if exists
             const draft = localStorage.getItem(draftKey);
+            console.log("🛠️ DADOS BRUTOS DA RECEITA DO BANCO:", recipeData);
+            console.log("🛠️ ITENS DA RECEITA NO BANCO:", recipeData.items);
+            
             if (draft) {
                 try {
                     const parsed = JSON.parse(draft);
-                    const mergedData = { ...dbData, ...parsed };
+                    console.log("🛠️ ACHOU RASCUNHO LOCAL:", parsed);
+                    
+                    // SEGURANÇA: Se o rascunho tem itens zerados mas o banco tem itens, provavelmente foi um bug de cache antigo.
+                    if ((!parsed.recipeItems || parsed.recipeItems.length === 0) && dbData.recipeItems && dbData.recipeItems.length > 0) {
+                        console.warn("⚠️ O Rascunho está vazio mas o Banco tem itens. Ignorando Rascunho para não zerar a Receita.");
+                        dispatch({ type: 'LOAD_DATA', data: dbData });
+                    } else {
+                        const mergedData = { ...dbData, ...parsed };
+                        dispatch({ type: 'LOAD_DATA', data: mergedData, isDraft: true });
 
-                    dispatch({ type: 'LOAD_DATA', data: mergedData, isDraft: true });
-
-                    toast.info("Rascunho não salvo restaurado!", {
-                        action: {
-                            label: 'Descartar',
-                            onClick: () => discardDraft()
-                        },
-                        duration: 5000
-                    });
+                        toast.info("Rascunho não salvo restaurado!", {
+                            action: {
+                                label: 'Descartar',
+                                onClick: () => discardDraft()
+                            },
+                            duration: 5000
+                        });
+                    }
                 } catch (e) {
                     console.error("Erro ao ler rascunho", e);
                     dispatch({ type: 'LOAD_DATA', data: dbData });

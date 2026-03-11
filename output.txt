@@ -1,0 +1,10 @@
+--- AUDITORIA REST SUPABASE ---
+✅ ID do Bombom: e08523e7-f926-4d9c-a3b0-3c10c8e327aa
+
+⏳ Buscando itens brutos em: /rest/v1/recipe_items?recipe_id=eq.e08523e7-f926-4d9c-a3b0-3c10c8e327aa
+✅ RAW Items -> Retornados: 0
+⚠️ TABELA DE FATOS ESTÁ COMPLETAMENTE VAZIA NO BANCO DE DADOS (Ou RLS bloqueou a ANON KEY).
+
+⏳ Buscando itens com JOIN em: /rest/v1/recipe_items?recipe_id=eq.e08523e7-f926-4d9c-a3b0-3c10c8e327aa&select=*,ingredient:ingredients!left(*)
+✅ JOIN Items -> Retornados: 0
+⚠️ A CONSULTA COM JOIN RETORNOU VAZIA (0 LINHAS).

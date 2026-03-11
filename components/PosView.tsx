@@ -263,6 +263,7 @@ export function PosView() {
       
       // Atualiza o Cache (Vendas e Estatísticas Financeiras)
       queryClient.invalidateQueries({ queryKey: ['sales'] });
+      queryClient.invalidateQueries({ queryKey: ['expenses'] });
 
       // Sincronização Local Estado (Recarrega o estoque)
       loadCatalog();

@@ -1,0 +1,88 @@
+--- AUDITORIA REST SUPABASE ---
+✅ ID do Bombom: e08523e7-f926-4d9c-a3b0-3c10c8e327aa
+
+⏳ Receita Específica Retornou: 0 Itens
+⏳ Global da tabela 'recipe_items' retornou (Max 5): 5 Itens
+
+[
+  {
+    "id": "0a047ea1-6a75-45d5-aeb3-3c897ab5b738",
+    "recipe_id": "fd3195d9-d418-49dd-a7b5-9242c0e18d40",
+    "ingredient_id": "d761c5ef-36be-41d8-be9f-9f0177001a28",
+    "quantity": 790,
+    "quantity_used": 0,
+    "quantity_input": 790,
+    "unit_input": "g",
+    "ingredient_name": "Leite Condensado - Italac",
+    "user_id": "f37e14e8-b720-4f15-af25-e7e8661fba7f",
+    "updated_at": "2026-03-07T12:20:08.7495+00:00",
+    "base_recipe_id": null,
+    "is_base": false,
+    "item_type": "ingredient",
+    "sub_recipe_id": null
+  },
+  {
+    "id": "3e6c9ee9-bbce-4172-a43c-1009c60d7152",
+    "recipe_id": "fd3195d9-d418-49dd-a7b5-9242c0e18d40",
+    "ingredient_id": "34803923-ef1d-40ba-91dc-0b0bce37a133",
+    "quantity": 1000,
+    "quantity_used": 0,
+    "quantity_input": 1000,
+    "unit_input": "g",
+    "ingredient_name": "Polpa de Cupuaçu",
+    "user_id": "f37e14e8-b720-4f15-af25-e7e8661fba7f",
+    "updated_at": "2026-03-07T12:20:08.7495+00:00",
+    "base_recipe_id": null,
+    "is_base": false,
+    "item_type": "ingredient",
+    "sub_recipe_id": null
+  },
+  {
+    "id": "eca61d2d-fa80-4db0-a195-51345135d94e",
+    "recipe_id": "f88e1695-efbf-4847-86a2-9c71863ea42a",
+    "ingredient_id": "d761c5ef-36be-41d8-be9f-9f0177001a28",
+    "quantity": 790,
+    "quantity_used": 0,
+    "quantity_input": 790,
+    "unit_input": "g",
+    "ingredient_name": "Leite Condensado - Italac",
+    "user_id": "f37e14e8-b720-4f15-af25-e7e8661fba7f",
+    "updated_at": "2026-03-07T12:24:22.185023+00:00",
+    "base_recipe_id": null,
+    "is_base": false,
+    "item_type": "ingredient",
+    "sub_recipe_id": null
+  },
+  {
+    "id": "6916c52c-280c-429d-9370-a235ce62f9fd",
+    "recipe_id": "f88e1695-efbf-4847-86a2-9c71863ea42a",
+    "ingredient_id": "11fc44c2-3ba1-4814-8325-e1353c39b655",
+    "quantity": 50,
+    "quantity_used": 0,
+    "quantity_input": 50,
+    "unit_input": "g",
+    "ingredient_name": "Cacau 70%",
+    "user_id": "f37e14e8-b720-4f15-af25-e7e8661fba7f",
+    "updated_at": "2026-03-07T12:24:22.185023+00:00",
+    "base_recipe_id": null,
+    "is_base": false,
+    "item_type": "ingredient",
+    "sub_recipe_id": null
+  },
+  {
+    "id": "1426189f-914c-416c-a600-5983ea1bfcb8",
+    "recipe_id": "5bb6e0aa-eebf-414e-a38e-55dfbef15ea4",
+    "ingredient_id": "6a080339-7dcb-4367-a94c-0c6a072fd3ce",
+    "quantity": 400,
+    "quantity_used": 0,
+    "quantity_input": 400,
+    "unit_input": "g",
+    "ingredient_name": "Doce de Leite com Cacau",
+    "user_id": "f37e14e8-b720-4f15-af25-e7e8661fba7f",
+    "updated_at": "2026-03-07T12:36:01.770585+00:00",
+    "base_recipe_id": null,
+    "is_base": false,
+    "item_type": "ingredient",
+    "sub_recipe_id": null
+  }
+]
