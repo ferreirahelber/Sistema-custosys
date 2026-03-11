@@ -43,9 +43,10 @@ export const RecipeService = {
     // Como implementamos `item_type = 'recipe'` onde ingredient_id ficam preenchidos de Null para as subreceitas...
     // as duas linhas morriam juntas retornando Data vazia.
     // O recurso !left() instrui o PostgREST a trazer o Item mesmo sem pareamento no Ingredients
+    // O segundo !left() traz a Sub-Receita (Base) se o item for do tipo 'recipe'
     const { data: items, error: itemsError } = await supabase
       .from('recipe_items')
-      .select('*, ingredient:ingredients!left(*)') 
+      .select('*, ingredient:ingredients!left(*), sub_recipe:recipes!sub_recipe_id!left(*)') 
       .eq('recipe_id', id);
 
     if (itemsError) throw itemsError;
@@ -56,8 +57,8 @@ export const RecipeService = {
       ingredient_id: i.item_type === 'recipe' ? (i.sub_recipe_id || i.item_id) : i.ingredient_id,
       quantity_used: i.quantity,
       quantity_input: i.quantity_input || i.quantity,
-      unit_input: i.unit_input || i.ingredient?.base_unit || 'un',
-      ingredient_name: i.ingredient_name || i.ingredient?.name
+      unit_input: i.unit_input || i.ingredient?.base_unit || i.sub_recipe?.yield_unit || 'un',
+      ingredient_name: i.ingredient_name || i.ingredient?.name || i.sub_recipe?.name
     }));
 
     return { ...recipe, items: formattedItems } as Recipe;
