@@ -1,0 +1,487 @@
+Fixed: [
+  {
+    id: 'd1345e97-5e47-4d54-87fb-65095d828a85',
+    user_id: 'f37e14e8-b720-4f15-af25-e7e8661fba7f',
+    name: 'Colaboradora',
+    value: 800,
+    created_at: '2026-01-09T20:57:40.80535+00:00',
+    updated_at: '2026-01-26T23:03:00.221315+00:00'
+  },
+  {
+    id: 'a9ee3f7e-68c4-45d8-9a8d-b74a7f7e96eb',
+    user_id: 'f37e14e8-b720-4f15-af25-e7e8661fba7f',
+    name: 'Imposto MEI',
+    value: 81.5,
+    created_at: '2025-12-23T14:43:50.486001+00:00',
+    updated_at: '2026-01-26T23:03:00.221315+00:00'
+  },
+  {
+    id: 'e8ed05b9-c29b-402d-9647-9c76c24e594a',
+    user_id: 'f37e14e8-b720-4f15-af25-e7e8661fba7f',
+    name: 'Aluguel',
+    value: 300,
+    created_at: '2025-12-23T14:42:50.746151+00:00',
+    updated_at: '2026-01-26T23:03:00.221315+00:00'
+  },
+  {
+    id: '5c70eb94-20fd-4b84-9357-a106732f2008',
+    user_id: 'f37e14e8-b720-4f15-af25-e7e8661fba7f',
+    name: 'Luz',
+    value: 100,
+    created_at: '2026-01-19T13:11:22.771878+00:00',
+    updated_at: '2026-01-26T23:03:00.221315+00:00'
+  }
+]
+Expenses: [
+  {
+    id: '16785c75-ea14-4e51-9387-b62c9ca3227b',
+    user_id: '51724193-3b26-41de-80f7-5daf3488628f',
+    description: 'Taxa Cartão - Pedido #cd755d65',
+    amount: 3.02064,
+    category: 'Taxas Financeiras',
+    date: '2026-01-23',
+    created_at: '2026-01-23T14:45:15.096531+00:00',
+    updated_at: '2026-01-26T21:16:11.016108+00:00',
+    user_email: null
+  },
+  {
+    id: 'ebbd2a95-26e6-4b88-bcc6-3a55d8cd833c',
+    user_id: '51724193-3b26-41de-80f7-5daf3488628f',
+    description: 'Taxa Cartão - Pedido #05fd1ff8',
+    amount: 0.439,
+    category: 'Taxas Financeiras',
+    date: '2026-01-23',
+    created_at: '2026-01-23T14:45:25.86528+00:00',
+    updated_at: '2026-01-26T21:16:11.016108+00:00',
+    user_email: null
+  },
+  {
+    id: 'a16bfa4a-e7dd-4a5e-8cc6-c47e616fbb40',
+    user_id: '51724193-3b26-41de-80f7-5daf3488628f',
+    description: 'Taxa Cartão - Pedido #f791312b',
+    amount: 4.39,
+    category: 'Taxas Financeiras',
+    date: '2026-01-23',
+    created_at: '2026-01-23T15:19:15.463341+00:00',
+    updated_at: '2026-01-26T21:16:11.016108+00:00',
+    user_email: null
+  },
+  {
+    id: 'a884ccd9-0159-4dda-9490-c9481b4bf33f',
+    user_id: '51724193-3b26-41de-80f7-5daf3488628f',
+    description: 'Taxa Cartão - Pedido #ff84eb93',
+    amount: 0.48,
+    category: 'Taxas Financeiras',
+    date: '2026-01-23',
+    created_at: '2026-01-23T15:19:36.937127+00:00',
+    updated_at: '2026-01-26T21:16:11.016108+00:00',
+    user_email: null
+  },
+  {
+    id: 'cd5c5812-97cf-4664-9e60-2a979c466c22',
+    user_id: '51724193-3b26-41de-80f7-5daf3488628f',
+    description: 'Taxa Cartão - Pedido #ff1dfbfe',
+    amount: 0.288,
+    category: 'Taxas Financeiras',
+    date: '2026-01-23',
+    created_at: '2026-01-23T16:06:25.245444+00:00',
+    updated_at: '2026-01-26T21:16:11.016108+00:00',
+    user_email: null
+  },
+  {
+    id: '615cf9cb-29f5-4f18-bd0a-177f4c6aac5e',
+    user_id: '51724193-3b26-41de-80f7-5daf3488628f',
+    description: 'Taxa Cartão - Pedido #d5132c41',
+    amount: 4.39,
+    category: 'Taxas Financeiras',
+    date: '2026-01-23',
+    created_at: '2026-01-23T16:25:52.34667+00:00',
+    updated_at: '2026-01-26T21:16:11.016108+00:00',
+    user_email: null
+  },
+  {
+    id: '96fe0523-8120-4efc-928b-2ca24e8b9769',
+    user_id: '51724193-3b26-41de-80f7-5daf3488628f',
+    description: 'Taxa Cartão - Pedido #3d1c5e47',
+    amount: 1.6,
+    category: 'Taxas Financeiras',
+    date: '2026-01-23',
+    created_at: '2026-01-23T16:25:57.09367+00:00',
+    updated_at: '2026-01-26T21:16:11.016108+00:00',
+    user_email: null
+  },
+  {
+    id: 'c0b8bf7a-bec5-4d7d-9439-946f2017fdaa',
+    user_id: '51724193-3b26-41de-80f7-5daf3488628f',
+    description: 'Taxa Cartão - Pedido #d3fd455d',
+    amount: 1.6,
+    category: 'Taxas Financeiras',
+    date: '2026-01-25',
+    created_at: '2026-01-25T19:55:38.366761+00:00',
+    updated_at: '2026-01-26T21:16:11.016108+00:00',
+    user_email: null
+  },
+  {
+    id: '2f8b515a-585e-4279-8620-01f31248bf8c',
+    user_id: '51724193-3b26-41de-80f7-5daf3488628f',
+    description: 'Taxa Cartão - Pedido #089b5f23',
+    amount: 0.439,
+    category: 'Taxas Financeiras',
+    date: '2026-01-25',
+    created_at: '2026-01-25T19:55:46.67028+00:00',
+    updated_at: '2026-01-26T21:16:11.016108+00:00',
+    user_email: null
+  },
+  {
+    id: '9879a17b-9d19-4270-89d1-50b0c03a31b5',
+    user_id: 'f37e14e8-b720-4f15-af25-e7e8661fba7f',
+    description: 'Taxa Cartão - Pedido #014b1231',
+    amount: 0.08,
+    category: 'Taxas Financeiras',
+    date: '2026-02-06',
+    created_at: '2026-02-06T23:11:29.834101+00:00',
+    updated_at: '2026-02-06T23:11:29.834101+00:00',
+    user_email: null
+  },
+  {
+    id: '935b4867-9df4-4076-8eae-c0d4192972af',
+    user_id: 'f37e14e8-b720-4f15-af25-e7e8661fba7f',
+    description: 'Taxa Cartão - Pedido #41a085d0',
+    amount: 0.6585,
+    category: 'Taxas Financeiras',
+    date: '2026-02-06',
+    created_at: '2026-02-06T23:14:44.175317+00:00',
+    updated_at: '2026-02-06T23:14:44.175317+00:00',
+    user_email: 'helberflopes@gmail.com'
+  },
+  {
+    id: '34b4f37c-46fe-438d-b8cb-f7864f31beab',
+    user_id: '51724193-3b26-41de-80f7-5daf3488628f',
+    description: 'Taxa Cartão - Pedido #1fcf4f04',
+    amount: 0.08,
+    category: 'Taxas Financeiras',
+    date: '2026-02-06',
+    created_at: '2026-02-06T23:15:04.816415+00:00',
+    updated_at: '2026-02-06T23:15:04.816415+00:00',
+    user_email: 'elma@dodoce.com'
+  },
+  {
+    id: '7c014d38-13b2-4895-9124-fbf9bd667510',
+    user_id: 'e5c7bbaa-1af1-49f3-9e1e-7534e75ac9d3',
+    description: 'Taxa Cartão - Pedido #6b008651',
+    amount: 2.5,
+    category: 'Taxas Financeiras',
+    date: '2026-02-07',
+    created_at: '2026-02-07T01:46:35.394922+00:00',
+    updated_at: '2026-02-07T01:46:35.394922+00:00',
+    user_email: 'test_1770428810440@test.com'
+  },
+  {
+    id: '9c982532-e410-46fe-94c1-0f53e07f0371',
+    user_id: '9884228e-dfb5-47a1-8b04-a9258d4caa7d',
+    description: 'Taxa Cartão - Pedido #f53d9835',
+    amount: 2.5,
+    category: 'Taxas Financeiras',
+    date: '2026-02-07',
+    created_at: '2026-02-07T01:46:55.964788+00:00',
+    updated_at: '2026-02-07T01:46:55.964788+00:00',
+    user_email: 'test_1770428831398@test.com'
+  },
+  {
+    id: '1b8ae343-e630-4e94-b415-4dd2593bfd30',
+    user_id: 'e2fda290-c4f4-4e27-855c-371403a5cdea',
+    description: 'Taxa Cartão - Pedido #9435f874',
+    amount: 2.5,
+    category: 'Taxas Financeiras',
+    date: '2026-02-07',
+    created_at: '2026-02-07T01:47:27.414772+00:00',
+    updated_at: '2026-02-07T01:47:27.414772+00:00',
+    user_email: 'test_1770428862745@test.com'
+  },
+  {
+    id: '1f780d2a-572a-4fc6-900b-2f8d45d81878',
+    user_id: '9f42e425-584b-4e74-97c6-201fbf8809c0',
+    description: 'Taxa Cartão - Pedido #3cf1f345',
+    amount: 2.5,
+    category: 'Taxas Financeiras',
+    date: '2026-02-07',
+    created_at: '2026-02-07T01:47:47.327616+00:00',
+    updated_at: '2026-02-07T01:47:47.327616+00:00',
+    user_email: 'test_1770428882716@test.com'
+  },
+  {
+    id: 'b27a783c-5621-4718-9043-64e58b059222',
+    user_id: '1eba1f51-cc85-4e87-87de-f101f76e30a7',
+    description: 'Taxa Cartão - Pedido #b0625e51',
+    amount: 2.5,
+    category: 'Taxas Financeiras',
+    date: '2026-02-07',
+    created_at: '2026-02-07T01:49:45.659735+00:00',
+    updated_at: '2026-02-07T01:49:45.659735+00:00',
+    user_email: 'test_1770429000361@test.com'
+  },
+  {
+    id: '87589376-5199-4390-a695-806fc06b044c',
+    user_id: 'f37e14e8-b720-4f15-af25-e7e8661fba7f',
+    description: 'Taxa Cartão - Pedido #af8d46b7',
+    amount: 0.24,
+    category: 'Taxas Financeiras',
+    date: '2026-02-11',
+    created_at: '2026-02-11T14:26:16.330996+00:00',
+    updated_at: '2026-02-11T14:26:16.330996+00:00',
+    user_email: 'helberflopes@gmail.com'
+  },
+  {
+    id: '936de439-9882-439d-ac15-ed78ea2b34c3',
+    user_id: 'f37e14e8-b720-4f15-af25-e7e8661fba7f',
+    description: 'Taxa Cartão - Pedido #73ce4627',
+    amount: 1.4487,
+    category: 'Taxas Financeiras',
+    date: '2026-02-11',
+    created_at: '2026-02-11T14:27:30.455163+00:00',
+    updated_at: '2026-02-11T14:27:30.455163+00:00',
+    user_email: 'helberflopes@gmail.com'
+  },
+  {
+    id: '22c07d5e-dccd-48d2-b4fa-dfea89e725be',
+    user_id: 'f37e14e8-b720-4f15-af25-e7e8661fba7f',
+    description: 'Taxa Cartão - teste de venda manual1',
+    amount: 0.439,
+    category: 'Taxas Financeiras',
+    date: '2026-02-11',
+    created_at: '2026-02-11T15:15:36.105238+00:00',
+    updated_at: '2026-02-11T15:15:36.105238+00:00',
+    user_email: 'helberflopes@gmail.com'
+  },
+  {
+    id: 'ddcc6ed8-48d4-4dda-a8fa-c3d2289a0567',
+    user_id: 'f37e14e8-b720-4f15-af25-e7e8661fba7f',
+    description: 'Taxa Cartão - teste de venda manual1',
+    amount: 0.16,
+    category: 'Taxas Financeiras',
+    date: '2026-02-11',
+    created_at: '2026-02-11T15:16:55.686281+00:00',
+    updated_at: '2026-02-11T15:16:55.686281+00:00',
+    user_email: 'helberflopes@gmail.com'
+  },
+  {
+    id: '131cdaff-d0e3-42bc-b712-06e56f4cfc7c',
+    user_id: 'f37e14e8-b720-4f15-af25-e7e8661fba7f',
+    description: 'teste de registro de saída',
+    amount: 15,
+    category: 'Outros',
+    date: '2026-02-11',
+    created_at: '2026-02-11T15:19:37.484188+00:00',
+    updated_at: '2026-02-11T15:19:37.484188+00:00',
+    user_email: null
+  },
+  {
+    id: 'b0ccd394-76e5-4115-97c9-c832c4fa6e28',
+    user_id: '51724193-3b26-41de-80f7-5daf3488628f',
+    description: 'Taxa Cartão - Pedido #327467d8',
+    amount: 17.375180999999998,
+    category: 'Taxas Financeiras',
+    date: '2026-02-27',
+    created_at: '2026-02-27T15:01:22.848733+00:00',
+    updated_at: '2026-02-27T15:01:22.848733+00:00',
+    user_email: 'elma@dodoce.com'
+  },
+  {
+    id: 'fca3fcd9-8156-420a-b326-7ca385997d09',
+    user_id: 'f37e14e8-b720-4f15-af25-e7e8661fba7f',
+    description: 'Saco de Farinha',
+    amount: 10,
+    category: 'Ingredientes',
+    date: '2026-01-19',
+    created_at: '2026-01-19T14:59:31.26853+00:00',
+    updated_at: '2026-01-26T21:16:11.016108+00:00',
+    user_email: null
+  },
+  {
+    id: 'f71957fb-398e-4d1d-a593-e496976d58df',
+    user_id: 'f37e14e8-b720-4f15-af25-e7e8661fba7f',
+    description: 'Taxa Cartão - Pedido #c86b3370',
+    amount: 0.096,
+    category: 'Taxas Financeiras',
+    date: '2026-03-10',
+    created_at: '2026-03-10T03:18:44.868728+00:00',
+    updated_at: '2026-03-10T03:18:44.868728+00:00',
+    user_email: 'helberflopes@gmail.com'
+  },
+  {
+    id: 'b3138e8c-7716-4e8b-a340-1a3f0939a6ed',
+    user_id: 'f37e14e8-b720-4f15-af25-e7e8661fba7f',
+    description: 'Taxa Cartão - Pedido #e6ef51e1',
+    amount: 0.5268,
+    category: 'Taxas Financeiras',
+    date: '2026-03-10',
+    created_at: '2026-03-10T14:35:18.438241+00:00',
+    updated_at: '2026-03-10T14:35:18.438241+00:00',
+    user_email: 'helberflopes@gmail.com'
+  },
+  {
+    id: '90bde5a6-7f47-464f-8985-cb5387d2f5d3',
+    user_id: 'f37e14e8-b720-4f15-af25-e7e8661fba7f',
+    description: 'Taxa Cartão - Pedido #b0982754',
+    amount: 0.096,
+    category: 'Taxas Financeiras',
+    date: '2026-03-10',
+    created_at: '2026-03-10T16:07:06.904866+00:00',
+    updated_at: '2026-03-10T16:07:06.904866+00:00',
+    user_email: 'helberflopes@gmail.com'
+  },
+  {
+    id: '6edbc3de-9a04-4a86-a37f-e319f14b6493',
+    user_id: 'f37e14e8-b720-4f15-af25-e7e8661fba7f',
+    description: 'Taxa Cartão - Pedido #a237d2ec',
+    amount: 0.096,
+    category: 'Taxas Financeiras',
+    date: '2026-03-11',
+    created_at: '2026-03-11T01:23:21.323126+00:00',
+    updated_at: '2026-03-11T01:23:21.323126+00:00',
+    user_email: 'helberflopes@gmail.com'
+  },
+  {
+    id: '895e06e9-bf64-483a-b550-d29bc4aec6db',
+    user_id: 'f37e14e8-b720-4f15-af25-e7e8661fba7f',
+    description: 'Taxa Cartão - Pedido #f6067861',
+    amount: 0.2634,
+    category: 'Taxas Financeiras',
+    date: '2026-03-11',
+    created_at: '2026-03-11T01:29:07.569268+00:00',
+    updated_at: '2026-03-11T01:29:07.569268+00:00',
+    user_email: 'helberflopes@gmail.com'
+  },
+  {
+    id: '6ca50905-7cc5-40f6-886c-a827366fc73a',
+    user_id: 'f37e14e8-b720-4f15-af25-e7e8661fba7f',
+    description: 'Pagamento Helber',
+    amount: 81.5,
+    category: 'Contas Fixas',
+    date: '2026-01-19',
+    created_at: '2026-01-19T19:35:20.850254+00:00',
+    updated_at: '2026-01-26T21:16:11.016108+00:00',
+    user_email: null
+  },
+  {
+    id: 'e6b28e03-1117-4f76-9f2f-07d500678963',
+    user_id: 'f37e14e8-b720-4f15-af25-e7e8661fba7f',
+    description: 'Taxa Cartão - Pedido #c15e4e8e',
+    amount: 0.096,
+    category: 'Taxas Financeiras',
+    date: '2026-03-11',
+    created_at: '2026-03-11T01:33:10.175188+00:00',
+    updated_at: '2026-03-11T01:33:10.175188+00:00',
+    user_email: 'helberflopes@gmail.com'
+  },
+  {
+    id: '09d8f5c5-0cd0-4abb-a98f-7b4f72288a10',
+    user_id: 'f37e14e8-b720-4f15-af25-e7e8661fba7f',
+    description: 'Taxa Cartão - Pedido #f6b00f13',
+    amount: 0.5268,
+    category: 'Taxas Financeiras',
+    date: '2026-03-12',
+    created_at: '2026-03-12T01:54:07.394684+00:00',
+    updated_at: '2026-03-12T01:54:07.394684+00:00',
+    user_email: 'helberflopes@gmail.com'
+  },
+  {
+    id: '727b54c3-621e-4478-8e2b-963f9c3c075a',
+    user_id: 'f37e14e8-b720-4f15-af25-e7e8661fba7f',
+    description: 'Taxa Cartão - Pedido #057d45f7',
+    amount: 5,
+    category: 'Taxas Financeiras',
+    date: '2026-01-23',
+    created_at: '2026-01-23T12:46:32.583157+00:00',
+    updated_at: '2026-01-26T21:16:11.016108+00:00',
+    user_email: null
+  },
+  {
+    id: '73db6f0a-4c01-4e68-95e7-fa74b43b3332',
+    user_id: 'f37e14e8-b720-4f15-af25-e7e8661fba7f',
+    description: 'Taxa Cartão - Pedido #e1fadc8d',
+    amount: 4.39,
+    category: 'Taxas Financeiras',
+    date: '2026-01-23',
+    created_at: '2026-01-23T13:13:02.284124+00:00',
+    updated_at: '2026-01-26T21:16:11.016108+00:00',
+    user_email: null
+  },
+  {
+    id: 'c6907b06-c1de-4ef2-961a-74794da66c26',
+    user_id: 'f37e14e8-b720-4f15-af25-e7e8661fba7f',
+    description: 'Taxa Cartão - Pedido #39ab7cea',
+    amount: 1.28,
+    category: 'Taxas Financeiras',
+    date: '2026-01-23',
+    created_at: '2026-01-23T13:13:36.1974+00:00',
+    updated_at: '2026-01-26T21:16:11.016108+00:00',
+    user_email: null
+  },
+  {
+    id: '568143cb-30fb-441a-91eb-40f13b2c039d',
+    user_id: 'f37e14e8-b720-4f15-af25-e7e8661fba7f',
+    description: 'Taxa Cartão - Pedido #06ecc696',
+    amount: 0.2195,
+    category: 'Taxas Financeiras',
+    date: '2026-02-06',
+    created_at: '2026-02-06T22:48:14.116106+00:00',
+    updated_at: '2026-02-06T22:48:14.116106+00:00',
+    user_email: null
+  },
+  {
+    id: '7896b7f3-3ac0-4c87-a3e6-8e7b2a36e2a9',
+    user_id: '51724193-3b26-41de-80f7-5daf3488628f',
+    description: 'Taxa Cartão - Pedido #32694170',
+    amount: 0.208,
+    category: 'Taxas Financeiras',
+    date: '2026-02-06',
+    created_at: '2026-02-06T22:49:01.965818+00:00',
+    updated_at: '2026-02-06T22:49:01.965818+00:00',
+    user_email: null
+  },
+  {
+    id: 'e516fe4e-228c-4c98-b2e7-2cb75e4a3881',
+    user_id: '51724193-3b26-41de-80f7-5daf3488628f',
+    description: 'Taxa Cartão - Pedido #fd807abe',
+    amount: 0.208,
+    category: 'Taxas Financeiras',
+    date: '2026-02-06',
+    created_at: '2026-02-06T22:49:40.021121+00:00',
+    updated_at: '2026-02-06T22:49:40.021121+00:00',
+    user_email: null
+  },
+  {
+    id: '47507a9e-09a4-4f3e-9a0a-f3184031dd94',
+    user_id: 'f37e14e8-b720-4f15-af25-e7e8661fba7f',
+    description: 'Taxa Cartão - teste2',
+    amount: 0.43899999999999995,
+    category: 'Taxas Financeiras',
+    date: '2026-02-06',
+    created_at: '2026-02-06T22:56:08.866144+00:00',
+    updated_at: '2026-02-06T22:56:08.866144+00:00',
+    user_email: null
+  },
+  {
+    id: 'be160419-82a6-49db-a714-79208bd746cd',
+    user_id: 'f37e14e8-b720-4f15-af25-e7e8661fba7f',
+    description: 'Taxa Cartão - teste3',
+    amount: 0.16,
+    category: 'Taxas Financeiras',
+    date: '2026-02-06',
+    created_at: '2026-02-06T22:57:58.393671+00:00',
+    updated_at: '2026-02-06T22:57:58.393671+00:00',
+    user_email: null
+  },
+  {
+    id: '5e8c4706-e300-43b9-bd61-6cbdedc0a268',
+    user_id: 'f37e14e8-b720-4f15-af25-e7e8661fba7f',
+    description: 'Taxa Cartão - Pedido #45af6919',
+    amount: 0.1317,
+    category: 'Taxas Financeiras',
+    date: '2026-02-06',
+    created_at: '2026-02-06T23:11:02.913715+00:00',
+    updated_at: '2026-02-06T23:11:02.913715+00:00',
+    user_email: null
+  }
+]

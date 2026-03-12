@@ -270,13 +270,19 @@ export const PosService = {
   // 4. RELATÓRIOS (MANTIDO DO SEU CÓDIGO ORIGINAL)
   // =================================================================
   async getSalesReport(startDate: string, endDate: string) {
+    const startIso = new Date(`${startDate}T00:00:00-03:00`).toISOString();
+    const endIso = new Date(`${endDate}T23:59:59-03:00`).toISOString();
+
     const { data: orders, error: ordersError } = await supabase
       .from('orders')
       .select('*')
       .eq('status', 'completed')
-      .gte('created_at', `${startDate}T00:00:00`)
-      .lte('created_at', `${endDate}T23:59:59`);
+      .gte('created_at', startIso)
+      .lte('created_at', endIso);
     if (ordersError) throw ordersError;
+    
+    console.log(`[AUDITORIA PDV] Buscando entre ${startIso} e ${endIso}`);
+    console.log(`[AUDITORIA PDV] Vendas encontradas no período:`, orders.length);
     const orderIds = orders.map(o => o.id);
     let items: any[] = [];
     if (orderIds.length > 0) {
@@ -285,8 +291,22 @@ export const PosService = {
       items = orderItems;
     }
     const totalSales = orders.reduce((acc, o) => acc + Number(o.total_amount), 0);
+    const totalFees = orders.reduce((acc, o) => acc + Number(o.fee_amount || 0), 0);
     const totalOrders = orders.length;
     const averageTicket = totalOrders > 0 ? totalSales / totalOrders : 0;
+    
+    const dailyRevenue = Object.values(orders.reduce((acc: any, o) => {
+      const d = new Date(o.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+      if (!acc[d]) acc[d] = { name: d, receita: 0 };
+      acc[d].receita += Number(o.total_amount);
+      return acc;
+    }, {})).sort((a: any, b: any) => {
+      // Sorting by date considering DD/MM string is tricky, but they are already mostly ordered by query.
+      // We can sort them properly by converting back, or since query order is not guaranteed, let's sort by string assuming within same month/year
+      const [dayA, monthA] = a.name.split('/');
+      const [dayB, monthB] = b.name.split('/');
+      return new Date(2020, Number(monthA)-1, Number(dayA)).getTime() - new Date(2020, Number(monthB)-1, Number(dayB)).getTime();
+    });
     const paymentMethods: Record<string, number> = {};
     orders.forEach(o => {
       let method = o.payment_method || 'Outros';
@@ -317,7 +337,7 @@ export const PosService = {
     }
 
     return {
-      summary: { totalSales, totalOrders, averageTicket },
+      summary: { totalSales, totalOrders, averageTicket, totalFees, dailyRevenue },
       paymentMethods,
       topProducts: topProductsArray
     };

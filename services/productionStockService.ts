@@ -197,17 +197,18 @@ export const ProductionStockService = {
   },
 
   /**
-   * Calcula o custo financeiro total de perdas no mês corrente.
+   * Calcula o custo financeiro total de perdas num período de datas.
    */
-  async getMonthlyLossCost(): Promise<number> {
-    const today = new Date();
-    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
-    
-    // Busca as perdas do mês com as respectivas receitas para pegar o custo
+  async getLossCostByPeriod(startDate: string, endDate: string): Promise<number> {
+    const startIso = new Date(`${startDate}T00:00:00-03:00`).toISOString();
+    const endIso = new Date(`${endDate}T23:59:59-03:00`).toISOString();
+
+    // Busca as perdas do período com as respectivas receitas para pegar o custo
     const { data: losses, error } = await supabase
       .from('inventory_losses')
       .select('quantity, recipes!inner(unit_cost)')
-      .gte('created_at', firstDay);
+      .gte('created_at', startIso)
+      .lte('created_at', endIso);
 
     if (error) {
       console.error('Erro ao buscar perdas mensais:', error);

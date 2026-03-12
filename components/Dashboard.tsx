@@ -8,9 +8,10 @@ import {
 import { useRecipes } from '../hooks/useRecipes';
 import { useIngredients } from '../hooks/useIngredients';
 import { useSettings } from '../hooks/useSystem';
-import { useSales, useExpenses, useFixedCosts } from '../hooks/useFinancials';
+import { useExpenses, useFixedCosts } from '../hooks/useFinancials';
 import { RecipeService } from '../services/recipeService';
 import { ProductionStockService } from '../services/productionStockService';
+import { PosService } from '../services/posService';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend
@@ -30,34 +31,76 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const { data: recipes = [], isLoading: isLoadingRecipes } = useRecipes();
   const { ingredients, loading: isLoadingIngredients } = useIngredients();
   const { data: settings, isLoading: isLoadingSettings } = useSettings();
-  const { data: sales = [], isLoading: isLoadingSales } = useSales();
   const { data: expenses = [], isLoading: isLoadingExpenses } = useExpenses();
   const { data: fixedCosts = [], isLoading: isLoadingFixed } = useFixedCosts();
 
   const [monthlyLossCost, setMonthlyLossCost] = useState<number>(0);
   const [isLoadingLoss, setIsLoadingLoss] = useState(true);
 
+  // Helper para fuso horário local correto
+  const getLocalDateString = (d: Date) => {
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+  };
+
+  // DATA RANGE FILTER (Padrão: Mês Atual usando LocalTime para não pular um dia após as 21h)
+  const [dateRange, setDateRange] = useState({
+    start: getLocalDateString(new Date(new Date().getFullYear(), new Date().getMonth(), 1)),
+    end: getLocalDateString(new Date())
+  });
+
+  const [dashboardReport, setDashboardReport] = useState<any>(null);
+  const [isLoadingReport, setIsLoadingReport] = useState(true);
+
   React.useEffect(() => {
-    ProductionStockService.getMonthlyLossCost()
+    setIsLoadingLoss(true);
+    ProductionStockService.getLossCostByPeriod(dateRange.start, dateRange.end)
       .then(cost => setMonthlyLossCost(cost))
       .catch(err => console.error(err))
       .finally(() => setIsLoadingLoss(false));
-  }, []);
+      
+    setIsLoadingReport(true);
+    PosService.getSalesReport(dateRange.start, dateRange.end)
+      .then(report => setDashboardReport(report))
+      .catch(err => console.error(err))
+      .finally(() => setIsLoadingReport(false));
+  }, [dateRange.start, dateRange.end]);
 
-  const isLoading = isLoadingRecipes || isLoadingIngredients || isLoadingSettings || isLoadingSales || isLoadingExpenses || isLoadingFixed || isLoadingLoss;
+  const isLoading = isLoadingRecipes || isLoadingIngredients || isLoadingSettings || isLoadingExpenses || isLoadingFixed || isLoadingLoss || isLoadingReport;
 
-  // 2. Cálculos Financeiros (Memoized)
+  // 2. Cálculos Financeiros (Memoized + Temporal)
   const financialMetrics = useMemo(() => {
     const currentTax = settings?.default_tax_rate ?? 4.5;
     const currentFee = settings?.card_credit_rate ?? 4.39;
 
-    const totalRevenue = sales.reduce((acc: number, curr: any) => acc + (curr.total_amount || 0), 0) + (settings?.estimated_monthly_revenue || 0);
+    const totalRevenue = dashboardReport?.summary?.totalSales || 0;
+    const totalFees = dashboardReport?.summary?.totalFees || 0;
 
-    const totalFixedCosts = fixedCosts.reduce((acc: any, curr: any) => acc + (curr.amount || 0), 0) + (settings?.labor_monthly_cost || 0);
-    const totalVariableExpenses = expenses.reduce((acc: any, curr: any) => acc + (curr.amount || 0), 0);
-    const totalExpenses = totalFixedCosts + totalVariableExpenses;
+    const filteredExpenses = expenses.filter(e => {
+      const eDate = e.date.split('T')[0];
+      // Ignorar duplicidade de "Taxas de Cartão" que já são computadas no PDV (totalFees) via orders
+      if (e.category === 'Taxas Financeiras' || (e.description && e.description.includes('Taxa Cartão'))) return false;
+      return eDate >= dateRange.start && eDate <= dateRange.end;
+    });
+    const totalVariableExpenses = filteredExpenses.reduce((acc: any, curr: any) => acc + (curr.amount || 0), 0);
 
-    const profit = totalRevenue - totalExpenses; // Lucro Bruto Simples (Receita - Despesas)
+    const [sYear, sMonth, sDay] = dateRange.start.split('-').map(Number);
+    const [eYear, eMonth, eDay] = dateRange.end.split('-').map(Number);
+    const startD = new Date(sYear, sMonth - 1, sDay);
+    const endD = new Date(eYear, eMonth - 1, eDay);
+    
+    // Cálculo seguro de dias passados
+    const diffDays = Math.max(1, Math.round((endD.getTime() - startD.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+    
+    // Quantidade real de dias no mês selecionado
+    const daysInMonth = new Date(eYear, eMonth, 0).getDate();
+    const propRatio = diffDays / daysInMonth;
+
+    const totalFixedMonthly = fixedCosts.reduce((acc: any, curr: any) => acc + (Number(curr.value) || 0), 0) + (settings?.labor_monthly_cost || 0);
+    const totalFixedCosts = totalFixedMonthly * propRatio;
+
+    const totalExpenses = totalFixedCosts + totalVariableExpenses + totalFees;
+
+    const profit = totalRevenue - totalExpenses; // Lucro Bruto
     const margin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
 
     return {
@@ -66,11 +109,15 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       totalRevenue,
       totalFixedCosts,
       totalVariableExpenses,
+      totalFees,
       totalExpenses,
       profit,
-      margin
+      margin,
+      diffDays,
+      daysInMonth,
+      totalFixedMonthly
     };
-  }, [sales, expenses, fixedCosts, settings]);
+  }, [dashboardReport, expenses, fixedCosts, settings, dateRange]);
 
   // 3. Cálculos de Produção (Bases) (Memoized)
   const productionBasesValue = useMemo(() => {
@@ -108,16 +155,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   }, [ingredients, recipes]);
 
   // 6. Dados para Gráficos
-  const revenueData = sales.reduce((acc: any[], sale: any) => {
-    const date = new Date(sale.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-    const existing = acc.find(a => a.name === date);
-    if (existing) {
-      existing.receita += sale.total_amount;
-    } else {
-      acc.push({ name: date, receita: sale.total_amount });
-    }
-    return acc;
-  }, []).slice(-7);
+  const revenueData = dashboardReport?.summary?.dailyRevenue || [];
 
   // Distribuição de Custos (Memoized)
   const costDistribution = useMemo(() => {
@@ -251,11 +289,23 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         </div>
 
         <div className="flex flex-col items-end gap-3">
-          <div className="text-xs font-medium bg-white border border-slate-200 text-slate-500 px-4 py-2 rounded-full shadow-sm flex items-center gap-2">
-            <Calendar size={14} className="text-slate-400" />
-            <span className="capitalize">
-              {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
-            </span>
+          <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm">
+            <Calendar size={16} className="text-amber-600" />
+            <div className="flex items-center gap-1">
+              <input 
+                type="date" 
+                className="px-1 py-1 text-sm font-bold text-slate-600 outline-none rounded bg-transparent focus:text-amber-600"
+                value={dateRange.start}
+                onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+              />
+              <span className="text-slate-300 font-bold">-</span>
+              <input 
+                type="date" 
+                className="px-1 py-1 text-sm font-bold text-slate-600 outline-none rounded bg-transparent focus:text-amber-600"
+                value={dateRange.end}
+                onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+              />
+            </div>
           </div>
 
           <div className="flex gap-2">
@@ -297,7 +347,35 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           <div className="text-3xl font-bold text-rose-700">
             {financialMetrics.totalExpenses.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
           </div>
-          <div className="text-xs text-slate-500 font-medium mt-1">Despesas Totais</div>
+          
+          <div className="flex items-center gap-1 mt-1">
+            <div className="text-xs text-slate-500 font-medium">Despesas Totais</div>
+            <div className="group/tooltip relative flex items-center">
+              <HelpCircle size={14} className="text-slate-400 hover:text-rose-500 transition-colors cursor-help" />
+              {/* Tooltip popover invisível por padrão */}
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-3 bg-slate-800 text-white text-xs rounded-lg shadow-xl opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all z-20 pointer-events-none">
+                <div className="font-bold mb-2 pb-2 border-b border-slate-600 text-slate-200">
+                  Composição ({financialMetrics.diffDays} dias)
+                </div>
+                <div className="space-y-1.5">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Fixos ({financialMetrics.diffDays}/{financialMetrics.daysInMonth}):</span>
+                    <span className="font-medium">R$ {financialMetrics.totalFixedCosts.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Variáveis Adicionais:</span>
+                    <span className="font-medium">R$ {financialMetrics.totalVariableExpenses.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Taxas de Maquininhas:</span>
+                    <span className="font-medium">R$ {financialMetrics.totalFees.toFixed(2)}</span>
+                  </div>
+                </div>
+                {/* Tip/Arrow */}
+                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800"></div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* CARD SALDO */}
@@ -404,7 +482,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             </div>
           </div>
           <div className="text-3xl font-bold text-white">R$ {financialMetrics.totalFixedCosts.toFixed(0)}</div>
-          <div className="text-xs text-slate-400 font-medium uppercase tracking-wide">Custo Fixo Total (Mensal)</div>
+          <div className="text-xs text-slate-400 font-medium uppercase tracking-wide">Custo Fixo (Proporcional)</div>
         </div>
 
         {/* CARD NOVO: PERDAS DE PRODUÇÃO MENSAL */}
@@ -418,7 +496,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           <div className="text-3xl font-bold text-red-700">
             {monthlyLossCost.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
           </div>
-          <div className="text-xs text-slate-500 font-medium uppercase tracking-wide">Perdas de Produção (Mês)</div>
+          <div className="text-xs text-slate-500 font-medium uppercase tracking-wide">Perdas de Produção (Período)</div>
         </div>
 
       </div>
