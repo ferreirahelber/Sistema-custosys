@@ -9,6 +9,7 @@ import {
 import { toast } from 'sonner';
 import { useRecipes, useRecipeMutations } from '../hooks/useRecipes';
 import { useCategories } from '../hooks/useSystem';
+import { exportAllRecipesToPDF } from '../utils/recipePdfExport';
 
 // --- COMPONENTE DE IMPRESSÃO ---
 const PrintableRecipe = ({ recipe, mode }: { recipe: Recipe | null, mode: 'kitchen' | 'manager' | null }) => {
@@ -303,12 +304,22 @@ export function RecipeList({ isBaseFilter = false }: RecipeListProps) {
             onChange={e => setSearchTerm(e.target.value)}
           />
         </div>
-        <Link
-          to={isBaseFilter ? "/production-bases/new" : "/recipes/new"}
-          className="w-full md:w-auto bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg font-bold flex items-center justify-center gap-2 transition shadow-lg shadow-amber-600/20"
-        >
-          <Plus size={20} /> {isBaseFilter ? "Novo Insumo" : "Nova Receita"}
-        </Link>
+        <div className="flex gap-2 w-full md:w-auto">
+          <button
+            onClick={() => exportAllRecipesToPDF(filteredRecipes)}
+            disabled={filteredRecipes.length === 0}
+            className="w-full md:w-auto bg-white border border-rose-200 hover:bg-rose-50 hover:border-rose-300 text-rose-600 px-4 py-2 rounded-lg font-bold flex items-center justify-center gap-2 transition disabled:opacity-50"
+            title="Exportar Receitas Filtradas (PDF)"
+          >
+            <FileText size={20} /> PDF
+          </button>
+          <Link
+            to={isBaseFilter ? "/production-bases/new" : "/recipes/new"}
+            className="w-full md:w-auto bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg font-bold flex items-center justify-center gap-2 transition shadow-lg shadow-amber-600/20"
+          >
+            <Plus size={20} /> {isBaseFilter ? "Novo Insumo" : "Nova Receita"}
+          </Link>
+        </div>
       </div>
 
       {/* Filtro de Categorias */}

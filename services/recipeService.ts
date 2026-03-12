@@ -8,7 +8,7 @@ export const RecipeService = {
       .select(`
       *,
       production_stock:production_stock(quantity, min_quantity),
-      items:recipe_items!recipe_items_recipe_id_fkey(*)
+      items:recipe_items!recipe_items_recipe_id_fkey(*, ingredient:ingredients!left(*), sub_recipe:recipes!sub_recipe_id!left(*))
     `) // Especificamos que queremos o caminho pelo recipe_id
       .order('name');
 
@@ -17,15 +17,17 @@ export const RecipeService = {
       throw error;
     }
 
-    return (data || []).map((r) => ({
+    const recipesData = data as any[];
+
+    return (recipesData || []).map((r) => ({
       ...r,
       is_base: Boolean(r.is_base),
       items: (r.items || []).map((i: any) => ({
         ...i,
         quantity_used: i.quantity,
         quantity_input: i.quantity_input || i.quantity,
-        unit_input: i.unit_input || 'un',
-        ingredient_name: i.ingredient_name
+        unit_input: i.unit_input || i.ingredient?.base_unit || i.sub_recipe?.yield_unit || 'un',
+        ingredient_name: i.ingredient_name || i.ingredient?.name || i.sub_recipe?.name
       })),
       production_stock: Array.isArray(r.production_stock) ? r.production_stock[0] : r.production_stock
     }));
