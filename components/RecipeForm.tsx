@@ -84,8 +84,9 @@ export const RecipeForm: React.FC = () => {
           )}
           <button
             onClick={() => save()}
-            disabled={isSaving}
-            className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-6 py-2.5 rounded-xl font-bold hover:shadow-lg hover:shadow-emerald-500/30 transition transform hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed"
+            disabled={isSaving || !recipeItems || recipeItems.length === 0}
+            title={(!recipeItems || recipeItems.length === 0) ? "Adicione ingredientes para salvar a receita" : "Salvar Ficha"}
+            className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-6 py-2.5 rounded-xl font-bold hover:shadow-lg hover:shadow-emerald-500/30 transition transform hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed disabled:from-slate-400 disabled:to-slate-500 disabled:shadow-none"
           >
             {isSaving ? <Loader2 className="animate-spin" size={20} /> : <SaveAll size={20} />}
             <span className="hidden md:inline">Salvar Ficha</span>

@@ -217,9 +217,10 @@ export const useRecipeForm = (recipeId?: string) => {
             return;
         }
 
-        // BLOQUEIO DE SEGURANÇA NA UI (Impede envio de Receitas sem Itens na Edição)
-        if (recipeId && state.recipeItems.length === 0) {
-            toast.error("Aleta de Segurança: Não é permitido salvar uma Receita de Produção vazia (sem ingredientes). Se deseja deletá-la, use o botão de Exclusão na listagem.", { duration: 6000 });
+        // BLOQUEIO EXPLICITO NA UI (Garante que array vazio aborte a criação ou atualização)
+        if (!state.recipeItems || state.recipeItems.length === 0) {
+            console.error("ALERTA DE UI: Submissão abortada pois o array de itens está VAZIO.", state.recipeItems);
+            toast.error("Alerta Crítico: É obrigatório ter pelo menos 1 ingrediente para salvar a receita. Se deseja excluir uma receita existente, use o botão de Excluir na listagem principal.", { duration: 8000 });
             return;
         }
 

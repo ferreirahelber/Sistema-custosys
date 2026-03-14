@@ -10,6 +10,7 @@ export const RecipeService = {
       production_stock:production_stock(quantity, min_quantity),
       items:recipe_items!recipe_items_recipe_id_fkey(*, ingredient:ingredients!left(*), sub_recipe:recipes!sub_recipe_id!left(*))
     `) // Especificamos que queremos o caminho pelo recipe_id
+      .is('deleted_at', null)
       .order('name');
 
     if (error) {
@@ -189,10 +190,12 @@ export const RecipeService = {
 
     if (historyError) console.warn("Erro ao excluir price_history, continuando...", historyError);
 
-    // 4. Excluir a receita em si
+    // 4. Excluir a receita em si (AGORA É SOFT DELETE)
+    // Opcional: Se quiser Hard Delete mesmo assim, deixe .delete()
+    // Mas a opção escolhida foi a 1 + 2, então faremos Soft Delete
     const { error } = await supabase
       .from('recipes')
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq('id', id);
 
     if (error) throw error;
