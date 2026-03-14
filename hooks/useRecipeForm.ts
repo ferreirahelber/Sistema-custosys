@@ -212,7 +212,16 @@ export const useRecipeForm = (recipeId?: string) => {
     );
 
     const save = async () => {
-        if (!state.name.trim()) return;
+        if (!state.name.trim()) {
+            toast.error("O nome da receita é obrigatório.");
+            return;
+        }
+
+        // BLOQUEIO DE SEGURANÇA NA UI (Impede envio de Receitas sem Itens na Edição)
+        if (recipeId && state.recipeItems.length === 0) {
+            toast.error("Aleta de Segurança: Não é permitido salvar uma Receita de Produção vazia (sem ingredientes). Se deseja deletá-la, use o botão de Exclusão na listagem.", { duration: 6000 });
+            return;
+        }
 
         const payload: Recipe = {
             id: recipeId || '',

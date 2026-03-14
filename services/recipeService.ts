@@ -81,6 +81,16 @@ export const RecipeService = {
 
     delete (payload as any).created_at;
 
+    // BLOQUEIO DE PAYLOAD VAZIO EXTREMO (Para Update de Receita Baseada em Componentes)
+    // Se a receita já existe (Update) e o payload diz que não tem itens:
+    if (recipeData.id && (!items || items.length === 0)) {
+      // Verifica no BD se ela possuía ingredientes antes. Se sim, barramos a exclusão sumária acidental.
+      const { count } = await supabase.from('recipe_items').select('*', { count: 'exact', head: true }).eq('recipe_id', recipeData.id);
+      if (count && count > 0) {
+         throw new Error("ALERTA DE SEGURANÇA: Salvação bloqueada. O banco detectou que esta receita possui ingredientes, mas o payload recebido está VAZIO. Para evitar perda acidental de dados, a ação foi abortada.");
+      }
+    }
+
     const { data: savedRecipe, error: recipeError } = await supabase
       .from('recipes')
       .upsert(payload)
@@ -93,6 +103,15 @@ export const RecipeService = {
     }
 
     if (items && items.length > 0) {
+      // CACHE PARA ROLLBACK TRANSACIONAL APP-LEVEL
+      let previousItemsBackup: any[] = [];
+      if (recipeData.id) {
+         const { data: oldItems } = await supabase.from('recipe_items').select('*').eq('recipe_id', savedRecipe.id);
+         if (oldItems && oldItems.length > 0) {
+            previousItemsBackup = oldItems;
+         }
+      }
+
       await supabase.from('recipe_items').delete().eq('recipe_id', savedRecipe.id);
 
       const itemsToInsert = items.map((item) => ({
@@ -111,12 +130,34 @@ export const RecipeService = {
       const { error: itemsError } = await supabase.from('recipe_items').insert(itemsToInsert);
 
       if (itemsError) {
-        console.error("Erro ao salvar Itens:", itemsError);
-        throw itemsError;
+        console.error("Erro ao salvar Itens da Receita (Schema Rejection/Network). Iniciando Rollback automático...", itemsError);
+        // REINSERINDO BACKUP SE INSERT FALHAR
+        if (previousItemsBackup.length > 0) {
+            console.log("Restaurando os ingredientes antigos destruídos precocemente...");
+            const rollbackItems = previousItemsBackup.map(old => {
+               const rollbackObj = { ...old };
+               delete rollbackObj.id; // supabase auto-generates
+               delete rollbackObj.created_at; 
+               return rollbackObj;
+            });
+            await supabase.from('recipe_items').insert(rollbackItems);
+            console.log("Ingredientes restaurados pós-falha.");
+        }
+        throw new Error(`Falha crítica ao gravar os ingredientes. A receita mãe foi salva, mas os Itens falharam: ${itemsError.message}. Os dados vitais antigos (itens) foram protegidos pelo Rollback!`);
       }
     }
 
     return savedRecipe;
+  },
+
+  // Novo Custo/Simulador Isolado para NÃO tocar nas SubCollection de Imutabilidade
+  async updateMetadata(id: string, metadata: { selling_price?: number; margin?: number; }) {
+    const { error } = await supabase.from('recipes').update(metadata).eq('id', id);
+    if (error) {
+       console.error("Erro ao salvar metadados gerenciais da receita:", error);
+       throw error;
+    }
+    return true;
   },
 
   async delete(id: string) {

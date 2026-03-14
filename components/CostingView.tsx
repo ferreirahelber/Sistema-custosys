@@ -138,11 +138,9 @@ export const CostingView: React.FC = () => {
     try {
       setSaving(true);
 
-      // --- CORREÇÃO AQUI ---
-      // Usamos .save e passamos o objeto completo, pois o .update foi removido
-      await RecipeService.save({
-        ...selectedRecipe,
-        selling_price: parseFloat(sellingPrice.toFixed(2)),
+      // Usamos updateMetadata para gravar apenas os dados financeiros (impede exclusão oculta de items)
+      await RecipeService.updateMetadata(selectedRecipe.id, {
+        selling_price: parseFloat(sellingPrice.toFixed(2))
       });
 
       // Atualiza estado local
