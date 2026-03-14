@@ -90,6 +90,44 @@ export const IngredientService = {
     if (error) throw error;
   },
 
+  // Ajuste de inventário (NÃO altera unit_cost_base)
+  async adjustStock(ingredientId: string, quantity: number, reason: string, unit: string) {
+    // 1. Buscar ingrediente atual
+    const { data: ingredient, error: fetchError } = await supabase
+      .from('ingredients')
+      .select('*')
+      .eq('id', ingredientId)
+      .single();
+
+    if (fetchError) throw fetchError;
+
+    // 2. Registrar o ajuste no histórico
+    const { error: insertError } = await supabase
+      .from('ingredient_purchases')
+      .insert([{
+        ingredient_id: ingredientId,
+        brand: '',
+        supplier: reason,
+        price: 0,
+        quantity: quantity,
+        unit: unit,
+        purchase_date: new Date().toISOString().split('T')[0],
+        type: 'adjustment',
+        reason: reason
+      }]);
+
+    if (insertError) throw insertError;
+
+    // 3. Atualizar APENAS o estoque (NÃO toca no unit_cost_base)
+    const newStock = (ingredient.current_stock || 0) + quantity;
+    const { error: updateError } = await supabase
+      .from('ingredients')
+      .update({ current_stock: Math.max(0, newStock) })
+      .eq('id', ingredientId);
+
+    if (updateError) throw updateError;
+  },
+
   // Cria um novo item
   async create(ingredient: Omit<Ingredient, 'id'>) {
     const { data, error } = await supabase

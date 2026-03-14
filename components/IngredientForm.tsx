@@ -330,10 +330,13 @@ export function IngredientForm() {
                     <input
                       type="number"
                       value={formData.currentStock}
-                      onChange={e => setFormData({ ...formData, currentStock: e.target.value })}
-                      className="w-full mt-1 px-2 py-1.5 border rounded bg-white text-sm"
+                      readOnly
+                      className="w-full mt-1 px-2 py-1.5 border rounded bg-slate-100 text-sm text-slate-500 cursor-not-allowed"
                       placeholder="0"
                     />
+                    <p className="text-[9px] text-amber-600 font-bold mt-1 flex items-center gap-1">
+                      <History size={10} /> Atualize via Histórico
+                    </p>
                   </div>
                   <div>
                     <label className="text-[10px] font-bold text-slate-400 uppercase">Mínimo ({formData.baseUnit})</label>

@@ -105,11 +105,29 @@ export function useIngredientPurchases(ingredientId?: string) {
         }
     });
 
+    const adjustStockMutation = useMutation({
+        mutationFn: async ({ quantity, reason, unit }: { quantity: number; reason: string; unit: string }) => {
+            if (!ingredientId) throw new Error('Ingrediente não selecionado');
+            return IngredientService.adjustStock(ingredientId, quantity, reason, unit);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['ingredient-purchases', ingredientId] });
+            queryClient.invalidateQueries({ queryKey: ['ingredients'] });
+            toast.success('Estoque ajustado com sucesso!');
+        },
+        onError: (err: any) => {
+            console.error(err);
+            toast.error(err.message || 'Erro ao ajustar estoque');
+        }
+    });
+
     return {
         purchases,
         loading: isLoading,
         addPurchase: addPurchaseMutation.mutateAsync,
-        isAdding: addPurchaseMutation.isPending
+        adjustStock: adjustStockMutation.mutateAsync,
+        isAdding: addPurchaseMutation.isPending,
+        isAdjusting: adjustStockMutation.isPending
     };
 }
 
@@ -121,10 +139,11 @@ export function usePurchaseSuggestions() {
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('ingredient_purchases')
-                .select('brand, supplier');
+                .select('brand, supplier, type')
+                .or('type.eq.purchase,type.is.null');
             if (error) throw error;
             
-            const brands = Array.from(new Set(data.map(d => d.brand).filter(Boolean)));
+            const brands = Array.from(new Set(data.map(d => d.brand).filter(b => b && b !== 'Sem marca')));
             const suppliers = Array.from(new Set(data.map(d => d.supplier).filter(Boolean)));
             
             return { brands, suppliers };

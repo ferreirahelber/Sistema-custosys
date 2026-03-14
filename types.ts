@@ -43,6 +43,8 @@ export interface IngredientPurchase {
   unit: string;
   purchase_date: string;
   created_at?: string;
+  type?: 'purchase' | 'adjustment';
+  reason?: string;
 }
 
 export interface Ingredient {

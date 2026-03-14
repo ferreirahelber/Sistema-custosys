@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { X, ShoppingCart, History, Plus, Building2, Tag, Calendar, Package, DollarSign, TrendingUp, Info } from 'lucide-react';
+import { X, ShoppingCart, History, Plus, Building2, Tag, Calendar, Package, DollarSign, TrendingUp, Info, AlertTriangle, ClipboardList } from 'lucide-react';
 import { Ingredient, IngredientPurchase } from '../types';
 import { useIngredientPurchases, usePurchaseSuggestions } from '../hooks/useIngredients';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { SmartCombobox } from './common/SmartCombobox';
+import { toast } from 'sonner';
 
 interface IngredientPurchaseModalProps {
   ingredient: Ingredient;
@@ -18,9 +19,11 @@ const formatCurrency = (value: number) => {
   }).format(value);
 };
 
+const ADJUSTMENT_REASONS = ['Perda', 'Vencimento', 'Correção de Saldo', 'Quebra', 'Doação', 'Outro'];
+
 export function IngredientPurchaseModal({ ingredient, onClose }: IngredientPurchaseModalProps) {
-  const [activeTab, setActiveTab] = useState<'history' | 'new-purchase'>('history');
-  const { purchases, loading, addPurchase, isAdding } = useIngredientPurchases(ingredient.id);
+  const [activeTab, setActiveTab] = useState<'history' | 'new-purchase' | 'adjust'>('history');
+  const { purchases, loading, addPurchase, adjustStock, isAdding, isAdjusting } = useIngredientPurchases(ingredient.id);
   const { brands, suppliers, renameBrand, renameSupplier } = usePurchaseSuggestions();
 
   const [formData, setFormData] = useState({
@@ -32,9 +35,20 @@ export function IngredientPurchaseModal({ ingredient, onClose }: IngredientPurch
     purchase_date: format(new Date(), 'yyyy-MM-dd')
   });
 
+  const [adjustData, setAdjustData] = useState({
+    quantity: '',
+    reason: '',
+    isNegative: true,
+  });
+
   const handleAddPurchase = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.brand || !formData.supplier || !formData.price || !formData.quantity) return;
+
+    if (!formData.supplier.trim()) {
+      toast.error('Por favor, informe o local da compra.');
+      return;
+    }
+    if (!formData.price || !formData.quantity) return;
 
     let multiplier = 1;
     if ((formData.unit === 'kg' && ingredient.base_unit === 'g') || (formData.unit === 'l' && ingredient.base_unit === 'ml')) {
@@ -46,15 +60,15 @@ export function IngredientPurchaseModal({ ingredient, onClose }: IngredientPurch
     try {
       await addPurchase({
         ingredient_id: ingredient.id!,
-        brand: formData.brand,
-        supplier: formData.supplier,
+        brand: formData.brand.trim() || 'Sem marca',
+        supplier: formData.supplier.trim(),
         price: parseFloat(formData.price),
         quantity: convertedQuantity,
         unit: ingredient.base_unit || formData.unit,
-        purchase_date: formData.purchase_date
+        purchase_date: formData.purchase_date,
+        type: 'purchase'
       });
       
-      // Reset form and go to history
       setFormData({
         ...formData,
         brand: '',
@@ -63,6 +77,34 @@ export function IngredientPurchaseModal({ ingredient, onClose }: IngredientPurch
         quantity: '',
         purchase_date: format(new Date(), 'yyyy-MM-dd')
       });
+      setActiveTab('history');
+    } catch (error) {
+      // Error handled by hook
+    }
+  };
+
+  const handleAdjustStock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adjustData.quantity || !adjustData.reason) {
+      toast.error('Preencha a quantidade e o motivo do ajuste.');
+      return;
+    }
+
+    const qty = parseFloat(adjustData.quantity);
+    if (isNaN(qty) || qty === 0) {
+      toast.error('Informe uma quantidade válida.');
+      return;
+    }
+
+    const finalQty = adjustData.isNegative ? -Math.abs(qty) : Math.abs(qty);
+
+    try {
+      await adjustStock({
+        quantity: finalQty,
+        reason: adjustData.reason,
+        unit: ingredient.base_unit || 'g'
+      });
+      setAdjustData({ quantity: '', reason: '', isNegative: true });
       setActiveTab('history');
     } catch (error) {
       // Error handled by hook
@@ -95,21 +137,21 @@ export function IngredientPurchaseModal({ ingredient, onClose }: IngredientPurch
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-slate-200 px-6">
+        <div className="flex border-b border-slate-200 px-6 overflow-x-auto">
           <button
             onClick={() => setActiveTab('history')}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-bold transition border-b-2 ${
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-bold transition border-b-2 whitespace-nowrap ${
               activeTab === 'history' 
                 ? 'border-amber-500 text-amber-600' 
                 : 'border-transparent text-slate-400 hover:text-slate-600'
             }`}
           >
             <History size={18} />
-            Histórico de Compras
+            Histórico
           </button>
           <button
             onClick={() => setActiveTab('new-purchase')}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-bold transition border-b-2 ${
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-bold transition border-b-2 whitespace-nowrap ${
               activeTab === 'new-purchase' 
                 ? 'border-amber-500 text-amber-600' 
                 : 'border-transparent text-slate-400 hover:text-slate-600'
@@ -118,11 +160,24 @@ export function IngredientPurchaseModal({ ingredient, onClose }: IngredientPurch
             <Plus size={18} />
             Nova Compra
           </button>
+          <button
+            onClick={() => setActiveTab('adjust')}
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-bold transition border-b-2 whitespace-nowrap ${
+              activeTab === 'adjust' 
+                ? 'border-orange-500 text-orange-600' 
+                : 'border-transparent text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            <ClipboardList size={18} />
+            Ajustar Estoque
+          </button>
         </div>
 
         {/* Content */}
         <div className="flex-1 overflow-hidden flex">
-          {activeTab === 'history' ? (
+
+          {/* ============ TAB: HISTÓRICO ============ */}
+          {activeTab === 'history' && (
             <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
               {loading ? (
                 <div className="h-full flex items-center justify-center text-slate-400">
@@ -144,48 +199,94 @@ export function IngredientPurchaseModal({ ingredient, onClose }: IngredientPurch
               ) : (
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {purchases.map((purchase) => (
-                      <div key={purchase.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm group hover:border-amber-300 transition-colors">
-                        <div className="flex justify-between items-start mb-3">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                            {format(parseISO(purchase.purchase_date), "dd 'de' MMMM, yyyy", { locale: ptBR })}
-                          </span>
-                          <div className="p-1.5 bg-slate-50 text-slate-400 rounded group-hover:bg-amber-50 group-hover:text-amber-500 transition">
-                            <TrendingUp size={14} />
-                          </div>
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2 text-slate-700">
-                            <Building2 size={14} className="text-slate-400" />
-                            <span className="font-bold text-sm truncate">{purchase.supplier}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-slate-600">
-                            <Tag size={14} className="text-slate-400" />
-                            <span className="text-sm">{purchase.brand}</span>
-                          </div>
-                        </div>
+                    {purchases.map((purchase) => {
+                      const isAdjustment = purchase.type === 'adjustment';
 
-                        <div className="mt-4 pt-4 border-t border-slate-50 flex justify-between items-end">
-                          <div>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase">Quantidade</p>
-                            <p className="text-sm font-black text-slate-700">{purchase.quantity} {purchase.unit}</p>
+                      return (
+                        <div 
+                          key={purchase.id} 
+                          className={`p-4 rounded-xl border shadow-sm group transition-colors ${
+                            isAdjustment 
+                              ? 'bg-orange-50 border-orange-200 hover:border-orange-400' 
+                              : 'bg-white border-slate-200 hover:border-amber-300'
+                          }`}
+                        >
+                          <div className="flex justify-between items-start mb-3">
+                            <div>
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
+                                {format(parseISO(purchase.purchase_date), "dd 'de' MMMM, yyyy", { locale: ptBR })}
+                              </span>
+                              {purchase.created_at && (
+                                <span className="text-[10px] text-slate-400 font-bold">
+                                  às {format(new Date(purchase.created_at), 'HH:mm')}
+                                </span>
+                              )}
+                            </div>
+                            {isAdjustment ? (
+                              <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-[10px] font-black uppercase">
+                                Ajuste
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-[10px] font-black uppercase">
+                                Compra
+                              </span>
+                            )}
                           </div>
-                          <div className="text-right">
-                            <p className="text-[10px] font-bold text-slate-400 uppercase">Preço Pago</p>
-                            <p className="text-lg font-black text-amber-600">{formatCurrency(purchase.price)}</p>
-                          </div>
+                          
+                          {isAdjustment ? (
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2 text-orange-700">
+                                <AlertTriangle size={14} className="text-orange-400" />
+                                <span className="font-bold text-sm">{purchase.reason || purchase.supplier}</span>
+                              </div>
+                              <div className="mt-4 pt-4 border-t border-orange-100">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase">Quantidade</p>
+                                <p className={`text-sm font-black ${purchase.quantity < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                                  {purchase.quantity > 0 ? '+' : ''}{purchase.quantity} {purchase.unit}
+                                </p>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2 text-slate-700">
+                                  <Building2 size={14} className="text-slate-400" />
+                                  <span className="font-bold text-sm truncate">{purchase.supplier}</span>
+                                </div>
+                                {purchase.brand && purchase.brand !== 'Sem marca' && (
+                                  <div className="flex items-center gap-2 text-slate-600">
+                                    <Tag size={14} className="text-slate-400" />
+                                    <span className="text-sm">{purchase.brand}</span>
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="mt-4 pt-4 border-t border-slate-50 flex justify-between items-end">
+                                <div>
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase">Quantidade</p>
+                                  <p className="text-sm font-black text-slate-700">{purchase.quantity} {purchase.unit}</p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase">Preço Pago</p>
+                                  <p className="text-lg font-black text-amber-600">{formatCurrency(purchase.price)}</p>
+                                </div>
+                              </div>
+                              <div className="mt-2 text-center">
+                                 <span className="text-[10px] text-slate-400 font-medium">Custo Unitário: {formatCurrency(purchase.price / purchase.quantity)} / {purchase.unit}</span>
+                              </div>
+                            </>
+                          )}
                         </div>
-                        <div className="mt-2 text-center">
-                           <span className="text-[10px] text-slate-400 font-medium">Custo Unitário: {formatCurrency(purchase.price / purchase.quantity)} / {purchase.unit}</span>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
             </div>
-          ) : (
+          )}
+
+          {/* ============ TAB: NOVA COMPRA ============ */}
+          {activeTab === 'new-purchase' && (
             <div className="flex-1 flex overflow-hidden lg:flex-row flex-col">
               {/* Form Side */}
               <div className="lg:w-1/2 p-6 border-r border-slate-100 overflow-y-auto bg-white">
@@ -197,7 +298,7 @@ export function IngredientPurchaseModal({ ingredient, onClose }: IngredientPurch
                   <div className="grid grid-cols-2 gap-4">
                     <div className="col-span-2">
                       <SmartCombobox
-                        label="Marca"
+                        label="Marca (Opcional)"
                         value={formData.brand}
                         options={brands}
                         onChange={(val) => setFormData({ ...formData, brand: val })}
@@ -209,7 +310,7 @@ export function IngredientPurchaseModal({ ingredient, onClose }: IngredientPurch
 
                     <div className="col-span-2">
                        <SmartCombobox
-                        label="Local de Compra (Fornecedor)"
+                        label="Local de Compra (Obrigatório)"
                         value={formData.supplier}
                         options={suppliers}
                         onChange={(val) => setFormData({ ...formData, supplier: val })}
@@ -334,6 +435,137 @@ export function IngredientPurchaseModal({ ingredient, onClose }: IngredientPurch
               </div>
             </div>
           )}
+
+          {/* ============ TAB: AJUSTAR ESTOQUE ============ */}
+          {activeTab === 'adjust' && (
+            <div className="flex-1 flex overflow-hidden lg:flex-row flex-col">
+              <div className="lg:w-1/2 p-6 border-r border-slate-100 overflow-y-auto bg-white">
+                <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
+                  <ClipboardList size={18} className="text-orange-500" /> Ajuste de Inventário
+                </h3>
+                
+                <form onSubmit={handleAdjustStock} className="space-y-5">
+                  {/* Tipo de Ajuste */}
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Tipo de Ajuste</label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setAdjustData({ ...adjustData, isNegative: true })}
+                        className={`flex-1 py-3 text-sm font-bold rounded-xl border-2 transition ${
+                          adjustData.isNegative 
+                            ? 'border-red-400 bg-red-50 text-red-700' 
+                            : 'border-slate-200 bg-white text-slate-400 hover:border-slate-300'
+                        }`}
+                      >
+                        ▼ Saída / Perda
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAdjustData({ ...adjustData, isNegative: false })}
+                        className={`flex-1 py-3 text-sm font-bold rounded-xl border-2 transition ${
+                          !adjustData.isNegative 
+                            ? 'border-emerald-400 bg-emerald-50 text-emerald-700' 
+                            : 'border-slate-200 bg-white text-slate-400 hover:border-slate-300'
+                        }`}
+                      >
+                        ▲ Entrada / Correção
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Quantidade */}
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">
+                      Quantidade ({ingredient.base_unit || 'g'})
+                    </label>
+                    <input
+                      type="number"
+                      step="0.001"
+                      required
+                      value={adjustData.quantity}
+                      onChange={e => setAdjustData({ ...adjustData, quantity: e.target.value })}
+                      className={`w-full px-4 py-3 border-2 rounded-xl font-black text-lg outline-none transition ${
+                        adjustData.isNegative 
+                          ? 'border-red-200 focus:border-red-400 text-red-700' 
+                          : 'border-emerald-200 focus:border-emerald-400 text-emerald-700'
+                      }`}
+                      placeholder="0.00"
+                    />
+                  </div>
+
+                  {/* Motivo */}
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Motivo</label>
+                    <div className="flex flex-wrap gap-2">
+                      {ADJUSTMENT_REASONS.map(reason => (
+                        <button
+                          key={reason}
+                          type="button"
+                          onClick={() => setAdjustData({ ...adjustData, reason })}
+                          className={`px-3 py-1.5 text-xs font-bold rounded-full border transition ${
+                            adjustData.reason === reason 
+                              ? 'bg-orange-500 text-white border-orange-500' 
+                              : 'bg-white text-slate-500 border-slate-200 hover:border-orange-300'
+                          }`}
+                        >
+                          {reason}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isAdjusting}
+                    className={`w-full font-bold py-3 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 mt-4 disabled:opacity-50 disabled:cursor-not-allowed ${
+                      adjustData.isNegative 
+                        ? 'bg-red-600 hover:bg-red-700 text-white' 
+                        : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                    }`}
+                  >
+                    {isAdjusting ? 'Processando...' : (
+                      <>
+                        <ClipboardList size={18} />
+                        Confirmar Ajuste
+                      </>
+                    )}
+                  </button>
+                </form>
+              </div>
+
+              {/* Info Side */}
+              <div className="lg:w-1/2 p-10 bg-slate-50 flex flex-col justify-center items-center text-center">
+                <div className="mb-6 p-4 bg-white rounded-2xl shadow-sm border border-slate-100 max-w-[300px] w-full">
+                   <p className="text-[10px] font-bold text-blue-400 uppercase mb-1 tracking-wider">Estoque Atual</p>
+                   <p className="text-3xl font-black text-blue-700">
+                     {ingredient.current_stock || 0}
+                     <span className="text-sm font-bold text-slate-400 ml-1">{ingredient.base_unit || 'g'}</span>
+                   </p>
+                   {adjustData.quantity && (
+                     <div className={`mt-3 pt-3 border-t text-sm font-bold ${adjustData.isNegative ? 'text-red-600 border-red-100' : 'text-emerald-600 border-emerald-100'}`}>
+                       {adjustData.isNegative ? '▼' : '▲'} {adjustData.isNegative ? '-' : '+'}{adjustData.quantity} {ingredient.base_unit || 'g'}
+                       <p className="text-xs text-slate-400 mt-1">
+                         Novo saldo: {Math.max(0, (ingredient.current_stock || 0) + (adjustData.isNegative ? -Math.abs(parseFloat(adjustData.quantity) || 0) : Math.abs(parseFloat(adjustData.quantity) || 0)))} {ingredient.base_unit || 'g'}
+                       </p>
+                     </div>
+                   )}
+                </div>
+                
+                <div className="max-w-[320px] space-y-4">
+                  <div className="flex gap-4 text-left p-4 bg-orange-50 rounded-xl border border-orange-100">
+                    <div className="text-orange-500 shrink-0">
+                      <AlertTriangle size={24} />
+                    </div>
+                    <p className="text-xs text-orange-700 leading-relaxed font-medium">
+                      Ajustes de inventário <strong>não alteram</strong> o custo unitário das suas receitas. Use para registrar perdas, vencimentos ou correções de contagem.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
     </div>
@@ -354,7 +586,7 @@ function Save(props: any) {
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v13a2 2 0 0 1-2 2z" />
+      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1-2-2h11l5 5v13a2 2 0 0 1-2 2z" />
       <polyline points="17 21 17 13 7 13 7 21" />
       <polyline points="7 3 7 8 15 8" />
     </svg>
