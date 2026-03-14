@@ -12,9 +12,11 @@ import {
   Loader2,
   AlertTriangle,
   Scale,
-  Barcode // Ícone novo
+  Barcode, // Ícone novo
+  History // Ícone para histórico
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { IngredientPurchaseModal } from './IngredientPurchaseModal';
 
 const formatCurrency = (value: number) => {
   if (!value || isNaN(value)) return 'R$ 0,00';
@@ -51,6 +53,11 @@ export function IngredientForm() {
 
   const [deleteConfirmation, setDeleteConfirmation] = useState<{ isOpen: boolean; id: string | null; name: string }>({
     isOpen: false, id: null, name: ''
+  });
+
+  const [purchaseModal, setPurchaseModal] = useState<{ isOpen: boolean; ingredient: Ingredient | null }>({
+    isOpen: false,
+    ingredient: null
   });
 
   // useEffect(() => { loadItems(); }, []); // REMOVED (Hook handles it)
@@ -162,6 +169,11 @@ export function IngredientForm() {
   const confirmDelete = (e: React.MouseEvent, item: Ingredient) => {
     e.stopPropagation();
     setDeleteConfirmation({ isOpen: true, id: item.id!, name: item.name });
+  };
+
+  const handleOpenPurchase = (e: React.MouseEvent, item: Ingredient) => {
+    e.stopPropagation();
+    setPurchaseModal({ isOpen: true, ingredient: item });
   };
 
   const executeDelete = async () => {
@@ -407,7 +419,14 @@ export function IngredientForm() {
                         {item.current_stock || 0} {item.base_unit}
                       </span>
                     </td>
-                    <td className="p-4 text-right whitespace-nowrap">
+                    <td className="p-4 text-right whitespace-nowrap flex justify-end gap-1">
+                      <button
+                        onClick={(e) => handleOpenPurchase(e, item)}
+                        className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-full transition relative z-10"
+                        title="Histórico de Compras"
+                      >
+                        <History size={16} />
+                      </button>
                       <button
                         onClick={(e) => confirmDelete(e, item)}
                         className="p-2 text-slate-300 hover:text-red-600 hover:bg-white rounded-full transition relative z-10"
@@ -434,6 +453,13 @@ export function IngredientForm() {
             </div>
           </div>
         </div>
+      )}
+
+      {purchaseModal.isOpen && purchaseModal.ingredient && (
+        <IngredientPurchaseModal
+          ingredient={purchaseModal.ingredient}
+          onClose={() => setPurchaseModal({ isOpen: false, ingredient: null })}
+        />
       )}
     </div>
   );

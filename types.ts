@@ -33,6 +33,18 @@ export interface MeasureConversion {
   value: number;
 }
 
+export interface IngredientPurchase {
+  id?: string;
+  ingredient_id: string;
+  brand: string;
+  supplier: string;
+  price: number;
+  quantity: number;
+  unit: string;
+  purchase_date: string;
+  created_at?: string;
+}
+
 export interface Ingredient {
   id?: string;
   name: string;
@@ -58,6 +70,9 @@ export interface Ingredient {
 
   // --- Outros ---
   conversions?: MeasureConversion[];
+  
+  // --- Relacionamentos (Opcional, preenchido via joins se necessário) ---
+  purchases?: IngredientPurchase[];
 }
 
 export interface Product {
